@@ -32,6 +32,13 @@ jobs:
       - name: Build Release APK
         run: ./gradlew assembleRelease
 
+      - name: Find APK
+        id: find_apk
+        run: |
+          APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          echo "apk_path=$APK" >> $GITHUB_OUTPUT
+          echo "Found APK: $APK"
+
       - name: Get version
         id: version
         run: |
@@ -43,7 +50,7 @@ jobs:
         with:
           name: v${{ steps.version.outputs.version }}
           tag_name: v${{ steps.version.outputs.version }}
-          files: app/build/outputs/apk/**/*.apk
+          files: ${{ steps.find_apk.outputs.apk_path }}
           draft: false
           generate_release_notes: true
         env:
