@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
                         onExtendedForecast = vm::setExtendedForecast,
                         onExtendedDays = vm::setExtendedDays,
                         onGetYesterday = vm::setGetYesterday,
+                        onAutoCheckUpdate = vm::setAutoCheckUpdate,
                         onUseGps = vm::setUseGps,
                         onCityBack = vm::closeCityPicker,
                         onProvinceClick = vm::loadCities,
@@ -73,7 +74,9 @@ class MainActivity : ComponentActivity() {
                         onUseCurrentLocation = vm::useCurrentLocation,
                         onOpenRainForecast = vm::openRainForecast,
                         onBackFromRainForecast = vm::closeRainForecast,
-                        onEnsureAllCities = vm::ensureAllCities
+                        onEnsureAllCities = vm::ensureAllCities,
+                        onConfirmUpdate = vm::confirmUpdate,
+                        onDismissUpdate = vm::dismissUpdate
                     )
                 }
             }
@@ -98,6 +101,7 @@ private fun AppScreen(
     onExtendedForecast: (Boolean) -> Unit,
     onExtendedDays: (Int) -> Unit,
     onGetYesterday: (Boolean) -> Unit,
+    onAutoCheckUpdate: (Boolean) -> Unit,
     onUseGps: (Boolean) -> Unit,
     onCityBack: () -> Unit,
     onProvinceClick: (String) -> Unit,
@@ -106,7 +110,9 @@ private fun AppScreen(
     onUseCurrentLocation: () -> Unit,
     onOpenRainForecast: () -> Unit,
     onBackFromRainForecast: () -> Unit,
-    onEnsureAllCities: () -> Unit
+    onEnsureAllCities: () -> Unit,
+    onConfirmUpdate: () -> Unit,
+    onDismissUpdate: () -> Unit
 ) {
     when (state.screen) {
         is Screen.Home -> HomeScreen(
@@ -114,7 +120,9 @@ private fun AppScreen(
             onSettings,
             onRefresh,
             onOpenCityPicker,
-            onOpenRainForecast
+            onOpenRainForecast,
+            onConfirmUpdate,
+            onDismissUpdate
         )
         is Screen.Settings -> SettingsScreen(
             settings = state.settings,
@@ -129,6 +137,7 @@ private fun AppScreen(
             onExtendedForecast = onExtendedForecast,
             onExtendedDays = onExtendedDays,
             onGetYesterday = onGetYesterday,
+            onAutoCheckUpdate = onAutoCheckUpdate,
             onUseGps = onUseGps,
             onOpenCityPicker = onOpenCityPicker
         )

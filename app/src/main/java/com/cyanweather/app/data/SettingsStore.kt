@@ -29,6 +29,7 @@ data class AppSettings(
     val extendedForecast: Boolean = false,
     val extendedDays: Int = 3,
     val getYesterday: Boolean = false,
+    val autoCheckUpdate: Boolean = true,
     val useGps: Boolean = true,
     val lat: Double = 116.4074,
     val lng: Double = 39.9042
@@ -52,6 +53,7 @@ object SettingsStore {
     private val KEY_EXTENDED = booleanPreferencesKey("extended_forecast")
     private val KEY_EXTENDED_DAYS = longPreferencesKey("extended_days")
     private val KEY_GET_YESTERDAY = booleanPreferencesKey("get_yesterday")
+    private val KEY_AUTO_UPDATE = booleanPreferencesKey("auto_check_update")
     private val KEY_GPS = booleanPreferencesKey("use_gps")
     private val KEY_LAT = doublePreferencesKey("lat")
     private val KEY_LNG = doublePreferencesKey("lng")
@@ -75,6 +77,7 @@ object SettingsStore {
             extendedForecast = p[KEY_EXTENDED] ?: false,
             extendedDays = (p[KEY_EXTENDED_DAYS] ?: 3).toInt(),
             getYesterday = p[KEY_GET_YESTERDAY] ?: false,
+            autoCheckUpdate = p[KEY_AUTO_UPDATE] ?: true,
             useGps = p[KEY_GPS] ?: true,
             lat = p[KEY_LAT] ?: 116.4074,
             lng = p[KEY_LNG] ?: 39.9042
@@ -113,6 +116,9 @@ object SettingsStore {
 
     suspend fun setGetYesterday(context: Context, v: Boolean) =
         context.dataStore.edit { it[KEY_GET_YESTERDAY] = v }
+
+    suspend fun setAutoCheckUpdate(context: Context, v: Boolean) =
+        context.dataStore.edit { it[KEY_AUTO_UPDATE] = v }
 
     suspend fun setUseGps(context: Context, v: Boolean) = context.dataStore.edit { it[KEY_GPS] = v }
 

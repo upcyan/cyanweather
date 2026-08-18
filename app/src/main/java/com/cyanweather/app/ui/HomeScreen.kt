@@ -53,6 +53,7 @@ import com.cyanweather.app.model.DailyItem
 import com.cyanweather.app.model.HourlyItem
 import com.cyanweather.app.model.WeatherData
 import com.cyanweather.app.model.YesterdayData
+import com.cyanweather.app.update.UpdateResult
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -64,7 +65,9 @@ fun HomeScreen(
     onSettings: () -> Unit,
     onRefresh: () -> Unit,
     onOpenCityPicker: () -> Unit,
-    onOpenRainForecast: () -> Unit
+    onOpenRainForecast: () -> Unit,
+    onConfirmUpdate: () -> Unit,
+    onDismissUpdate: () -> Unit
 ) {
     val weather = state.weather
     Column(
@@ -104,6 +107,11 @@ fun HomeScreen(
             }
         }
         Spacer(Modifier.height(24.dp))
+    }
+
+    val update = state.updateResult
+    if (update is UpdateResult.UpdateAvailable) {
+        UpdateDialog(result = update, onConfirm = onConfirmUpdate, onDismiss = onDismissUpdate)
     }
 }
 

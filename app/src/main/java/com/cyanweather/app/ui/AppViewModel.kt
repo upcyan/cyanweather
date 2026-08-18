@@ -15,6 +15,8 @@ import com.cyanweather.app.data.WeatherRepository
 import com.cyanweather.app.location.LocationHelper
 import com.cyanweather.app.model.NmcCityItem
 import com.cyanweather.app.model.NmcProvinceItem
+import com.cyanweather.app.update.UpdateChecker
+import com.cyanweather.app.update.UpdateResult
 import com.cyanweather.app.model.WeatherData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -40,7 +42,10 @@ data class UiState(
     val allCitiesLoading: Boolean = false,
     val provinceLoading: Boolean = false,
     val cityLoading: Boolean = false,
-    val selectedProvince: String? = null
+    val selectedProvince: String? = null,
+    val updateResult: UpdateResult? = null,
+    val updateDownloading: Boolean = false,
+    val updateDownloadId: Long? = null
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -71,6 +76,55 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         refresh()
         startAutoRefresh()
         observeLifecycle()
+        if (ui.settings.autoCheckUpdate) checkUpdate()
+    }
+
+    private fun checkUpdate() {
+        viewModelScope.launch {
+            val result = UpdateChecker.checkForUpdate(context)
+            if (result is UpdateResult.UpdateAvailable) {
+                ui = ui.copy(updateResult = result)
+            }
+        }
+    }
+
+    fun dismissUpdate() {
+        ui = ui.copy(updateResult = null)
+    }
+
+    fun confirmUpdate() {
+        val update = ui.updateResult as? UpdateResult.UpdateAvailable ?: return
+        ui = ui.copy(updateResult = null)
+        viewModelScope.launch {
+            val url = update.downloadUrl
+            if (url.isBlank()) return@launch
+            val fileName = "cyanweather-v${update.version}.apk"
+            val downloadId = com.cyanweather.app.update.UpdateChecker.downloadAndInstall(context, url, fileName)
+            ui = ui.copy(updateDownloading = true, updateDownloadId = downloadId)
+        }
+    }
+
+    fun checkDownloadComplete() {
+        val id = ui.updateDownloadId ?: return
+        val dm = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+        val query = android.app.DownloadManager.Query().setFilterById(id)
+        val cursor = dm.query(query)
+        cursor?.use { c ->
+            if (c.moveToFirst()) {
+                val statusIdx = c.getColumnIndex(android.app.DownloadManager.COLUMN_STATUS)
+                if (statusIdx >= 0) {
+                    val status = c.getInt(statusIdx)
+                    if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
+                        val version = (ui.updateResult as? UpdateResult.UpdateAvailable)?.version ?: ""
+                        val fileUri = com.cyanweather.app.update.UpdateChecker.getApkFileUri(context, "cyanweather-v${version}.apk")
+                        com.cyanweather.app.update.UpdateChecker.installApk(context, fileUri)
+                        ui = ui.copy(updateDownloading = false, updateDownloadId = null)
+                    } else if (status == android.app.DownloadManager.STATUS_FAILED) {
+                        ui = ui.copy(updateDownloading = false, updateDownloadId = null)
+                    }
+                }
+            }
+        }
     }
 
     private fun observeLifecycle() {
@@ -139,6 +193,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setExtendedDays(v: Int) = launchEdit { settingsStore.setExtendedDays(context, v) }
 
     fun setGetYesterday(v: Boolean) = launchEdit { settingsStore.setGetYesterday(context, v) }
+
+    fun setAutoCheckUpdate(v: Boolean) = launchEdit { settingsStore.setAutoCheckUpdate(context, v) }
 
     fun setUseGps(v: Boolean) = launchEdit { settingsStore.setUseGps(context, v) }
 

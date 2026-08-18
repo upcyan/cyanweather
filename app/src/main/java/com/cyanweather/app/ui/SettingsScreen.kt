@@ -56,6 +56,7 @@ fun SettingsScreen(
     onExtendedForecast: (Boolean) -> Unit,
     onExtendedDays: (Int) -> Unit,
     onGetYesterday: (Boolean) -> Unit,
+    onAutoCheckUpdate: (Boolean) -> Unit,
     onUseGps: (Boolean) -> Unit,
     onOpenCityPicker: () -> Unit
 ) {
@@ -132,7 +133,7 @@ fun SettingsScreen(
             SettingCard {
                 SwitchRow(
                     "扩展多日预报",
-                    "免费版单次最多3天，多次请求叠加更多日期",
+                    "彩云天气免费版单次最多请求3天数据，多次请求叠加更多日期",
                     settings.extendedForecast,
                     onExtendedForecast
                 )
@@ -184,7 +185,7 @@ fun SettingsScreen(
             Text("字体大小", style = fst(24), fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             RadioRow("标准", "", settings.fontSize == "standard", onFont, "standard")
-            RadioRow("大", "推荐", settings.fontSize == "large", onFont, "large")
+            RadioRow("大", "", settings.fontSize == "large", onFont, "large", badge = "推荐")
             RadioRow("特大", "", settings.fontSize == "xlarge", onFont, "xlarge")
         }
 
@@ -205,6 +206,11 @@ fun SettingsScreen(
             RadioRow("每 6 小时", "", settings.refreshInterval == "360", onRefreshInterval, "360")
             RadioRow("每 12 小时", "", settings.refreshInterval == "720", onRefreshInterval, "720")
             RadioRow("每 24 小时", "", settings.refreshInterval == "1440", onRefreshInterval, "1440")
+        }
+
+        // 检查更新
+        SettingCard {
+            SwitchRow("自动检查更新", "进入App时检查GitHub是否有新版本", settings.autoCheckUpdate, onAutoCheckUpdate)
         }
 
         // 关于
