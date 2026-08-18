@@ -4,17 +4,29 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group
-        android:scaleX="0.5"
-        android:scaleY="0.5"
-        android:pivotX="54"
-        android:pivotY="54">
-        <path
-            android:fillColor="#FFB84C"
-            android:pathData="M54,30 A24,24 0 1,1 54,78 A24,24 0 1,1 54,30 Z" />
-        <path
-            android:strokeColor="#FFD97C"
-            android:strokeWidth="3"
-            android:pathData="M54,12 L54,20 M54,88 L54,96 M12,54 L20,54 M88,54 L96,54 M24,24 L30,30 M78,78 L84,84 M84,24 L78,30 M30,78 L24,84" />
-    </group>
+
+    <!-- 太阳（左上） -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M30,20 A10,10 0 1 1 30,40 A10,10 0 1 1 30,20 Z" />
+    <!-- 太阳光芒 -->
+    <path
+        android:strokeColor="#FFC107"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M30,8 L30,14 M30,46 L30,52 M18,30 L14,30 M42,30 L46,30 M21.5,21.5 L18,18 M42,42 L38.5,38.5 M38.5,21.5 L42,18 M21.5,42 L18,38.5" />
+
+    <!-- 云朵（右下） -->
+    <path
+        android:fillColor="#78909C"
+        android:pathData="M48,48 A10,10 0 1 1 48,68 A10,10 0 1 1 48,48 Z" />
+    <path
+        android:fillColor="#78909C"
+        android:pathData="M58,40 A12,12 0 1 1 58,64 A12,12 0 1 1 58,40 Z" />
+    <path
+        android:fillColor="#78909C"
+        android:pathData="M68,48 A10,10 0 1 1 68,68 A10,10 0 1 1 68,48 Z" />
+    <path
+        android:fillColor="#78909C"
+        android:pathData="M40,58 L76,58 A7,7 0 0 1 76,72 L40,72 A7,7 0 0 1 40,58 Z" />
 </vector>

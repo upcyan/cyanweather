@@ -114,7 +114,8 @@ class WeatherRepository(
         val (lat, lng) = currentLatLng(settings)
         val resp = CaiyunApi.getWeatherV1(token, lat, lng)
         if (resp.status != "ok") throw RuntimeException("彩云接口返回异常，请检查 Token")
-        return parseCaiyun(resp)
+        val name = resolveCaiyunCityName(settings, lat, lng)
+        return parseCaiyun(resp, name)
     }
 
     private suspend fun loadCaiyunV3(settings: AppSettings): WeatherData {
@@ -123,7 +124,19 @@ class WeatherRepository(
         val (lat, lng) = currentLatLng(settings)
         val resp = CaiyunApi.getWeatherV3(key, secret, lat, lng)
         if (resp.status != "ok") throw RuntimeException("彩云接口返回异常，请检查 AppKey / AppSecret")
-        return parseCaiyun(resp)
+        val name = resolveCaiyunCityName(settings, lat, lng)
+        return parseCaiyun(resp, name)
+    }
+
+    private suspend fun resolveCaiyunCityName(settings: AppSettings, lat: Double, lng: Double): String {
+        if (settings.manualCity) return settings.cityName
+        return try {
+            val geo = OpenMeteoApi.reverseGeocode(lat, lng)
+            val name = geo?.let { simp(it.city).stripAdmin() + simp(it.locality).stripAdmin() } ?: ""
+            name.ifBlank { settings.cityName }
+        } catch (_: Exception) {
+            settings.cityName
+        }
     }
 
     // ---------- Open-Meteo ----------

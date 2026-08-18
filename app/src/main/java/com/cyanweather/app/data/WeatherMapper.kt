@@ -352,18 +352,13 @@ fun parseNmc(data: NmcData?, cityName: String): WeatherData {
 
 // ---------- 解析彩云天气数据 ----------
 
-fun parseCaiyun(w: CaiyunWeather): WeatherData {
+fun parseCaiyun(w: CaiyunWeather, cityName: String): WeatherData {
     val result = w.result ?: throw RuntimeException("彩云天气无数据")
     val rt = result.realtime
     val hourly = result.hourly
     val daily = result.daily
 
     if (rt == null) throw RuntimeException("彩云天气无实时数据")
-
-    val cityName = result.location.getOrNull(1)?.takeIf { it.isNotBlank() }
-        ?: result.location.getOrNull(0)
-        ?: result.location.lastOrNull()
-        ?: ""
 
     // 逐小时预报（未来）
     val hourlyList = buildHourlyList(hourly)
@@ -387,7 +382,7 @@ fun parseCaiyun(w: CaiyunWeather): WeatherData {
     val aqi = rt.airQuality?.aqi?.chn?.clean()?.toInt()
 
     return WeatherData(
-        cityName = cityName,
+        cityName = cityName.ifBlank { "当前位置" },
         updatedAt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date()),
         temperature = rt.temperature?.clean(),
         condition = caiyunSkyconText(rt.skycon),
@@ -434,8 +429,9 @@ private fun buildDailyList(daily: CaiyunDaily?): List<DailyItem> {
     val skys = daily.skycon.associateBy { it.date }
     return daily.temperature.map { t ->
         val sky = skys[t.date]
+        val dateStr = if (t.date.contains("T")) t.date.substring(0, 10) else t.date
         DailyItem(
-            date = t.date,
+            date = dateStr,
             dayText = caiyunSkyconText(skyconTextOf(sky?.value)),
             nightText = "",
             high = t.max?.clean(),
