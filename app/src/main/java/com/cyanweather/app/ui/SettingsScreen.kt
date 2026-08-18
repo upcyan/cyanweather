@@ -126,6 +126,34 @@ fun SettingsScreen(
             }
         }
 
+        // 扩展多日预报（仅彩云天气凭证已填写时）
+        if (settings.source == "caiyun" && settings.caiyunMode == "v1" && settings.caiyunToken.isNotBlank() ||
+            settings.source == "caiyun" && settings.caiyunMode == "v3" && settings.caiyunV3Key.isNotBlank()) {
+            SettingCard {
+                SwitchRow(
+                    "扩展多日预报",
+                    "免费版单次最多3天，多次请求叠加更多日期",
+                    settings.extendedForecast,
+                    onExtendedForecast
+                )
+                if (settings.extendedForecast) {
+                    Spacer(Modifier.height(6.dp))
+                    SwitchRow("获取昨日天气", "开启后从昨天开始获取，昨日计入总天数", settings.getYesterday, onGetYesterday)
+                    Spacer(Modifier.height(6.dp))
+                    val days = settings.extendedDays
+                    val totalDays = days + if (settings.getYesterday) 1 else 0
+                    val requests = (days + 2) / 3 + if (settings.getYesterday) 1 else 0
+                    Text("总获取天数：${totalDays}天，共需 ${requests} 次请求", style = fst(18), color = Color(0xFF666666))
+                    Spacer(Modifier.height(6.dp))
+                    RadioRow("3天", "", days == 3, { it.toIntOrNull()?.let(onExtendedDays) }, "3")
+                    RadioRow("5天", "", days == 5, { it.toIntOrNull()?.let(onExtendedDays) }, "5")
+                    RadioRow("7天", "", days == 7, { it.toIntOrNull()?.let(onExtendedDays) }, "7")
+                    RadioRow("10天", "", days == 10, { it.toIntOrNull()?.let(onExtendedDays) }, "10")
+                    RadioRow("15天", "", days == 15, { it.toIntOrNull()?.let(onExtendedDays) }, "15")
+                }
+            }
+        }
+
         // 城市
         SettingCard {
             Text("城市", style = fst(24), fontWeight = FontWeight.Bold)
@@ -177,33 +205,6 @@ fun SettingsScreen(
             RadioRow("每 6 小时", "", settings.refreshInterval == "360", onRefreshInterval, "360")
             RadioRow("每 12 小时", "", settings.refreshInterval == "720", onRefreshInterval, "720")
             RadioRow("每 24 小时", "", settings.refreshInterval == "1440", onRefreshInterval, "1440")
-        }
-
-        // 扩展多日预报（仅彩云天气）
-        if (settings.source == "caiyun" && settings.caiyunMode == "v1" && settings.caiyunToken.isNotBlank() ||
-            settings.source == "caiyun" && settings.caiyunMode == "v3" && settings.caiyunV3Key.isNotBlank()) {
-            SettingCard {
-                SwitchRow(
-                    "扩展多日预报",
-                    "免费版单次最多3天，多次请求叠加更多日期",
-                    settings.extendedForecast,
-                    onExtendedForecast
-                )
-                if (settings.extendedForecast) {
-                    Spacer(Modifier.height(6.dp))
-                    SwitchRow("获取昨日天气", "开启后从昨天开始获取，昨日计入总天数", settings.getYesterday, onGetYesterday)
-                    Spacer(Modifier.height(6.dp))
-                    val days = settings.extendedDays
-                    val requests = (days + 2) / 3 + if (settings.getYesterday) 1 else 0
-                    Text("预报天数：${days}天，共需 ${requests} 次请求", style = fst(18), color = Color(0xFF666666))
-                    Spacer(Modifier.height(6.dp))
-                    RadioRow("3天", "", days == 3, { it.toIntOrNull()?.let(onExtendedDays) }, "3")
-                    RadioRow("5天", "", days == 5, { it.toIntOrNull()?.let(onExtendedDays) }, "5")
-                    RadioRow("7天", "", days == 7, { it.toIntOrNull()?.let(onExtendedDays) }, "7")
-                    RadioRow("10天", "", days == 10, { it.toIntOrNull()?.let(onExtendedDays) }, "10")
-                    RadioRow("15天", "", days == 15, { it.toIntOrNull()?.let(onExtendedDays) }, "15")
-                }
-            }
         }
 
         // 关于
