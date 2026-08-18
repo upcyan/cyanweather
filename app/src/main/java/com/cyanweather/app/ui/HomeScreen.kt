@@ -521,13 +521,15 @@ private fun combineDayNight(day: String, night: String): String = when {
 
 private fun dayLabel(date: String): String {
     return try {
-        val d = LocalDate.parse(date.replace("/", "-"))
+        val clean = if (date.contains("T")) date.substring(0, 10) else date
+        val d = LocalDate.parse(clean.replace("/", "-"))
         val today = LocalDate.now()
+        val weekday = d.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.CHINA)
         when (d) {
-            today -> "今天"
-            today.plusDays(1) -> "明天"
-            today.plusDays(2) -> "后天"
-            else -> "${d.monthValue}月${d.dayOfMonth}日 ${d.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.CHINA)}"
+            today -> "今天 ${d.monthValue}月${d.dayOfMonth}日 $weekday"
+            today.plusDays(1) -> "明天 ${d.monthValue}月${d.dayOfMonth}日 $weekday"
+            today.plusDays(2) -> "后天 ${d.monthValue}月${d.dayOfMonth}日 $weekday"
+            else -> "${d.monthValue}月${d.dayOfMonth}日 $weekday"
         }
     } catch (e: Exception) {
         date

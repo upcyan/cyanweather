@@ -23,7 +23,7 @@ object CaiyunApi {
             "hourlysteps" to "48"
         ).entries.joinToString("&") { "${it.key}=${it.value}" }
         val stringToSign = "GET:$path:$query:$key:$nonce:$timestamp"
-        val signature = hmacSha256Base64(stringToSign, secret)
+        val signature = hmacSha256Base64Url(stringToSign, secret)
         val url = "$BASE$path?$query"
         val body = Net.get(url, mapOf(
             "x-cy-nonce" to nonce,
@@ -33,10 +33,10 @@ object CaiyunApi {
         return Net.json.decodeFromString(body)
     }
 
-    private fun hmacSha256Base64(data: String, secret: String): String {
+    private fun hmacSha256Base64Url(data: String, secret: String): String {
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(secret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
         val digest = mac.doFinal(data.toByteArray(Charsets.UTF_8))
-        return Base64.encodeToString(digest, Base64.NO_WRAP)
+        return Base64.encodeToString(digest, Base64.URL_SAFE or Base64.NO_WRAP)
     }
 }

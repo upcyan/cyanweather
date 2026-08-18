@@ -281,7 +281,9 @@ data class CaiyunAstroItem(
 
 @Serializable
 data class CaiyunMinutely(
-    @SerialName("description") val description: String = ""
+    @SerialName("description") val description: String = "",
+    @SerialName("precipitation_2h") val precipitation2h: List<Double?> = emptyList(),
+    @SerialName("precipitation_1h") val precipitation1h: List<Double?> = emptyList()
 )
 
 fun skyconTextOf(el: JsonElement?): String {
