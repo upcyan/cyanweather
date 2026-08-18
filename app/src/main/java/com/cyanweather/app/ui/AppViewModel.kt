@@ -5,6 +5,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.cyanweather.app.data.AppSettings
 import com.cyanweather.app.data.SettingsStore
@@ -50,6 +53,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var ui by mutableStateOf(UiState())
         private set
 
+    private var lastPauseTime = 0L
+
     init {
         viewModelScope.launch {
             settingsStore.flow(context).collect { s ->
@@ -65,6 +70,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         refresh()
         startAutoRefresh()
+        observeLifecycle()
+    }
+
+    private fun observeLifecycle() {
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onPause(owner: LifecycleOwner) {
+                lastPauseTime = System.currentTimeMillis()
+            }
+            override fun onResume(owner: LifecycleOwner) {
+                if (ui.settings.refreshInterval == "on_resume") {
+                    val elapsed = System.currentTimeMillis() - lastPauseTime
+                    if (lastPauseTime == 0L || elapsed > 30_000) {
+                        refresh()
+                    }
+                }
+            }
+        })
     }
 
     fun fontScaleOf(): Float = ui.fontScale

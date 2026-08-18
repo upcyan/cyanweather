@@ -2,6 +2,7 @@ package com.cyanweather.app.data
 
 import android.util.Base64
 import com.cyanweather.app.model.CaiyunWeather
+import java.net.URLEncoder
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -18,12 +19,15 @@ object CaiyunApi {
         val signPath = "/v2.6$urlPath"
         val nonce = java.util.UUID.randomUUID().toString()
         val timestamp = (System.currentTimeMillis() / 1000).toString()
-        val query = linkedMapOf(
+        val params = linkedMapOf(
             "alert" to "true",
-            "dailysteps" to "4",
+            "dailysteps" to "3",
             "dailystart" to "-1",
             "hourlysteps" to "48"
-        ).entries.joinToString("&") { "${it.key}=${it.value}" }
+        )
+        val query = params.entries.joinToString("&") {
+            "${URLEncoder.encode(it.key, "UTF-8")}=${URLEncoder.encode(it.value, "UTF-8")}"
+        }
         val stringToSign = "GET:$signPath:$query:$key:$nonce:$timestamp"
         val signature = hmacSha256Base64Url(stringToSign, secret)
         val url = "$BASE$urlPath?$query"
