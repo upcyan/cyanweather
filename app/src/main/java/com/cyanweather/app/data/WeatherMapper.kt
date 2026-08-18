@@ -363,7 +363,30 @@ fun parseCaiyun(w: CaiyunWeather, cityName: String): WeatherData {
     // 逐小时预报（未来）
     val hourlyList = buildHourlyList(hourly)
 
-    val dailyList = buildDailyList(daily)
+    val allDaily = buildDailyList(daily)
+
+    // 提取昨日数据（dailystart=-1 时第一项为昨天）
+    val yesterday: YesterdayData?
+    val today = java.time.LocalDate.now()
+    val firstDate = allDaily.firstOrNull()?.date?.let {
+        try { java.time.LocalDate.parse(if (it.contains("T")) it.substring(0, 10) else it.replace("/", "-")) } catch (_: Exception) { null }
+    }
+    if (firstDate != null && firstDate.isBefore(today)) {
+        val y = allDaily.first()
+        yesterday = YesterdayData(
+            high = y.high,
+            low = y.low,
+            hourly = emptyList()
+        )
+    } else {
+        yesterday = null
+    }
+
+    // dailyList 只保留今天及以后
+    val dailyList = allDaily.filter {
+        val d = try { java.time.LocalDate.parse(if (it.date.contains("T")) it.date.substring(0, 10) else it.date.replace("/", "-")) } catch (_: Exception) { null }
+        d == null || !d.isBefore(today)
+    }
 
     val todayHigh = dailyList.firstOrNull()?.high
     val todayLow = dailyList.firstOrNull()?.low
@@ -402,7 +425,7 @@ fun parseCaiyun(w: CaiyunWeather, cityName: String): WeatherData {
         hourly = hourlyList,
         hourlyLabel = "未来48小时逐时预报",
         daily = dailyList,
-        yesterday = null,
+        yesterday = yesterday,
         savedAt = System.currentTimeMillis()
     )
 }

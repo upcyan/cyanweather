@@ -20,7 +20,8 @@ object CaiyunApi {
         val timestamp = (System.currentTimeMillis() / 1000).toString()
         val query = linkedMapOf(
             "alert" to "true",
-            "dailysteps" to "3",
+            "dailysteps" to "4",
+            "dailystart" to "-1",
             "hourlysteps" to "48"
         ).entries.joinToString("&") { "${it.key}=${it.value}" }
         val stringToSign = "GET:$signPath:$query:$key:$nonce:$timestamp"
