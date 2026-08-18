@@ -36,9 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.cyanweather.app.data.AdminHierarchy
-import com.cyanweather.app.model.NmcCityItem
-import com.cyanweather.app.model.NmcProvinceItem
+import com.cyanweather.shared.data.AdminHierarchy
+import com.cyanweather.shared.model.NmcCityItem
+import com.cyanweather.shared.model.NmcProvinceItem
 
 @Composable
 fun CityPickerScreen(

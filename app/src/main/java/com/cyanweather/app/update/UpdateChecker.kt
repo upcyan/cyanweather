@@ -34,7 +34,7 @@ object UpdateChecker {
     suspend fun checkForUpdate(context: Context): UpdateResult = withContext(Dispatchers.IO) {
         try {
             val json = Json { ignoreUnknownKeys = true }
-            val client = com.cyanweather.app.data.Net.client
+            val client = com.cyanweather.shared.data.Net.client
             val request = okhttp3.Request.Builder()
                 .url(RELEASES_URL)
                 .header("Accept", "application/vnd.github.v3+json")

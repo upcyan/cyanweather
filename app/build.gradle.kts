@@ -7,12 +7,13 @@ plugins {
 
 android {
     namespace = "com.cyanweather.app"
-    compileSdk = 34
+    compileSdk = 36
+    buildToolsVersion = "36.0.0"
 
     defaultConfig {
         applicationId = "com.cyanweather.app"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
     }
@@ -37,6 +38,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":shared"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.0")
 
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
@@ -52,6 +54,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-process:2.8.6")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 }

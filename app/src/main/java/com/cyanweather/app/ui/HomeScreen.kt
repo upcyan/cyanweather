@@ -46,13 +46,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.cyanweather.app.data.SkyKind
-import com.cyanweather.app.data.caiyunSkyconKind
-import com.cyanweather.app.data.nmcSkyconKind
-import com.cyanweather.app.model.DailyItem
-import com.cyanweather.app.model.HourlyItem
-import com.cyanweather.app.model.WeatherData
-import com.cyanweather.app.model.YesterdayData
+import com.cyanweather.shared.data.SkyKind
+import com.cyanweather.shared.data.caiyunSkyconKind
+import com.cyanweather.shared.data.nmcSkyconKind
+import com.cyanweather.shared.model.DailyItem
+import com.cyanweather.shared.model.HourlyItem
+import com.cyanweather.shared.model.WeatherData
+import com.cyanweather.shared.model.YesterdayData
 import com.cyanweather.app.update.UpdateResult
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -182,16 +182,16 @@ private fun WeatherBody(weather: WeatherData, error: String?, onRefresh: () -> U
         }
     }
 
-    // 降雨提醒（可点击进入降雨趋势预报）
+    // 降雨提醒（可点击进入降雨趋势预报）- 气象局数据源不支持
     val rainTip = remember(weather) { buildRainReminder(weather) }
-    rainTip?.let {
+    if (rainTip != null && !weather.sourceTag.contains("中央气象台")) {
         Card(
             onClick = onOpenRainForecast,
             colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)),
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
         ) {
             Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                Text("🌂 $it", style = fst(22))
+                Text("🌂 $rainTip", style = fst(22))
                 Spacer(Modifier.height(6.dp))
                 Text("查看降雨趋势 ›", style = fst(18), color = Color(0xFF0B6BCB))
             }
@@ -286,9 +286,10 @@ private fun WeatherBody(weather: WeatherData, error: String?, onRefresh: () -> U
     }
 
     // 昨日天气（移到最下面）
-    if (weather.yesterday != null) {
+    val yesterday = weather.yesterday
+    if (yesterday != null) {
         SectionTitle("昨日天气")
-        YesterdayCard(weather.yesterday)
+        YesterdayCard(yesterday)
     } else if (weather.sourceTag.contains("彩云")) {
         SectionTitle("昨日天气")
         Card(
@@ -481,8 +482,16 @@ private fun HourCard(item: HourlyItem) {
 
 private fun hourLabel(time: String): String {
     return when {
-        time.contains("T") && time.length >= 13 -> "${time.substring(11, 13).toIntOrNull() ?: "?"}时"
-        time.contains(" ") && time.length >= 16 -> "${time.substring(11, 13).toIntOrNull() ?: "?"}时"
+        time.contains("T") && time.length >= 13 -> {
+            val datePart = time.substring(5, 10).replace("-", "/")
+            val hour = time.substring(11, 13).toIntOrNull() ?: "?"
+            "${datePart} ${hour}时"
+        }
+        time.contains(" ") && time.length >= 16 -> {
+            val datePart = time.substring(5, 10).replace("-", "/")
+            val hour = time.substring(11, 13).toIntOrNull() ?: "?"
+            "${datePart} ${hour}时"
+        }
         else -> time
     }
 }

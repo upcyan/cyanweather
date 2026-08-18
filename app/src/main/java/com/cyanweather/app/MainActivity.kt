@@ -76,7 +76,8 @@ class MainActivity : ComponentActivity() {
                         onBackFromRainForecast = vm::closeRainForecast,
                         onEnsureAllCities = vm::ensureAllCities,
                         onConfirmUpdate = vm::confirmUpdate,
-                        onDismissUpdate = vm::dismissUpdate
+                        onDismissUpdate = vm::dismissUpdate,
+                        onManualCheckUpdate = vm::manualCheckUpdate
                     )
                 }
             }
@@ -112,7 +113,8 @@ private fun AppScreen(
     onBackFromRainForecast: () -> Unit,
     onEnsureAllCities: () -> Unit,
     onConfirmUpdate: () -> Unit,
-    onDismissUpdate: () -> Unit
+    onDismissUpdate: () -> Unit,
+    onManualCheckUpdate: () -> Unit
 ) {
     when (state.screen) {
         is Screen.Home -> HomeScreen(
@@ -139,7 +141,8 @@ private fun AppScreen(
             onGetYesterday = onGetYesterday,
             onAutoCheckUpdate = onAutoCheckUpdate,
             onUseGps = onUseGps,
-            onOpenCityPicker = onOpenCityPicker
+            onOpenCityPicker = onOpenCityPicker,
+            onManualCheckUpdate = onManualCheckUpdate
         )
         is Screen.CityPicker -> CityPickerScreen(
             provinces = state.provinces,

@@ -13,11 +13,11 @@ import com.cyanweather.app.data.AppSettings
 import com.cyanweather.app.data.SettingsStore
 import com.cyanweather.app.data.WeatherRepository
 import com.cyanweather.app.location.LocationHelper
-import com.cyanweather.app.model.NmcCityItem
-import com.cyanweather.app.model.NmcProvinceItem
+import com.cyanweather.shared.model.NmcCityItem
+import com.cyanweather.shared.model.NmcProvinceItem
 import com.cyanweather.app.update.UpdateChecker
 import com.cyanweather.app.update.UpdateResult
-import com.cyanweather.app.model.WeatherData
+import com.cyanweather.shared.model.WeatherData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -88,6 +88,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun manualCheckUpdate() {
+        viewModelScope.launch {
+            val result = UpdateChecker.checkForUpdate(context)
+            if (result is UpdateResult.UpdateAvailable) {
+                ui = ui.copy(updateResult = result)
+            }
+        }
+    }
+
     fun dismissUpdate() {
         ui = ui.copy(updateResult = null)
     }
@@ -149,6 +158,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             ui = ui.copy(refreshing = true, error = null, loading = ui.weather == null)
             try {
+                // If GPS enabled, get fresh location first
+                if (ui.settings.useGps && locationHelper.hasPermission()) {
+                    val loc = locationHelper.requestFreshLocation()
+                    if (loc != null) {
+                        settingsStore.setLatLng(context, loc.latitude, loc.longitude)
+                    }
+                }
                 val w = repository.loadWeather()
                 settingsStore.saveCache(context, w)
                 ui = ui.copy(weather = w, loading = false, refreshing = false)
@@ -201,8 +217,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun saveLatLng(lat: Double, lng: Double) = launchEdit { settingsStore.setLatLng(context, lat, lng) }
 
     fun saveCurrentLocation() {
-        val loc = locationHelper.getBestLocation() ?: return
-        saveLatLng(loc.latitude, loc.longitude)
+        viewModelScope.launch {
+            val loc = locationHelper.requestFreshLocation() ?: return@launch
+            settingsStore.setLatLng(context, loc.latitude, loc.longitude)
+        }
     }
 
     fun selectCity(name: String, code: String) {

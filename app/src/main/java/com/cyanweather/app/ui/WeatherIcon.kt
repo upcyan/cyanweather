@@ -10,7 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import com.cyanweather.app.data.SkyKind
+import com.cyanweather.shared.data.SkyKind
 import kotlin.math.cos
 import kotlin.math.sin
 

@@ -9,5 +9,23 @@ build/
 .cxx
 build.log
 wrapper.log
-*.png
 *.apk
+
+# HarmonyOS
+harmony/oh_modules/
+harmony/.hvigor/
+harmony/.idea/
+harmony/local.properties
+harmony/.npmrc
+harmony/package-lock.json
+harmony/oh-package-lock.json
+harmony/temp_*.kt
+harmony/temp_*.ets
+harmony/merge.ps1
+harmony/truncate.ps1
+harmony/append_build.ps1
+harmony/build_part.txt
+harmony/temp_build_part1.ets
+
+# Kotlin
+.kotlin/

@@ -1,26 +1,22 @@
-package com.cyanweather.app.data
+package com.cyanweather.shared.data
 
-import com.cyanweather.app.model.CaiyunDaily
-import com.cyanweather.app.model.CaiyunHourly
-import com.cyanweather.app.model.CaiyunRealtime
-import com.cyanweather.app.model.CaiyunWeather
-import com.cyanweather.app.model.DailyItem
-import com.cyanweather.app.model.HourlyItem
-import com.cyanweather.app.model.NmcData
-import com.cyanweather.app.model.OpenMeteoAirCurrent
-import com.cyanweather.app.model.OpenMeteoAirQuality
-import com.cyanweather.app.model.OpenMeteoCurrent
-import com.cyanweather.app.model.OpenMeteoDaily
-import com.cyanweather.app.model.OpenMeteoHourly
-import com.cyanweather.app.model.OpenMeteoResponse
-import com.cyanweather.app.model.WeatherData
-import com.cyanweather.app.model.YesterdayData
-import com.cyanweather.app.model.clean
-import com.cyanweather.app.model.cleanInt
-import com.cyanweather.app.model.skyconTextOf
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.cyanweather.shared.model.CaiyunDaily
+import com.cyanweather.shared.model.CaiyunHourly
+import com.cyanweather.shared.model.CaiyunRealtime
+import com.cyanweather.shared.model.CaiyunWeather
+import com.cyanweather.shared.model.DailyItem
+import com.cyanweather.shared.model.HourlyItem
+import com.cyanweather.shared.model.NmcData
+import com.cyanweather.shared.model.OpenMeteoAirQuality
+import com.cyanweather.shared.model.OpenMeteoResponse
+import com.cyanweather.shared.model.WeatherData
+import com.cyanweather.shared.model.YesterdayData
+import com.cyanweather.shared.model.clean
+import com.cyanweather.shared.model.cleanInt
+import com.cyanweather.shared.model.skyconTextOf
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.jsonObject
 
 enum class SkyKind { SUN, MOON, CLOUD, PARTLY, RAIN, SNOW, THUNDER, FOG, HAZE, WIND, SLEET, UNKNOWN }
@@ -163,9 +159,19 @@ fun uvLevelText(uv: Double?): String = when {
     else -> "极强"
 }
 
-private fun todayStr(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+private fun todayStr(): String {
+    val now = Clock.System.now()
+    val localDate = now.toLocalDateTime(TimeZone.currentSystemDefault()).date
+    return "${localDate.year}-${localDate.monthNumber.toString().padStart(2, '0')}-${localDate.dayOfMonth.toString().padStart(2, '0')}"
+}
 
-// ---------- 解析 Open-Meteo 数据 ----------
+private fun currentTimestamp(): String {
+    val now = Clock.System.now()
+    val localDateTime = now.toLocalDateTime(TimeZone.currentSystemDefault())
+    return "${localDateTime.date.year}-${localDateTime.date.monthNumber.toString().padStart(2, '0')}-${localDateTime.date.dayOfMonth.toString().padStart(2, '0')} ${localDateTime.hour.toString().padStart(2, '0')}:${localDateTime.minute.toString().padStart(2, '0')}"
+}
+
+// ---------- Parse Open-Meteo ----------
 
 fun parseOpenMeteo(w: OpenMeteoResponse, air: OpenMeteoAirQuality?, cityName: String): WeatherData {
     val current = w.current ?: throw RuntimeException("Open-Meteo 无实时数据")
@@ -227,7 +233,7 @@ fun parseOpenMeteo(w: OpenMeteoResponse, air: OpenMeteoAirQuality?, cityName: St
 
     val uvMax = daily?.uvIndexMax?.getOrNull(todayIdx)
 
-    val aqi = air?.current?.usAqi
+    val aqi = air?.current?.usAqi?.cleanInt()
 
     return WeatherData(
         cityName = cityName.ifBlank { "当前位置" },
@@ -235,7 +241,7 @@ fun parseOpenMeteo(w: OpenMeteoResponse, air: OpenMeteoAirQuality?, cityName: St
         temperature = current.temperature2m?.clean(),
         condition = wmoToText(current.weatherCode),
         feelsLike = current.apparentTemperature?.clean(),
-        humidity = current.humidity,
+        humidity = current.humidity?.cleanInt(),
         windDirect = current.windDirection?.let { windDirection(it) } ?: "",
         windPower = windSpeedKmh?.let { beaufort(it / 3.6) } ?: "",
         todayHigh = daily?.tempMax?.getOrNull(todayIdx)?.clean(),
@@ -252,11 +258,11 @@ fun parseOpenMeteo(w: OpenMeteoResponse, air: OpenMeteoAirQuality?, cityName: St
         hourlyLabel = "未来48小时逐时预报",
         daily = dailyList,
         yesterday = yesterday,
-        savedAt = System.currentTimeMillis()
+        savedAt = Clock.System.now().toEpochMilliseconds()
     )
 }
 
-// ---------- 解析中央气象台数据 ----------
+// ---------- Parse NMC ----------
 
 fun parseNmc(data: NmcData?, cityName: String): WeatherData {
     if (data == null) throw RuntimeException("气象局暂无数据")
@@ -296,7 +302,6 @@ fun parseNmc(data: NmcData?, cityName: String): WeatherData {
         }
     }
 
-    // 过去24小时逐时（按时间正序）
     val passed = data.passedchart
         .filter { it.temperature?.clean() != null }
         .sortedBy { it.time }
@@ -309,9 +314,8 @@ fun parseNmc(data: NmcData?, cityName: String): WeatherData {
             )
         }
 
-    // 昨日天气
     val yesterday: YesterdayData? = run {
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val today = todayStr()
         val yItems = passed.filter { it.time.startsWith(today).not() }.takeLast(24)
         if (yItems.isEmpty()) {
             null
@@ -346,11 +350,11 @@ fun parseNmc(data: NmcData?, cityName: String): WeatherData {
         hourlyLabel = "过去24小时逐时实况",
         daily = daily,
         yesterday = yesterday,
-        savedAt = System.currentTimeMillis()
+        savedAt = Clock.System.now().toEpochMilliseconds()
     )
 }
 
-// ---------- 解析彩云天气数据 ----------
+// ---------- Parse Caiyun ----------
 
 fun parseCaiyun(w: CaiyunWeather, cityName: String): WeatherData {
     val result = w.result ?: throw RuntimeException("彩云天气无数据")
@@ -360,18 +364,23 @@ fun parseCaiyun(w: CaiyunWeather, cityName: String): WeatherData {
 
     if (rt == null) throw RuntimeException("彩云天气无实时数据")
 
-    // 逐小时预报（未来）
     val hourlyList = buildHourlyList(hourly)
 
     val allDaily = buildDailyList(daily)
 
-    // 提取昨日数据（dailystart=-1 时第一项为昨天）
     val yesterday: YesterdayData?
-    val today = java.time.LocalDate.now()
+    val todayStr = todayStr()
+    val todayLocalDate = try {
+        kotlinx.datetime.LocalDate.parse(todayStr)
+    } catch (_: Exception) { null }
+
     val firstDate = allDaily.firstOrNull()?.date?.let {
-        try { java.time.LocalDate.parse(if (it.contains("T")) it.substring(0, 10) else it.replace("/", "-")) } catch (_: Exception) { null }
+        try {
+            kotlinx.datetime.LocalDate.parse(if (it.contains("T")) it.substring(0, 10) else it.replace("/", "-"))
+        } catch (_: Exception) { null }
     }
-    if (firstDate != null && firstDate.isBefore(today)) {
+
+    if (firstDate != null && todayLocalDate != null && firstDate < todayLocalDate) {
         val y = allDaily.first()
         yesterday = YesterdayData(
             high = y.high,
@@ -382,10 +391,11 @@ fun parseCaiyun(w: CaiyunWeather, cityName: String): WeatherData {
         yesterday = null
     }
 
-    // dailyList 只保留今天及以后
     val dailyList = allDaily.filter {
-        val d = try { java.time.LocalDate.parse(if (it.date.contains("T")) it.date.substring(0, 10) else it.date.replace("/", "-")) } catch (_: Exception) { null }
-        d == null || !d.isBefore(today)
+        val d = try {
+            kotlinx.datetime.LocalDate.parse(if (it.date.contains("T")) it.date.substring(0, 10) else it.date.replace("/", "-"))
+        } catch (_: Exception) { null }
+        d == null || (todayLocalDate != null && d >= todayLocalDate)
     }
 
     val todayHigh = dailyList.firstOrNull()?.high
@@ -398,19 +408,16 @@ fun parseCaiyun(w: CaiyunWeather, cityName: String): WeatherData {
     val warning = extractAlert(result.alert)
 
     val windSpeed = rt.wind?.speed
-    val windText = if (rt.wind?.direction != null && windSpeed != null) {
-        "${windDirection(rt.wind.direction)} ${beaufort(windSpeed)}"
-    } else ""
 
     val aqi = rt.airQuality?.aqi?.chn?.clean()?.toInt()
 
     return WeatherData(
         cityName = cityName.ifBlank { "当前位置" },
-        updatedAt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date()),
+        updatedAt = currentTimestamp(),
         temperature = rt.temperature?.clean(),
         condition = caiyunSkyconText(rt.skycon),
         feelsLike = rt.apparentTemperature?.clean(),
-        humidity = rt.humidity?.let { (it * 100).toInt() },
+        humidity = rt.humidity?.clean()?.let { (it * 100).toInt() },
         windDirect = rt.wind?.direction?.let { windDirection(it) } ?: "",
         windPower = windSpeed?.let { beaufort(it) } ?: "",
         todayHigh = todayHigh,
@@ -426,7 +433,7 @@ fun parseCaiyun(w: CaiyunWeather, cityName: String): WeatherData {
         hourlyLabel = "未来48小时逐时预报",
         daily = dailyList,
         yesterday = yesterday,
-        savedAt = System.currentTimeMillis()
+        savedAt = Clock.System.now().toEpochMilliseconds()
     )
 }
 

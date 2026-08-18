@@ -2,10 +2,17 @@ package com.cyanweather.app.data
 
 import android.content.Context
 import com.cyanweather.app.location.LocationHelper
-import com.cyanweather.app.model.CaiyunWeather
-import com.cyanweather.app.model.NmcCityItem
-import com.cyanweather.app.model.NmcProvinceItem
-import com.cyanweather.app.model.WeatherData
+import com.cyanweather.shared.data.AdminHierarchy
+import com.cyanweather.shared.data.CaiyunApi
+import com.cyanweather.shared.data.NmcApi
+import com.cyanweather.shared.data.OpenMeteoApi
+import com.cyanweather.shared.data.parseCaiyun
+import com.cyanweather.shared.data.parseNmc
+import com.cyanweather.shared.data.parseOpenMeteo
+import com.cyanweather.shared.model.CaiyunWeather
+import com.cyanweather.shared.model.NmcCityItem
+import com.cyanweather.shared.model.NmcProvinceItem
+import com.cyanweather.shared.model.WeatherData
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -17,15 +24,15 @@ class WeatherRepository(
     private val locationHelper: LocationHelper
 ) {
 
-    suspend fun loadProvinces(): List<NmcProvinceItem> = NmcApi.getProvinces()
+    suspend fun loadProvinces(): List<NmcProvinceItem> = NmcApi.loadProvinces()
 
-    suspend fun loadCities(provinceCode: String): List<NmcCityItem> = NmcApi.getCities(provinceCode)
+    suspend fun loadCities(provinceCode: String): List<NmcCityItem> = NmcApi.loadCities(provinceCode)
 
     suspend fun loadAllCities(): List<NmcCityItem> {
-        val provinces = NmcApi.getProvinces()
+        val provinces = NmcApi.loadProvinces()
         return coroutineScope {
             provinces.map { p ->
-                async { runCatching { NmcApi.getCities(p.code) }.getOrDefault(emptyList()) }
+                async { runCatching { NmcApi.loadCities(p.code) }.getOrDefault(emptyList()) }
             }.awaitAll().flatten()
         }
     }
@@ -44,7 +51,7 @@ class WeatherRepository(
         }
     }
 
-    // ---------- 中央气象台 ----------
+    // ---------- NMC ----------
 
     private var cachedLocation: Triple<Double, Double, Pair<String, String>>? = null
 
@@ -53,63 +60,62 @@ class WeatherRepository(
         var name = settings.cityName
 
         if (settings.useGps && !settings.manualCity) {
-            val loc = locationHelper.getBestLocation()
-            if (loc != null) {
-                val cached = cachedLocation?.takeIf { it.first == loc.latitude && it.second == loc.longitude }
+            // Use saved coordinates from settings (already obtained in refresh())
+            val lat = settings.lat
+            val lng = settings.lng
+            if (lat != 116.4074 || lng != 39.9042) {
+                // Not default Beijing coordinates, try to resolve city
+                val cached = cachedLocation?.takeIf { it.first == lat && it.second == lng }
                 if (cached != null) {
                     name = cached.third.first
                     code = cached.third.second
                 } else {
                     try {
-                        val (n, c) = resolveNmcByLocation(loc.latitude, loc.longitude)
-                        cachedLocation = Triple(loc.latitude, loc.longitude, n to c)
+                        val (n, c) = resolveNmcByLocation(lat, lng)
+                        cachedLocation = Triple(lat, lng, n to c)
                         name = n
                         code = c
                         SettingsStore.setCity(context, n, c, manual = false)
                     } catch (e: Exception) {
-                        // 定位匹配失败时回退到手动选择城市
+                        // GPS resolution failed, fallback to manual city
                     }
                 }
             }
         }
 
         val finalCode = code.ifBlank { resolveBeijingCode() }
-        val resp = NmcApi.getWeather(finalCode)
-        val data = resp.data ?: throw RuntimeException("气象局暂无数据")
+        val data = NmcApi.weatherByStationId(finalCode)
         return parseNmc(data, name.ifBlank { settings.cityName })
     }
 
     private suspend fun resolveNmcByLocation(lat: Double, lng: Double): Pair<String, String> {
-        val geo = OpenMeteoApi.reverseGeocode(lat, lng)
-            ?: throw RuntimeException("定位失败，无法自动选择城市")
-        val provName = simp(geo.province).stripAdmin()
-        val provinces = NmcApi.getProvinces()
-        val prov = provinces.firstOrNull {
-            val n = simp(it.name).stripAdmin()
-            n.isNotEmpty() && (provName.isNotEmpty() && (n.contains(provName) || provName.contains(n)))
-        } ?: provinces.first()
-        val cities = NmcApi.getCities(prov.code)
+        val geoName = OpenMeteoApi.reverseGeocode(lat, lng)
+        if (geoName.isBlank()) throw RuntimeException("定位失败，无法自动选择城市")
 
-        val targets = listOf(simp(geo.locality).stripAdmin(), simp(geo.city).stripAdmin()).filter { it.isNotEmpty() }
-        val match = targets.firstNotNullOfOrNull { t ->
-            cities.firstOrNull { c ->
-                val cn = simp(c.city).stripAdmin()
-                cn.isNotEmpty() && (cn == t || cn.contains(t) || t.contains(cn))
-            }
+        val provinces = NmcApi.loadProvinces()
+        val prov = provinces.firstOrNull { p ->
+            val n = simp(p.name).stripAdmin()
+            n.isNotEmpty() && geoName.contains(n)
+        } ?: provinces.first()
+        val cities = NmcApi.loadCities(prov.code)
+
+        val match = cities.firstOrNull { c ->
+            val cn = simp(c.city).stripAdmin()
+            cn.isNotEmpty() && geoName.contains(cn)
         }
         val picked = match ?: cities.first()
         return picked.city to picked.code
     }
 
     private suspend fun resolveBeijingCode(): String {
-        val provinces = NmcApi.getProvinces()
+        val provinces = NmcApi.loadProvinces()
         val bj = provinces.firstOrNull { it.name.contains("北京") } ?: provinces.first()
-        val cities = NmcApi.getCities(bj.code)
+        val cities = NmcApi.loadCities(bj.code)
         val city = cities.firstOrNull { it.city.contains("北京") } ?: cities.first()
         return city.code
     }
 
-    // ---------- 彩云天气 ----------
+    // ---------- Caiyun ----------
 
     private suspend fun loadCaiyunV1(settings: AppSettings): WeatherData {
         val token = settings.caiyunToken.trim()
@@ -118,7 +124,7 @@ class WeatherRepository(
         if (settings.extendedForecast) {
             return loadCaiyunExtended(settings, lat, lng, name)
         }
-        val resp = CaiyunApi.getWeatherV1(token, lat, lng)
+        val resp = CaiyunApi.weatherV1(token, lat, lng)
         if (resp.status != "ok") throw RuntimeException("彩云接口返回异常，请检查 Token")
         return parseCaiyun(resp, name)
     }
@@ -131,7 +137,7 @@ class WeatherRepository(
         if (settings.extendedForecast) {
             return loadCaiyunExtended(settings, lat, lng, name)
         }
-        val resp = CaiyunApi.getWeatherV3(key, secret, lat, lng)
+        val resp = CaiyunApi.weatherV3(key, secret, lat, lng)
         if (resp.status != "ok") throw RuntimeException("彩云接口返回异常，请检查 AppKey / AppSecret")
         return parseCaiyun(resp, name)
     }
@@ -142,14 +148,12 @@ class WeatherRepository(
         val results = mutableListOf<CaiyunWeather>()
         coroutineScope {
             val jobs = mutableListOf<Deferred<CaiyunWeather?>>()
-            // 昨天
-            jobs += async { runCatching { CaiyunApi.getWeatherV1(token, lat, lng, -1, 1) }.getOrNull() }
-            // 未来 N 天，每 5 天一批
+            jobs += async { runCatching { CaiyunApi.weatherV1(token, lat, lng, -1, 1) }.getOrNull() }
             var offset = 0
             while (offset < days) {
                 val batch = minOf(5, days - offset)
                 val o = offset
-                jobs += async { runCatching { CaiyunApi.getWeatherV1(token, lat, lng, o, batch) }.getOrNull() }
+                jobs += async { runCatching { CaiyunApi.weatherV1(token, lat, lng, o, batch) }.getOrNull() }
                 offset += batch
             }
             jobs.forEach { j -> j.await()?.let { results.add(it) } }
@@ -161,8 +165,8 @@ class WeatherRepository(
     private suspend fun resolveCaiyunCityName(settings: AppSettings, lat: Double, lng: Double): String {
         if (settings.manualCity) return settings.cityName
         return try {
-            val geo = OpenMeteoApi.reverseGeocode(lat, lng)
-            val name = geo?.let { simp(it.city).stripAdmin() + simp(it.locality).stripAdmin() } ?: ""
+            val geoName = OpenMeteoApi.reverseGeocode(lat, lng)
+            val name = simp(geoName).stripAdmin()
             name.ifBlank { settings.cityName }
         } catch (_: Exception) {
             settings.cityName
@@ -173,15 +177,14 @@ class WeatherRepository(
 
     private suspend fun loadOpenMeteo(settings: AppSettings): WeatherData {
         val (lat, lng) = currentLatLng(settings)
-        val w = OpenMeteoApi.getWeather(lat, lng)
-        val air = OpenMeteoApi.getAirQuality(lat, lng)
-        var cityName = "当前位置"
+        val w = OpenMeteoApi.weather(lat, lng)
+        val air = OpenMeteoApi.airQuality(lat, lng)
+        var cityName = settings.cityName.ifBlank { "当前位置" }
         if (settings.useGps) {
             try {
-                OpenMeteoApi.reverseGeocode(lat, lng)?.let { geo ->
-                    val name = simp(geo.city).stripAdmin() + simp(geo.locality).stripAdmin()
-                    if (name.isNotBlank()) cityName = name
-                }
+                val geoName = OpenMeteoApi.reverseGeocode(lat, lng)
+                val name = simp(geoName).stripAdmin()
+                if (name.isNotBlank()) cityName = name
             } catch (e: Exception) {
                 // ignore
             }
@@ -189,17 +192,11 @@ class WeatherRepository(
         return parseOpenMeteo(w, air, cityName)
     }
 
-    private fun currentLatLng(settings: AppSettings): Pair<Double, Double> {
-        if (settings.useGps) {
-            val loc = locationHelper.getBestLocation()
-            if (loc != null) {
-                return loc.latitude to loc.longitude
-            }
-        }
+    private suspend fun currentLatLng(settings: AppSettings): Pair<Double, Double> {
         return settings.lat to settings.lng
     }
 
-    // ---------- 名称归一化（繁体转简体、去行政区后缀） ----------
+    // ---------- Name normalization ----------
 
     private val TRAD_TO_SIMP = mapOf(
         "東" to "东", "濟" to "济", "廣" to "广", "陽" to "阳", "陰" to "阴",

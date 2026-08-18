@@ -1,11 +1,11 @@
-package com.cyanweather.app.model
+package com.cyanweather.shared.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.contentOrNull
 
-// ---------- 统一 UI 数据模型 ----------
+// ---------- Unified UI data models ----------
 
 @Serializable
 data class WeatherData(
@@ -28,7 +28,7 @@ data class WeatherData(
     val uvIndex: String = "",
     val sourceTag: String = "",
     val hourly: List<HourlyItem> = emptyList(),
-    val hourlyLabel: String = "逐小时预报",
+    val hourlyLabel: String = "hourly forecast",
     val daily: List<DailyItem> = emptyList(),
     val yesterday: YesterdayData? = null,
     val savedAt: Long = 0L
@@ -63,7 +63,7 @@ fun Double?.clean(): Double? = if (this == null || this >= 9998.0) null else thi
 
 fun Int?.cleanInt(): Int? = if (this == null || this >= 9998) null else this
 
-// ---------- 中央气象台 NMC ----------
+// ---------- NMC ----------
 
 @Serializable
 data class NmcResponse(
@@ -184,7 +184,7 @@ data class NmcProvinceItem(
     @SerialName("name") val name: String = ""
 )
 
-// ---------- 彩云天气 ----------
+// ---------- Caiyun ----------
 
 @Serializable
 data class CaiyunWeather(
@@ -351,7 +351,7 @@ data class OpenMeteoAirCurrent(
     @SerialName("pm10") val pm10: Double? = null
 )
 
-// ---------- 反地理编码（BigDataCloud）----------
+// ---------- Reverse Geocoding ----------
 
 @Serializable
 data class ReverseGeocode(

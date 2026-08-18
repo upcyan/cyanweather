@@ -58,7 +58,8 @@ fun SettingsScreen(
     onGetYesterday: (Boolean) -> Unit,
     onAutoCheckUpdate: (Boolean) -> Unit,
     onUseGps: (Boolean) -> Unit,
-    onOpenCityPicker: () -> Unit
+    onOpenCityPicker: () -> Unit,
+    onManualCheckUpdate: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -211,6 +212,19 @@ fun SettingsScreen(
         // 检查更新
         SettingCard {
             SwitchRow("自动检查更新", "进入App时检查GitHub是否有新版本", settings.autoCheckUpdate, onAutoCheckUpdate)
+            Spacer(Modifier.height(8.dp))
+            Card(
+                onClick = onManualCheckUpdate,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("手动检查更新", style = fst(24), modifier = Modifier.weight(1f))
+                    Text("检查 >", style = fst(24), color = Color(0xFF0B6BCB))
+                }
+            }
         }
 
         // 关于

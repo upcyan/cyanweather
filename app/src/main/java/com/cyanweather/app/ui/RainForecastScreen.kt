@@ -27,7 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.cyanweather.app.model.WeatherData
+import com.cyanweather.shared.model.WeatherData
 
 @Composable
 fun RainForecastScreen(weather: WeatherData?, onBack: () -> Unit) {
@@ -75,7 +75,7 @@ fun RainForecastScreen(weather: WeatherData?, onBack: () -> Unit) {
 }
 
 @Composable
-private fun RainHourRow(item: com.cyanweather.app.model.HourlyItem) {
+private fun RainHourRow(item: com.cyanweather.shared.model.HourlyItem) {
     val isRain = item.condition.contains("雨") || item.condition.contains("雷")
     val prob = (item.rainProb ?: 0.0).coerceIn(0.0, 100.0)
     val accent = if (isRain || prob >= 50) Color(0xFF0B6BCB) else Color(0xFF666666)
@@ -120,7 +120,20 @@ private fun RainDayRow(text: String) {
 
 private fun hourLabel(time: String): String {
     val t = time.trim()
-    val raw = if (t.length >= 13) t.substring(11, 13) else ""
-    val hour = raw.toIntOrNull()
-    return if (hour != null) "${hour}时" else t
+    // Extract date part: "2024-08-18T14:00" -> "08/18 14时"
+    return when {
+        t.length >= 13 && t.contains("T") -> {
+            val datePart = t.substring(5, 10) // "08-18"
+            val hourPart = t.substring(11, 13)
+            val hour = hourPart.toIntOrNull()
+            if (hour != null) "${datePart.replace("-", "/")} ${hour}时" else t
+        }
+        t.length >= 16 && t.contains(" ") -> {
+            val datePart = t.substring(5, 10) // "08-18"
+            val hourPart = t.substring(11, 13)
+            val hour = hourPart.toIntOrNull()
+            if (hour != null) "${datePart.replace("-", "/")} ${hour}时" else t
+        }
+        else -> t
+    }
 }
