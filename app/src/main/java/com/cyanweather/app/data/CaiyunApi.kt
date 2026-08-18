@@ -2,7 +2,6 @@ package com.cyanweather.app.data
 
 import android.util.Base64
 import com.cyanweather.app.model.CaiyunWeather
-import java.net.URLEncoder
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -15,22 +14,18 @@ object CaiyunApi {
     }
 
     suspend fun getWeatherV3(key: String, secret: String, lat: Double, lng: Double): CaiyunWeather {
-        val urlPath = "/$key/$lng,$lat/weather"
-        val signPath = "/v2.6$urlPath"
+        val path = "/v2.6/$key/$lng,$lat/weather"
         val nonce = java.util.UUID.randomUUID().toString()
         val timestamp = (System.currentTimeMillis() / 1000).toString()
-        val params = linkedMapOf(
+        val query = linkedMapOf(
             "alert" to "true",
             "dailysteps" to "3",
             "dailystart" to "-1",
             "hourlysteps" to "48"
-        )
-        val query = params.entries.joinToString("&") {
-            "${URLEncoder.encode(it.key, "UTF-8")}=${URLEncoder.encode(it.value, "UTF-8")}"
-        }
-        val stringToSign = "GET:$signPath:$query:$key:$nonce:$timestamp"
+        ).entries.joinToString("&") { "${it.key}=${it.value}" }
+        val stringToSign = "GET:$path:$query:$key:$nonce:$timestamp"
         val signature = hmacSha256Base64Url(stringToSign, secret)
-        val url = "$BASE$urlPath?$query"
+        val url = "$BASE$path?$query"
         val body = Net.get(url, mapOf(
             "x-cy-nonce" to nonce,
             "x-cy-timestamp" to timestamp,
