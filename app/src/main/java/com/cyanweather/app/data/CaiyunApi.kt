@@ -13,6 +13,19 @@ object CaiyunApi {
         return Net.json.decodeFromString(body)
     }
 
+    suspend fun getWeatherV1(token: String, lat: Double, lng: Double, dailystart: Int, dailysteps: Int): CaiyunWeather {
+        val path = "/$token/$lng,$lat/weather"
+        val query = linkedMapOf(
+            "alert" to "true",
+            "dailysteps" to dailysteps.toString(),
+            "dailystart" to dailystart.toString(),
+            "hourlysteps" to "48"
+        ).entries.joinToString("&") { "${it.key}=${it.value}" }
+        val url = "$BASE$path?$query"
+        val body = Net.get(url)
+        return Net.json.decodeFromString(body)
+    }
+
     suspend fun getWeatherV3(key: String, secret: String, lat: Double, lng: Double): CaiyunWeather {
         val coordPath = "/$key/$lng,$lat/weather"
         val signPath = "/v2.6$coordPath"
@@ -20,9 +33,8 @@ object CaiyunApi {
         val timestamp = (System.currentTimeMillis() / 1000).toString()
         val query = linkedMapOf(
             "alert" to "true",
-            "dailysteps" to "3",
-            "dailystart" to "-1",
-            "hourlysteps" to "48"
+            "dailysteps" to "1",
+            "hourlysteps" to "24"
         ).entries.joinToString("&") { "${it.key}=${it.value}" }
         val stringToSign = "GET:$signPath:$query:$key:$nonce:$timestamp"
         val signature = hmacSha256Base64Url(stringToSign, secret)

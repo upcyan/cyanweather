@@ -62,6 +62,8 @@ class MainActivity : ComponentActivity() {
                         onCaiyunV3Secret = vm::setCaiyunV3Secret,
                         onFont = vm::setFont,
                         onRefreshInterval = vm::setRefreshInterval,
+                        onExtendedForecast = vm::setExtendedForecast,
+                        onExtendedDays = vm::setExtendedDays,
                         onUseGps = vm::setUseGps,
                         onCityBack = vm::closeCityPicker,
                         onProvinceClick = vm::loadCities,
@@ -92,6 +94,8 @@ private fun AppScreen(
     onCaiyunV3Secret: (String) -> Unit,
     onFont: (String) -> Unit,
     onRefreshInterval: (String) -> Unit,
+    onExtendedForecast: (Boolean) -> Unit,
+    onExtendedDays: (Int) -> Unit,
     onUseGps: (Boolean) -> Unit,
     onCityBack: () -> Unit,
     onProvinceClick: (String) -> Unit,
@@ -120,6 +124,8 @@ private fun AppScreen(
             onCaiyunV3Secret = onCaiyunV3Secret,
             onFont = onFont,
             onRefreshInterval = onRefreshInterval,
+            onExtendedForecast = onExtendedForecast,
+            onExtendedDays = onExtendedDays,
             onUseGps = onUseGps,
             onOpenCityPicker = onOpenCityPicker
         )

@@ -134,6 +134,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setRefreshInterval(v: String) = launchEdit { settingsStore.setRefreshInterval(context, v) }
 
+    fun setExtendedForecast(v: Boolean) = launchEdit { settingsStore.setExtendedForecast(context, v) }
+
+    fun setExtendedDays(v: Int) = launchEdit { settingsStore.setExtendedDays(context, v) }
+
     fun setUseGps(v: Boolean) = launchEdit { settingsStore.setUseGps(context, v) }
 
     fun saveLatLng(lat: Double, lng: Double) = launchEdit { settingsStore.setLatLng(context, lat, lng) }

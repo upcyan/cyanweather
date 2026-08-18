@@ -2,9 +2,11 @@ package com.cyanweather.app.data
 
 import android.content.Context
 import com.cyanweather.app.location.LocationHelper
+import com.cyanweather.app.model.CaiyunWeather
 import com.cyanweather.app.model.NmcCityItem
 import com.cyanweather.app.model.NmcProvinceItem
 import com.cyanweather.app.model.WeatherData
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -112,9 +114,12 @@ class WeatherRepository(
     private suspend fun loadCaiyunV1(settings: AppSettings): WeatherData {
         val token = settings.caiyunToken.trim()
         val (lat, lng) = currentLatLng(settings)
+        val name = resolveCaiyunCityName(settings, lat, lng)
+        if (settings.extendedForecast) {
+            return loadCaiyunExtended(settings, lat, lng, name)
+        }
         val resp = CaiyunApi.getWeatherV1(token, lat, lng)
         if (resp.status != "ok") throw RuntimeException("彩云接口返回异常，请检查 Token")
-        val name = resolveCaiyunCityName(settings, lat, lng)
         return parseCaiyun(resp, name)
     }
 
@@ -122,10 +127,35 @@ class WeatherRepository(
         val key = settings.caiyunV3Key.trim()
         val secret = settings.caiyunV3Secret.trim()
         val (lat, lng) = currentLatLng(settings)
+        val name = resolveCaiyunCityName(settings, lat, lng)
+        if (settings.extendedForecast) {
+            return loadCaiyunExtended(settings, lat, lng, name)
+        }
         val resp = CaiyunApi.getWeatherV3(key, secret, lat, lng)
         if (resp.status != "ok") throw RuntimeException("彩云接口返回异常，请检查 AppKey / AppSecret")
-        val name = resolveCaiyunCityName(settings, lat, lng)
         return parseCaiyun(resp, name)
+    }
+
+    private suspend fun loadCaiyunExtended(settings: AppSettings, lat: Double, lng: Double, name: String): WeatherData {
+        val token = settings.caiyunToken.trim()
+        val days = settings.extendedDays
+        val results = mutableListOf<CaiyunWeather>()
+        coroutineScope {
+            val jobs = mutableListOf<Deferred<CaiyunWeather?>>()
+            // 昨天
+            jobs += async { runCatching { CaiyunApi.getWeatherV1(token, lat, lng, -1, 1) }.getOrNull() }
+            // 未来 N 天，每 5 天一批
+            var offset = 0
+            while (offset < days) {
+                val batch = minOf(5, days - offset)
+                val o = offset
+                jobs += async { runCatching { CaiyunApi.getWeatherV1(token, lat, lng, o, batch) }.getOrNull() }
+                offset += batch
+            }
+            jobs.forEach { j -> j.await()?.let { results.add(it) } }
+        }
+        val base = results.firstOrNull() ?: throw RuntimeException("彩云请求失败")
+        return parseCaiyun(base, name)
     }
 
     private suspend fun resolveCaiyunCityName(settings: AppSettings, lat: Double, lng: Double): String {

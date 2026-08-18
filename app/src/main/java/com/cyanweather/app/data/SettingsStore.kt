@@ -26,6 +26,8 @@ data class AppSettings(
     val manualCity: Boolean = false,
     val fontSize: String = "large",
     val refreshInterval: String = "30",
+    val extendedForecast: Boolean = false,
+    val extendedDays: Int = 3,
     val useGps: Boolean = true,
     val lat: Double = 116.4074,
     val lng: Double = 39.9042
@@ -46,6 +48,8 @@ object SettingsStore {
     private val KEY_FONT = stringPreferencesKey("font_size")
     private val KEY_AUTO = booleanPreferencesKey("auto_refresh")
     private val KEY_INTERVAL = stringPreferencesKey("refresh_interval")
+    private val KEY_EXTENDED = booleanPreferencesKey("extended_forecast")
+    private val KEY_EXTENDED_DAYS = longPreferencesKey("extended_days")
     private val KEY_GPS = booleanPreferencesKey("use_gps")
     private val KEY_LAT = doublePreferencesKey("lat")
     private val KEY_LNG = doublePreferencesKey("lng")
@@ -66,6 +70,8 @@ object SettingsStore {
             manualCity = p[KEY_MANUAL_CITY] ?: false,
             fontSize = p[KEY_FONT] ?: "large",
             refreshInterval = p[KEY_INTERVAL] ?: if (p[KEY_AUTO] == false) "off" else "30",
+            extendedForecast = p[KEY_EXTENDED] ?: false,
+            extendedDays = (p[KEY_EXTENDED_DAYS] ?: 3).toInt(),
             useGps = p[KEY_GPS] ?: true,
             lat = p[KEY_LAT] ?: 116.4074,
             lng = p[KEY_LNG] ?: 39.9042
@@ -95,6 +101,12 @@ object SettingsStore {
 
     suspend fun setRefreshInterval(context: Context, v: String) =
         context.dataStore.edit { it[KEY_INTERVAL] = v }
+
+    suspend fun setExtendedForecast(context: Context, v: Boolean) =
+        context.dataStore.edit { it[KEY_EXTENDED] = v }
+
+    suspend fun setExtendedDays(context: Context, v: Int) =
+        context.dataStore.edit { it[KEY_EXTENDED_DAYS] = v.toLong() }
 
     suspend fun setUseGps(context: Context, v: Boolean) = context.dataStore.edit { it[KEY_GPS] = v }
 
