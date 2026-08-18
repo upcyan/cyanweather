@@ -77,13 +77,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 settingsStore.saveCache(context, w)
                 ui = ui.copy(weather = w, loading = false, refreshing = false)
             } catch (e: Exception) {
-                val cache = settingsStore.loadCache(context)
                 val msg = e.message ?: "网络错误"
                 ui = ui.copy(
                     loading = false,
                     refreshing = false,
-                    error = msg,
-                    weather = cache ?: ui.weather
+                    error = msg
                 )
             }
         }

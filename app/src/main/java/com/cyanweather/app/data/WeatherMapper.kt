@@ -270,15 +270,15 @@ fun parseNmc(data: NmcData?, cityName: String): WeatherData {
     val predict = data.predict?.detail ?: emptyList()
     if (predict.isNotEmpty()) {
         val first = predict[0]
-        todayHigh = first.day?.weather?.temperature?.toDoubleOrNull()
-        todayLow = first.night?.weather?.temperature?.toDoubleOrNull()
+        todayHigh = first.day?.weather?.temperature?.toDoubleOrNull()?.clean()
+        todayLow = first.night?.weather?.temperature?.toDoubleOrNull()?.clean()
         daily = predict.map { d ->
             DailyItem(
                 date = d.date,
                 dayText = d.day?.weather?.info ?: "",
                 nightText = d.night?.weather?.info ?: "",
-                high = d.day?.weather?.temperature?.toDoubleOrNull(),
-                low = d.night?.weather?.temperature?.toDoubleOrNull()
+                high = d.day?.weather?.temperature?.toDoubleOrNull()?.clean(),
+                low = d.night?.weather?.temperature?.toDoubleOrNull()?.clean()
             )
         }
     } else {
