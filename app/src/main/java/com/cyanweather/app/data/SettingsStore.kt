@@ -16,7 +16,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 data class AppSettings(
-    val source: String = "nmc",
+    val source: String = "openmeteo",
     val caiyunMode: String = "v1",
     val caiyunToken: String = "",
     val caiyunV3Key: String = "",
@@ -56,7 +56,7 @@ object SettingsStore {
 
     fun flow(context: Context): Flow<AppSettings> = context.dataStore.data.map { p ->
         AppSettings(
-            source = p[KEY_SOURCE] ?: "nmc",
+            source = p[KEY_SOURCE] ?: "openmeteo",
             caiyunMode = p[KEY_CAIYUN_MODE] ?: if (p[KEY_CAIYUN_ENABLED] == true) "v1" else "v1",
             caiyunToken = p[KEY_TOKEN] ?: "",
             caiyunV3Key = p[KEY_CAIYUN_V3_KEY] ?: "",

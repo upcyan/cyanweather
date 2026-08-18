@@ -14,7 +14,8 @@ object CaiyunApi {
     }
 
     suspend fun getWeatherV3(key: String, secret: String, lat: Double, lng: Double): CaiyunWeather {
-        val path = "/v2.6/$key/$lng,$lat/weather"
+        val urlPath = "/$key/$lng,$lat/weather"
+        val signPath = "/v2.6$urlPath"
         val nonce = java.util.UUID.randomUUID().toString()
         val timestamp = (System.currentTimeMillis() / 1000).toString()
         val query = linkedMapOf(
@@ -22,9 +23,9 @@ object CaiyunApi {
             "dailysteps" to "3",
             "hourlysteps" to "48"
         ).entries.joinToString("&") { "${it.key}=${it.value}" }
-        val stringToSign = "GET:$path:$query:$key:$nonce:$timestamp"
+        val stringToSign = "GET:$signPath:$query:$key:$nonce:$timestamp"
         val signature = hmacSha256Base64Url(stringToSign, secret)
-        val url = "$BASE$path?$query"
+        val url = "$BASE$urlPath?$query"
         val body = Net.get(url, mapOf(
             "x-cy-nonce" to nonce,
             "x-cy-timestamp" to timestamp,

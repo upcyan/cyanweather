@@ -92,7 +92,6 @@ fun SettingsScreen(
                         onValueChange = { token = it.replace(Regex("\\s"), ""); onToken(token) },
                         placeholder = { Text("填写 V1 Token", style = fst(18)) },
                         textStyle = MaterialTheme.typography.bodyLarge,
-                        singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(8.dp))
@@ -107,7 +106,6 @@ fun SettingsScreen(
                         onValueChange = { key = it.replace(Regex("\\s"), ""); onCaiyunV3Key(key) },
                         placeholder = { Text("填写 AppKey", style = fst(18)) },
                         textStyle = MaterialTheme.typography.bodyLarge,
-                        singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(8.dp))
@@ -116,7 +114,6 @@ fun SettingsScreen(
                         onValueChange = { secret = it.replace(Regex("\\s"), ""); onCaiyunV3Secret(secret) },
                         placeholder = { Text("填写 AppSecret", style = fst(18)) },
                         textStyle = MaterialTheme.typography.bodyLarge,
-                        singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(8.dp))
