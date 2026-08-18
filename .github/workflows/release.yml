@@ -43,7 +43,7 @@ jobs:
         with:
           name: v${{ steps.version.outputs.version }}
           tag_name: v${{ steps.version.outputs.version }}
-          files: app/build/outputs/apk/release/app-release.apk
+          files: app/build/outputs/apk/**/*.apk
           draft: false
           generate_release_notes: true
         env:
