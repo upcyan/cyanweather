@@ -138,6 +138,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setExtendedDays(v: Int) = launchEdit { settingsStore.setExtendedDays(context, v) }
 
+    fun setGetYesterday(v: Boolean) = launchEdit { settingsStore.setGetYesterday(context, v) }
+
     fun setUseGps(v: Boolean) = launchEdit { settingsStore.setUseGps(context, v) }
 
     fun saveLatLng(lat: Double, lng: Double) = launchEdit { settingsStore.setLatLng(context, lat, lng) }

@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
                         onRefreshInterval = vm::setRefreshInterval,
                         onExtendedForecast = vm::setExtendedForecast,
                         onExtendedDays = vm::setExtendedDays,
+                        onGetYesterday = vm::setGetYesterday,
                         onUseGps = vm::setUseGps,
                         onCityBack = vm::closeCityPicker,
                         onProvinceClick = vm::loadCities,
@@ -96,6 +97,7 @@ private fun AppScreen(
     onRefreshInterval: (String) -> Unit,
     onExtendedForecast: (Boolean) -> Unit,
     onExtendedDays: (Int) -> Unit,
+    onGetYesterday: (Boolean) -> Unit,
     onUseGps: (Boolean) -> Unit,
     onCityBack: () -> Unit,
     onProvinceClick: (String) -> Unit,
@@ -126,6 +128,7 @@ private fun AppScreen(
             onRefreshInterval = onRefreshInterval,
             onExtendedForecast = onExtendedForecast,
             onExtendedDays = onExtendedDays,
+            onGetYesterday = onGetYesterday,
             onUseGps = onUseGps,
             onOpenCityPicker = onOpenCityPicker
         )
