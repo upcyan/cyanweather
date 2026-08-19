@@ -1,4 +1,4 @@
-﻿import { WeatherData, HourlyItem, DailyItem } from '../model/WeatherData';
+﻿import { WeatherData, HourlyItem, DailyItem, YesterdayData } from '../model/WeatherData';
 import { WeatherManager } from '../data/WeatherManager';
 import { router } from '@kit.ArkUI';
 import { SettingsStore } from '../data/SettingsStore';
@@ -12,6 +12,7 @@ struct Index {
   @State isRefreshing: boolean = false;
   @State tempUnit: string = 'c';
   @State fontScale: number = 1.0;
+  private scroller: Scroller = new Scroller();
 
   async aboutToAppear(): Promise<void> {
     this.tempUnit = SettingsStore.getTempUnit();
@@ -19,7 +20,6 @@ struct Index {
     await this.loadData();
   }
 
-  // 从设置/城市选择页面返回时刷新
   onPageShow(): void {
     this.tempUnit = SettingsStore.getTempUnit();
     this.fontScale = SettingsStore.getFontScale();
@@ -59,18 +59,21 @@ struct Index {
     return '' + temp;
   }
 
-  // 字体缩放辅助
+  tempStrWithUnit(val: number | null): string {
+    return this.tempStr(val) + (this.tempUnit === 'f' ? '\u00B0F' : '\u00B0');
+  }
+
   fs(size: number): number {
     return Math.round(size * this.fontScale);
   }
 
   conditionIcon(condition: string): string {
-    if (condition.includes('晴')) return '☀️';
-    if (condition.includes('多云') || condition.includes('阴')) return '⛅';
-    if (condition.includes('雨')) return '🌧️';
-    if (condition.includes('雪')) return '❄️';
-    if (condition.includes('雾') || condition.includes('霾')) return '🌫️';
-    return '🌤️';
+    if (condition.includes('晴')) return '\u2600\uFE0F';
+    if (condition.includes('多云') || condition.includes('阴')) return '\u26C5';
+    if (condition.includes('雨')) return '\uD83C\uDF1B';
+    if (condition.includes('雪')) return '\u2744\uFE0F';
+    if (condition.includes('雾') || condition.includes('霾')) return '\uD83C\uDF01';
+    return '\uD83C\uDF24\uFE0F';
   }
 
   dayLabel(index: number, dateStr: string): string {
@@ -88,6 +91,26 @@ struct Index {
     return dateStr.substring(5, 10);
   }
 
+  combineDayNight(day: string, night: string): string {
+    if (day === night) return day;
+    return day + '转' + night;
+  }
+
+  hourLabel(timeStr: string): string {
+    try {
+      const parts: string[] = timeStr.split(' ');
+      if (parts.length >= 2) {
+        const h: string = parts[1].substring(0, 2);
+        return h + '时';
+      }
+      const t: string = timeStr.split('T')[1] || '';
+      if (t.length >= 2) {
+        return t.substring(0, 2) + '时';
+      }
+    } catch (_) {}
+    return timeStr;
+  }
+
   tempBarWidth(low: number | null, high: number | null): string {
     if (low === null || high === null) return '50%';
     const range: number = high - low;
@@ -96,7 +119,6 @@ struct Index {
     return Math.min(100, Math.max(30, pct)) + '%';
   }
 
-  // 降雨提醒：检查未来12小时和3天内是否有雨
   buildRainReminder(): string | null {
     if (!this.weather) return null;
     const upcoming: HourlyItem[] = this.weather.hourly.filter((h: HourlyItem) => h.isForecast).slice(0, 12);
@@ -111,12 +133,30 @@ struct Index {
     return soon ? '近期可能有雨，请留意天气变化' : null;
   }
 
+  @Builder
+  InfoCard(icon: string, title: string, value: string) {
+    Row() {
+      Text(icon)
+        .fontSize(this.fs(28)).margin({ right: 12 })
+      Column() {
+        Text(title)
+          .fontSize(this.fs(18)).fontColor('#666666')
+        Text(value)
+          .fontSize(this.fs(24)).fontWeight(FontWeight.Medium).fontColor('#333333')
+          .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis }).margin({ top: 4 })
+      }
+      .alignItems(HorizontalAlign.Start).layoutWeight(1)
+    }
+    .width('100%').padding({ left: 20, right: 20, top: 12, bottom: 12 })
+    .backgroundColor('#F5F5F5').borderRadius(16)
+    .margin({ top: 8, left: 16, right: 16 })
+  }
 
   build() {
     Column() {
       // ===== 顶部栏 =====
       Row() {
-        Text('⚙️')
+        Text('\u2699\uFE0F')
           .fontSize(this.fs(28))
           .width(56).height(56)
           .textAlign(TextAlign.Center)
@@ -139,7 +179,7 @@ struct Index {
         .layoutWeight(1)
         .alignItems(HorizontalAlign.Center)
 
-        Text('🔄')
+        Text(this.isRefreshing ? '\u23F3' : '\uD83D\uDD04')
           .fontSize(this.fs(28))
           .width(56).height(56)
           .textAlign(TextAlign.Center)
@@ -154,47 +194,35 @@ struct Index {
         Column() {
           if (this.loading) {
             Column() {
-              LoadingProgress().width(60).height(60).color('#4A90D9')
-              Text('正在获取天气...')
-                .fontSize(this.fs(20)).fontColor('#666666').margin({ top: 16 })
+              Text('加载中...')
+                .fontSize(this.fs(24)).fontColor('#666666')
             }
-            .width('100%').height('100%').justifyContent(FlexAlign.Center)
+            .width('100%').height('100%')
+            .justifyContent(FlexAlign.Center)
           } else if (this.error.length > 0) {
             Column() {
-              Text('😔').fontSize(48).margin({ bottom: 16 })
+              Text('加载失败')
+                .fontSize(this.fs(24)).fontColor('#E65100').margin({ bottom: 12 })
               Text(this.error)
-                .fontSize(this.fs(20)).fontColor('#999999').textAlign(TextAlign.Center)
-              Button('重试')
-                .fontSize(this.fs(20)).height(56).margin({ top: 24 })
+                .fontSize(this.fs(18)).fontColor('#666666')
+              Text('点击重试')
+                .fontSize(this.fs(20)).fontColor('#1565C0')
+                .margin({ top: 20 })
                 .onClick(() => { this.loadData(); })
             }
-            .width('100%').padding(32).alignItems(HorizontalAlign.Center)
+            .width('100%').height('100%')
+            .justifyContent(FlexAlign.Center)
           } else if (this.weather) {
-            // ===== 天气预警 =====
+            // ===== 预警信号 =====
             if (this.weather.warning) {
               Row() {
-                Text('⚠️').fontSize(this.fs(22)).margin({ right: 8 })
+                Text('\u26A0\uFE0F').fontSize(this.fs(24)).margin({ right: 8 })
                 Text(this.weather.warning)
-                  .fontSize(this.fs(20)).fontColor('#D9534F').layoutWeight(1)
-                  .maxLines(3).textOverflow({ overflow: TextOverflow.Ellipsis })
-              }
-              .width('100%').padding(16)
-              .backgroundColor('#FFF3E0').borderRadius(16)
-              .border({ width: 1, color: '#FFCC80' })
-              .margin({ top: 12, left: 16, right: 16 })
-            }
-
-            // ===== 降雨提醒 =====
-            if (this.buildRainReminder()) {
-              Row() {
-                Text('🌂').fontSize(this.fs(22)).margin({ right: 8 })
-                Text(this.buildRainReminder()!)
-                  .fontSize(this.fs(22)).fontColor('#1565C0').layoutWeight(1)
+                  .fontSize(this.fs(20)).fontColor('#C62828').layoutWeight(1)
                   .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
               }
               .width('100%').padding(16)
-              .backgroundColor('#E3F2FD').borderRadius(16)
-              .border({ width: 1, color: '#90CAF9' })
+              .backgroundColor('#FFEBEE').borderRadius(16)
               .margin({ top: 12, left: 16, right: 16 })
             }
 
@@ -204,12 +232,13 @@ struct Index {
                 Text(this.conditionIcon(this.weather.condition))
                   .fontSize(this.fs(56))
                 Text(this.weather.condition)
-                  .fontSize(this.fs(28)).fontColor('#333333').margin({ top: 8 })
+                  .fontSize(this.fs(22)).fontColor('#666666').margin({ top: 8 })
               }
-              .alignItems(HorizontalAlign.Start).layoutWeight(1)
+              .alignItems(HorizontalAlign.Center)
 
-              Text(this.tempStr(this.weather.temperature) + (this.tempUnit === 'f' ? '°F' : '°'))
+              Text(this.tempStr(this.weather.temperature) + (this.tempUnit === 'f' ? '\u00B0F' : '\u00B0'))
                 .fontSize(this.fs(64)).fontWeight(FontWeight.Bold).fontColor('#E65100')
+                .margin({ left: 20 })
             }
             .width('100%')
             .padding({ left: 20, right: 20, top: 16, bottom: 16 })
@@ -266,22 +295,16 @@ struct Index {
               .width('100%').padding({ left: 16, right: 16, bottom: 16 })
             }
 
-            // ===== 信息卡片 =====
-            this.InfoCard('💧', '湿度',
-              this.weather.humidity !== null ? this.weather.humidity + '%' : '-')
-            this.InfoCard('🌬️', '风力',
-              this.weather.windDirect + ' ' + this.weather.windPower)
-            this.InfoCard('🫧', '空气质量',
-              this.weather.aqi !== null ? this.weather.aqi + ' ' + this.weather.aqiText : this.weather.aqiText || '-')
-            this.InfoCard('☀️', '紫外线强度', this.weather.uvIndex || '-')
-
-            // ===== 逐分钟降水 =====
-            if (this.weather.minutelyText) {
+            // ===== 降雨提醒 =====
+            if (this.buildRainReminder()) {
               Row() {
-                Text('🌧️').fontSize(this.fs(22)).margin({ right: 8 })
-                Text(this.weather.minutelyText)
-                  .fontSize(this.fs(20)).fontColor('#1565C0').layoutWeight(1)
-                  .maxLines(3).textOverflow({ overflow: TextOverflow.Ellipsis })
+                Text('\uD83C\uDF02').fontSize(this.fs(22)).margin({ right: 8 })
+                Text(this.buildRainReminder()!)
+                  .fontSize(this.fs(22)).fontColor('#1565C0').layoutWeight(1)
+                  .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
+                Text('查看降雨趋势 \u203A')
+                  .fontSize(this.fs(18)).fontColor('#1565C0')
+                  .onClick(() => { router.pushUrl({ url: 'pages/RainForecastPage' }); })
               }
               .width('100%').padding(16)
               .backgroundColor('#E3F2FD').borderRadius(16)
@@ -290,13 +313,13 @@ struct Index {
             }
 
             // ===== 逐时预报 =====
-            Text('逐时预报')
+            Text(this.weather.hourlyLabel || '逐时预报')
               .fontSize(this.fs(24)).fontWeight(FontWeight.Bold).fontColor('#333333')
               .margin({ top: 24, left: 16, bottom: 8 })
 
-            Scroll() {
+            Scroll(this.scroller) {
               Row() {
-                ForEach(this.weather.hourly.slice(0, 24), (h: HourlyItem) => {
+                ForEach(this.weather.hourly, (h: HourlyItem) => {
                   Column() {
                     Text(this.hourLabel(h.time))
                       .fontSize(this.fs(18)).fontColor('#666666')
@@ -312,12 +335,93 @@ struct Index {
                         .fontSize(this.fs(16)).fontColor('#1565C0').margin({ top: 2 })
                     }
                   }
-                  .width(80).alignItems(HorizontalAlign.Center).margin({ right: 8 })
+                  .width(100).alignItems(HorizontalAlign.Center).margin({ right: 8 })
+                  .backgroundColor('#F5F5F5').borderRadius(12).padding({ top: 12, bottom: 12 })
                 })
               }
               .padding({ left: 16, right: 16 })
             }
             .scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%')
+
+            // ===== 信息卡片 =====
+            this.InfoCard('\uD83D\uDCA7', '湿度',
+              this.weather.humidity !== null ? this.weather.humidity + '%' : '-')
+            this.InfoCard('\uD83C\uDF2C\uFE0F', '风力',
+              this.weather.windDirect + ' ' + this.weather.windPower)
+            this.InfoCard('\uD83E\uDEA7', '空气质量',
+              this.weather.aqi !== null ? this.weather.aqi + ' ' + this.weather.aqiText : this.weather.aqiText || '-')
+            this.InfoCard('\u2600\uFE0F', '紫外线强度', this.weather.uvIndex || '-')
+
+            // ===== 逐分钟降水 =====
+            if (this.weather.minutelyText) {
+              Column() {
+                Text('分钟级降水预报')
+                  .fontSize(this.fs(22)).fontWeight(FontWeight.Bold).fontColor('#333333')
+                  .margin({ bottom: 8 })
+                Text(this.weather.minutelyText)
+                  .fontSize(this.fs(18)).fontColor('#1565C0')
+                  .maxLines(5).textOverflow({ overflow: TextOverflow.Ellipsis })
+              }
+              .width('100%').padding(16)
+              .backgroundColor('#E3F2FD').borderRadius(16)
+              .border({ width: 1, color: '#90CAF9' })
+              .margin({ top: 12, left: 16, right: 16 })
+            }
+
+            // ===== 昨日天气 =====
+            Text('昨日天气')
+              .fontSize(this.fs(24)).fontWeight(FontWeight.Bold).fontColor('#333333')
+              .margin({ top: 24, left: 16, bottom: 8 })
+
+            if (this.weather.yesterday) {
+              Column() {
+                Row() {
+                  Text('昨日高温')
+                    .fontSize(this.fs(20)).fontColor('#666666')
+                  Text(this.tempStrWithUnit(this.weather.yesterday.high))
+                    .fontSize(this.fs(24)).fontWeight(FontWeight.Bold).fontColor('#E65100').margin({ left: 12 })
+                  Text('  /  ').fontSize(this.fs(20)).fontColor('#999999')
+                  Text('昨日低温')
+                    .fontSize(this.fs(20)).fontColor('#666666')
+                  Text(this.tempStrWithUnit(this.weather.yesterday.low))
+                    .fontSize(this.fs(24)).fontWeight(FontWeight.Bold).fontColor('#1565C0').margin({ left: 12 })
+                }
+                .width('100%').padding({ left: 16, right: 16, top: 16, bottom: 8 })
+
+                if (this.weather.yesterday.hourly.length > 0) {
+                  Text('昨日逐时')
+                    .fontSize(this.fs(20)).fontWeight(FontWeight.Medium).fontColor('#666666')
+                    .margin({ left: 16, bottom: 8 })
+
+                  Scroll() {
+                    Row() {
+                      ForEach(this.weather.yesterday.hourly, (h: HourlyItem) => {
+                        Column() {
+                          Text(this.hourLabel(h.time))
+                            .fontSize(this.fs(16)).fontColor('#999999')
+                          Text(this.conditionIcon(h.condition))
+                            .fontSize(this.fs(28)).margin({ top: 6 })
+                          Text(this.tempStrWithUnit(h.temperature))
+                            .fontSize(this.fs(20)).fontWeight(FontWeight.Bold).fontColor('#666666').margin({ top: 4 })
+                        }
+                        .width(80).alignItems(HorizontalAlign.Center).margin({ right: 8 })
+                      })
+                    }
+                    .padding({ left: 16, right: 16 })
+                  }
+                  .scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%')
+                }
+              }
+              .width('100%').backgroundColor('#F5F5F5').borderRadius(16)
+              .margin({ left: 16, right: 16 })
+            } else {
+              Row() {
+                Text('暂不提供昨日天气数据')
+                  .fontSize(this.fs(20)).fontColor('#666666')
+              }
+              .width('100%').padding(16).backgroundColor('#F5F5F5').borderRadius(16)
+              .margin({ left: 16, right: 16 })
+            }
 
             // ===== 7天预报 =====
             Text('7天预报')
@@ -335,12 +439,12 @@ struct Index {
                     Text(this.combineDayNight(d.dayText, d.nightText))
                       .fontSize(this.fs(20)).fontColor('#666666').layoutWeight(1)
                       .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis }).margin({ left: 8 })
-                    Text(this.tempStr(d.high) + '°')
+                    Text(this.tempStr(d.high) + '\u00B0')
                       .fontSize(this.fs(24)).fontWeight(FontWeight.Bold).fontColor('#E65100')
                     Text(' / ')
                       .fontSize(this.fs(22)).fontColor('#999999')
-                    Text(this.tempStr(d.low) + '°')
-                      .fontSize(this.fs(24)).fontWeight(FontWeight.Bold).fontColor('#1565C0')
+                    Text(this.tempStr(d.low) + '\u00B0')
+                      .fontSize(this.fs(22)).fontColor('#1565C0')
                   }
                   .width('100%').padding({ top: 12, bottom: 12, left: 16, right: 16 })
 
@@ -351,18 +455,6 @@ struct Index {
               })
             }
             .width('100%').backgroundColor('#F5F5F5').borderRadius(16)
-            .margin({ left: 16, right: 16 })
-
-            // ===== 昨日天气 =====
-            Text('昨日天气')
-              .fontSize(this.fs(24)).fontWeight(FontWeight.Bold).fontColor('#333333')
-              .margin({ top: 24, left: 16, bottom: 8 })
-
-            Row() {
-              Text('暂不提供昨日天气数据')
-                .fontSize(this.fs(20)).fontColor('#666666')
-            }
-            .width('100%').padding(16).backgroundColor('#F5F5F5').borderRadius(16)
             .margin({ left: 16, right: 16 })
 
             // ===== 数据来源 =====

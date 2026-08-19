@@ -4,49 +4,101 @@
 
 ## 功能
 
-- 实时天气：温度、体感、湿度、风向风力、空气质量（AQI）、日出日落
-- 逐小时天气：过去24小时逐时实况（气象局）/ 未来48小时逐时预报（彩云）
-- 多日预报：7天预报（气象局）/ 3天预报（彩云）
-- 昨日天气回顾（仅气象局数据源）
-- 气象预警提示（仅气象局数据源）
-- 彩云分钟级降水提醒（开启彩云数据源时）
-- 30分钟自动刷新，可关闭
-- 手动切换城市（省级列表选择）或使用 GPS 定位
-- 字号三档可调：标准 / 大 / 特大（默认「大」）
+- **实时天气**：温度、体感、湿度、风向风力、空气质量（AQI）、紫外线强度、日出日落
+- **逐时预报**：未来48小时逐时天气（Open-Meteo / 彩云 / 气象局过去24小时实况）
+- **多日预报**：15天预报（Open-Meteo）/ 7天（气象局）/ 可扩展更多天（彩云多次请求叠加）
+- **昨日天气**：昨日温度回顾（气象局 / 彩云开启扩展时）
+- **分钟级降水**：降雨趋势预报，精确到分钟（彩云 / Open-Meteo 逐时降水概率）
+- **气象预警提示**（彩云数据源）
+- **自动刷新**：可选间隔（关闭 / 每次进入App / 10/30/60分钟 / 6/12/24小时）
+- **自动检查更新**：进入App自动检查GitHub Release新版本，支持下载安装
+- **扩展多日预报**（可选）：多次请求叠加突破免费版3天限制，最多16天
+- **城市选择**：全国省→市→区县层级选择，支持全局搜索
+- **GPS定位**：自动定位当前城市
+- **字号三档**：标准 / 大（推荐）/ 特大
 
 ## 数据源
 
-| 数据 | 中央气象台（NMC，默认，无需密钥） | 彩云天气（需免费 Token） |
-| --- | --- | --- |
-| 实时天气 | 有 | 有 |
-| 逐小时 | 过去24小时实况 | 未来48小时预报 |
-| 多日预报 | 7天 | 3天 |
-| 昨日天气 | 有 | 无 |
-| 预警 / AQI | 有 | 无 |
-| 分钟级降水 | 无 | 有 |
+| 数据 | 中央气象局 | Open-Meteo | 彩云天气 |
+|------|-----------|------------|----------|
+| 默认 | ✓（无需密钥） | ✓（无需密钥） | 需 Token/AppKey |
+| 实时天气 | ✓ | ✓ | ✓ |
+| 逐时预报 | 过去24h实况 | 未来48h | 未来48h |
+| 多日预报 | 7天 | 15天 | 3天（可扩展） |
+| 昨日天气 | ✓ | ✓ | ✓（需开启扩展） |
+| 分钟级降水 | ✗ | 逐时降水概率 | ✓（分钟级） |
+| 预警 | ✓ | ✗ | ✓ |
+| AQI | ✓ | ✓ | ✓ |
+| 紫外线 | ✗ | ✓ | ✗ |
 
-- 气象局数据来自 `nmc.cn` 公开接口，无需注册。
-- 彩云数据需在 [彩云天气开发者平台](https://dashboard.caiyunapp.com) 免费申请 Token，在「设置 → 彩云 Token」中填写后使用。
+### 彩云天气接入
+
+支持两种认证方式（在「设置 → 彩云天气」中选择）：
+- **V1 Token**：免费版，3天预报，Token在URL中
+- **V3 AppKey + AppSecret**：开放平台凭证，签名鉴权，更安全
+
+凭证在 [彩云天气开发者平台](https://platform.caiyunapp.com) 获取。
+
+### 扩展多日预报（可选）
+
+开启后通过多次请求叠加数据，突破免费版单次3天限制：
+- 支持选择预报天数（3/5/7/10/15天）
+- 可选开启昨日天气获取
+- 自动计算并显示所需请求次数
 
 ## 构建
 
-环境要求：JDK 17、Android SDK（platform 34）、网络可访问镜像仓库（项目已配置阿里云镜像）。
+环境要求：JDK 17、Android SDK（platform 36）、网络可访问镜像仓库。
 
 ```bash
-# 使用本地 Gradle 构建（wrapper 已配置腾讯镜像）
-gradle wrapper --gradle-version 8.9
+# 本地构建（wrapper 已配置腾讯镜像）
 gradle assembleDebug
 ```
 
 输出：`app/build/outputs/apk/debug/app-debug.apk`
 
-首次构建需联网下载依赖与 Android 构建工具，耗时较长。
+### Release 构建
+
+```bash
+gradle assembleRelease
+```
+
+Release APK 使用 `release-key.jks` 签名（已配置 signingConfig）。
+
+### GitHub Actions 自动构建
+
+推送 `v*` 标签时自动构建 Release APK 并发布到 GitHub Releases：
+
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+## 自动更新
+
+App 内置检查更新功能：
+- 进入首页自动检查 GitHub Release（可在设置中关闭）
+- 发现新版本弹窗显示版本号 + 更新日志
+- 点击「立即更新」下载 APK 并安装
+- 需要 Android 8+ 的 `REQUEST_INSTALL_PACKAGES` 权限
 
 ## 目录结构
 
 - `app/src/main/java/com/cyanweather/app/`
-  - `MainActivity.kt`：入口，定位权限，屏幕切换
-  - `model/`：数据模型（统一模型 + 两源模型）
-  - `data/`：网络请求、NMC/彩云解析映射、设置与缓存仓库
-  - `location/`：GPS 定位
-  - `ui/`：主题字体、Canvas 天气图标、主页/设置/城市选择、ViewModel
+  - `MainActivity.kt`：入口，权限处理，屏幕切换
+  - `model/`：数据模型（NMC / 彩云 / Open-Meteo）
+  - `data/`：网络请求、API解析、设置缓存、城市映射
+  - `location/`：GPS定位（最优源选择）
+  - `ui/`：主题字体、Canvas天气图标、主页/设置/城市选择/降雨趋势/更新弹窗
+  - `update/`：检查更新、下载安装
+- `app/src/main/java/com/cyanweather/app/data/AdminHierarchy.kt`：全国行政区划层级映射（自动生成）
+
+## 技术栈
+
+- Kotlin + Jetpack Compose
+- Material 3
+- Kotlin Serialization
+- OkHttp3
+- DataStore Preferences
+- Canvas 自绘天气图标
+- GitHub Actions CI/CD

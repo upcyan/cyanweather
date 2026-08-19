@@ -17,6 +17,9 @@ const KEY_THEME_MODE: string = 'theme_mode';       // 'light' | 'dark' | 'auto'
 const KEY_CITY_NAME: string = 'city_name';
 const KEY_CITY_LAT: string = 'city_lat';
 const KEY_CITY_LON: string = 'city_lon';
+const KEY_USE_GPS: string = 'use_gps';             // boolean
+const KEY_REFRESH_INTERVAL: string = 'refresh_interval'; // 'off' | 'on_resume' | '10' | '30' | '60' | '360' | '720' | '1440'
+const KEY_AUTO_UPDATE: string = 'auto_update';       // boolean
 
 export class SettingsStore {
   private static pref: preferences.Preferences | null = null;
@@ -129,5 +132,47 @@ export class SettingsStore {
     pref.putSync(KEY_CITY_LAT, lat);
     pref.putSync(KEY_CITY_LON, lon);
     pref.flush();
+  }
+
+  // ===== 自动定位 =====
+  static getUseGps(): boolean {
+    try {
+      return SettingsStore.ensurePref().getSync(KEY_USE_GPS, false) as boolean;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static setUseGps(enabled: boolean): void {
+    SettingsStore.ensurePref().putSync(KEY_USE_GPS, enabled);
+    SettingsStore.ensurePref().flush();
+  }
+
+  // ===== 自动刷新间隔 =====
+  static getRefreshInterval(): string {
+    try {
+      return SettingsStore.ensurePref().getSync(KEY_REFRESH_INTERVAL, 'off') as string;
+    } catch (_) {
+      return 'off';
+    }
+  }
+
+  static setRefreshInterval(interval: string): void {
+    SettingsStore.ensurePref().putSync(KEY_REFRESH_INTERVAL, interval);
+    SettingsStore.ensurePref().flush();
+  }
+
+  // ===== 自动检查更新 =====
+  static getAutoUpdate(): boolean {
+    try {
+      return SettingsStore.ensurePref().getSync(KEY_AUTO_UPDATE, true) as boolean;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static setAutoUpdate(enabled: boolean): void {
+    SettingsStore.ensurePref().putSync(KEY_AUTO_UPDATE, enabled);
+    SettingsStore.ensurePref().flush();
   }
 }

@@ -231,8 +231,11 @@ export async function fetchWeather(lat: number, lon: number, cityName: string): 
     minutelyText: null,
     uvIndex: '',
     sourceTag: '数据来源：Open-Meteo',
+    hourlyLabel: 'hourly forecast',
     hourly: hourlyList,
-    daily: dailyList
+    daily: dailyList,
+    yesterday: null,
+    savedAt: Date.now()
   };
   return result;
 }

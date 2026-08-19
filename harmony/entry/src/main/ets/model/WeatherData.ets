@@ -17,8 +17,11 @@ export interface WeatherData {
   minutelyText: string | null;
   uvIndex: string;
   sourceTag: string;
+  hourlyLabel: string;
   hourly: HourlyItem[];
   daily: DailyItem[];
+  yesterday: YesterdayData | null;
+  savedAt: number;
 }
 
 export interface HourlyItem {
@@ -35,4 +38,10 @@ export interface DailyItem {
   nightText: string;
   high: number | null;
   low: number | null;
+}
+
+export interface YesterdayData {
+  high: number | null;
+  low: number | null;
+  hourly: HourlyItem[];
 }

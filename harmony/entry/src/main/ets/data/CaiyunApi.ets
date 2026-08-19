@@ -288,8 +288,11 @@ export class CaiyunApi {
       minutelyText: minutelyText,
       uvIndex: uvIndex,
       sourceTag: '彩云天气',
+      hourlyLabel: 'hourly forecast',
       hourly: hourly,
-      daily: daily
+      daily: daily,
+      yesterday: null,
+      savedAt: Date.now()
     };
   }
 }

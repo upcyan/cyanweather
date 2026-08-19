@@ -1,0 +1,1 @@
+Get-ChildItem -Path 'E:\project\cyanweather\shared' -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Extension -eq '.kt' } | Select-Object FullName | Out-File -FilePath 'E:\project\cyanweather\harmony\sharedfiles.txt' -Encoding utf8

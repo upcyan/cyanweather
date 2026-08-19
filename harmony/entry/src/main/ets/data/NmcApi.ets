@@ -256,8 +256,11 @@ export class NmcApi {
       minutelyText: null,
       uvIndex: '',
       sourceTag: 'NMC 中央气象台',
+      hourlyLabel: 'hourly forecast',
       hourly: hourly,
-      daily: daily
+      daily: daily,
+      yesterday: null,
+      savedAt: Date.now()
     };
   }
 }

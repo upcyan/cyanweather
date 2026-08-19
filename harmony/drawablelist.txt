@@ -1,0 +1,6 @@
+﻿
+Name                       Length
+----                       ------
+ic_launcher_foreground.xml    747
+
+

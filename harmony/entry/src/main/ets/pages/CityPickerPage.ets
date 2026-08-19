@@ -55,9 +55,15 @@ struct CityPickerPage {
   @State searching: boolean = false;
   @State currentCity: string = '';
   @State locating: boolean = false;
+  @State fontScale: number = 1.0;
 
   aboutToAppear(): void {
     this.currentCity = SettingsStore.getCityName();
+    this.fontScale = SettingsStore.getFontScale();
+  }
+
+  fs(size: number): number {
+    return Math.round(size * this.fontScale);
   }
 
   async searchCity(query: string): Promise<void> {
