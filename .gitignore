@@ -29,3 +29,28 @@ harmony/temp_build_part1.ets
 
 # Kotlin
 .kotlin/
+
+# Signing
+keystore.properties
+**/key.properties
+keystore/
+
+# Release artifacts
+dist/
+
+# Test screenshots & misc
+/*.png
+.gradle-agent/
+
+# Flutter (subdirectory)
+flutter/.dart_tool/
+flutter/build/
+flutter/.idea/
+flutter/android/.gradle/
+flutter/android/local.properties
+
+# Capacitor (subdirectory)
+capacitor/node_modules/
+capacitor/android/.gradle/
+capacitor/android/local.properties
+capacitor/android/app/build/

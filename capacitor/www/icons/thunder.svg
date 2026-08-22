@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- 雷阵雨：云+闪电 -->
+  <circle cx="38" cy="28" r="15" fill="#7C97AB"/>
+  <circle cx="55" cy="21" r="19" fill="#7C97AB"/>
+  <circle cx="72" cy="29" r="14" fill="#7C97AB"/>
+  <rect x="23" y="34" width="58" height="16" rx="8" fill="#7C97AB"/>
+  <!-- 闪电 -->
+  <polygon points="50,46 42,62 48,62 44,80 60,56 52,56 58,46" fill="#F2A93B"/>
+</svg>

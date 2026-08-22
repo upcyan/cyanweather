@@ -1,5 +1,7 @@
 package com.cyanweather.app.ui
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -70,43 +74,62 @@ fun HomeScreen(
     onDismissUpdate: () -> Unit
 ) {
     val weather = state.weather
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        TopBar(weather, state.refreshing, onSettings, onRefresh, onOpenCityPicker)
-        Spacer(Modifier.height(8.dp))
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            TopBar(weather, state.refreshing, onSettings, onRefresh, onOpenCityPicker)
+            Spacer(Modifier.height(8.dp))
 
-        when {
-            state.loading -> {
-                Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(Modifier.size(64.dp))
-                        Spacer(Modifier.height(20.dp))
-                        Text("正在获取天气...", style = fst(24))
+            when {
+                state.loading -> {
+                    Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(Modifier.size(64.dp))
+                            Spacer(Modifier.height(20.dp))
+                            Text("正在获取天气...", style = fst(24))
+                        }
                     }
                 }
-            }
-            weather == null && state.error != null -> {
-                Column(
-                    Modifier.fillMaxWidth().padding(top = 80.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(state.error ?: "", style = fst(22), color = MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(24.dp))
-                    BigButton("重新获取", onRefresh)
+                weather == null && state.error != null -> {
+                    Column(
+                        Modifier.fillMaxWidth().padding(top = 80.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(state.error ?: "", style = fst(22), color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(24.dp))
+                        BigButton("重新获取", onRefresh)
+                    }
+                }
+                weather != null -> {
+                    WeatherBody(weather, state.error, state.locationNotice, onRefresh, onOpenRainForecast)
                 }
             }
-            weather != null -> {
-                WeatherBody(weather, state.error, onRefresh, onOpenRainForecast)
+            Spacer(Modifier.height(24.dp))
+        }
+
+        // 全屏刷新遮罩
+        if (state.refreshing && !state.loading) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color(0x99FFFFFF))
+                    .clickable(enabled = false, onClick = {}),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(Modifier.size(56.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text("正在刷新天气...", style = fst(22), color = Color(0xFF333333))
+                }
             }
         }
-        Spacer(Modifier.height(24.dp))
     }
 
     val update = state.updateResult
@@ -156,7 +179,8 @@ private fun TopBar(
 }
 
 @Composable
-private fun WeatherBody(weather: WeatherData, error: String?, onRefresh: () -> Unit, onOpenRainForecast: () -> Unit) {
+private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: String?, onRefresh: () -> Unit, onOpenRainForecast: () -> Unit) {
+    val context = LocalContext.current
     if (error != null) {
         Text(
             error,
@@ -164,6 +188,28 @@ private fun WeatherBody(weather: WeatherData, error: String?, onRefresh: () -> U
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier.padding(bottom = 8.dp)
         )
+    }
+
+    if (locationNotice != null) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3CD)),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        ) {
+            Column(Modifier.padding(14.dp)) {
+                Text("⚠ $locationNotice", style = fst(18), color = Color(0xFF7A5600))
+                if (locationNotice.startsWith("定位服务未开启")) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "去开启定位 ›",
+                        style = fst(18, FontWeight.Bold),
+                        color = Color(0xFF0B6BCB),
+                        modifier = Modifier.clickable {
+                            context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                        }
+                    )
+                }
+            }
+        }
     }
 
     // 预警横幅
@@ -231,10 +277,9 @@ private fun WeatherBody(weather: WeatherData, error: String?, onRefresh: () -> U
         Row(Modifier.fillMaxWidth()) {
             StatCol("最高", "${temp(weather.todayHigh)}°", Color(0xFFC62828), Modifier.weight(1f))
             StatCol("最低", "${temp(weather.todayLow)}°", Color(0xFF1565C0), Modifier.weight(1f))
-        }
-        weather.feelsLike?.let {
-            Spacer(Modifier.height(8.dp))
-            Text("体感温度 ${temp(it)}°", style = fst(20), color = Color(0xFF666666))
+            if (weather.feelsLike != null) {
+                StatCol("体感", "${temp(weather.feelsLike)}°", Color(0xFF00897B), Modifier.weight(1f))
+            }
         }
     }
 
@@ -279,7 +324,7 @@ private fun WeatherBody(weather: WeatherData, error: String?, onRefresh: () -> U
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(Modifier.padding(vertical = 8.dp)) {
+            Column(Modifier.padding(vertical = 4.dp)) {
                 weather.daily.forEach { d -> DailyRow(d) }
             }
         }
@@ -352,7 +397,7 @@ private fun buildRainReminder(w: WeatherData): String? {
     return if (soon) "近期可能有雨，请留意天气变化" else null
 }
 
-private fun temp(v: Double?): String = v?.let { it.round() } ?: "-"
+private fun temp(v: Double?): String = v?.takeIf { it < 9998.0 }?.round() ?: "-"
 
 private fun Double.round(): String = if (this % 1.0 == 0.0) this.toInt().toString() else String.format(Locale.US, "%.0f", this)
 
@@ -467,7 +512,9 @@ private fun HourCard(item: HourlyItem) {
             Modifier.fillMaxWidth().padding(vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(hourLabel(item.time), style = fst(18), color = Color(0xFF666666))
+            val (datePart, hourPart) = hourDateHour(item.time)
+            Text(datePart, style = fst(16), color = Color(0xFF666666))
+            Text(hourPart, style = fst(18), color = Color(0xFF666666))
             Spacer(Modifier.height(6.dp))
             WeatherGlyph(kind, Modifier.size(36.dp))
             if (item.condition.isNotEmpty()) {
@@ -477,6 +524,22 @@ private fun HourCard(item: HourlyItem) {
             Spacer(Modifier.height(4.dp))
             Text("${temp(item.temperature)}°", style = fst(22, FontWeight.Bold))
         }
+    }
+}
+
+private fun hourDateHour(time: String): Pair<String, String> {
+    return when {
+        time.contains("T") && time.length >= 13 -> {
+            val date = time.substring(5, 10).replace("-", "/")
+            val hour = "${time.substring(11, 13).toIntOrNull() ?: "?"}时"
+            date to hour
+        }
+        time.contains(" ") && time.length >= 16 -> {
+            val date = time.substring(5, 10).replace("-", "/")
+            val hour = "${time.substring(11, 13).toIntOrNull() ?: "?"}时"
+            date to hour
+        }
+        else -> "" to time
     }
 }
 
@@ -502,28 +565,33 @@ private fun DailyRow(d: DailyItem) {
         d.dayText.isNotEmpty() -> nmcSkyconKind(d.dayText)
         else -> SkyKind.UNKNOWN
     }
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
     ) {
-        Text(dayLabel(d.date), style = fst(22, FontWeight.Medium), maxLines = 2)
-        Spacer(Modifier.height(4.dp))
-        Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
-            WeatherGlyph(kind, Modifier.size(40.dp))
-            Spacer(Modifier.width(10.dp))
-            Text(
-                combineDayNight(d.dayText, d.nightText),
-                style = fst(22),
-                modifier = Modifier.weight(1f),
-                maxLines = 2
-            )
-            Spacer(Modifier.width(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${temp(d.high)}°", style = fst(24, FontWeight.Bold), color = Color(0xFFC62828))
-                Text("/", style = fst(24, FontWeight.Bold), color = Color(0xFF666666))
-                Text("${temp(d.low)}°", style = fst(24, FontWeight.Bold), color = Color(0xFF1565C0))
+            Text(dayLabel(d.date), style = fst(22, FontWeight.Medium), maxLines = 2)
+            Spacer(Modifier.height(4.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                WeatherGlyph(kind, Modifier.size(40.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    combineDayNight(d.dayText, d.nightText),
+                    style = fst(22),
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2
+                )
+                Spacer(Modifier.width(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${temp(d.high)}°", style = fst(24, FontWeight.Bold), color = Color(0xFFC62828))
+                    Text("/", style = fst(24, FontWeight.Bold), color = Color(0xFF666666))
+                    Text("${temp(d.low)}°", style = fst(24, FontWeight.Bold), color = Color(0xFF1565C0))
+                }
             }
         }
     }

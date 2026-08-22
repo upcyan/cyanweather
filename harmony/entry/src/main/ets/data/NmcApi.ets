@@ -2,7 +2,7 @@ import { http } from '@kit.NetworkKit';
 import { WeatherData, HourlyItem, DailyItem } from '../model/WeatherData';
 
 // NMC API 基础 URL
-const NMC_BASE: string = 'http://www.nmc.cn/rest';
+const NMC_BASE: string = 'https://www.nmc.cn/rest';
 
 // NMC 省份
 interface NmcProvince {
@@ -71,7 +71,7 @@ export class NmcApi {
       const req: http.HttpRequest = http.createHttp();
       const resp: http.HttpResponse = await req.request(`${NMC_BASE}/province`, {
         method: http.RequestMethod.GET,
-        header: { 'Referer': 'http://www.nmc.cn/' },
+        header: { 'Referer': 'https://www.nmc.cn/' },
         connectTimeout: 10000,
         readTimeout: 10000,
       });
@@ -93,7 +93,7 @@ export class NmcApi {
       const req: http.HttpRequest = http.createHttp();
       const resp: http.HttpResponse = await req.request(`${NMC_BASE}/city/${provinceCode}`, {
         method: http.RequestMethod.GET,
-        header: { 'Referer': 'http://www.nmc.cn/' },
+        header: { 'Referer': 'https://www.nmc.cn/' },
         connectTimeout: 10000,
         readTimeout: 10000,
       });
@@ -171,7 +171,7 @@ export class NmcApi {
     const req: http.HttpRequest = http.createHttp();
     const resp: http.HttpResponse = await req.request(`${NMC_BASE}/weather?stationid=${station.stationId}`, {
       method: http.RequestMethod.GET,
-      header: { 'Referer': 'http://www.nmc.cn/' },
+      header: { 'Referer': 'https://www.nmc.cn/' },
       connectTimeout: 10000,
       readTimeout: 10000,
     });

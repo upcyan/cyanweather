@@ -17,6 +17,7 @@ import com.cyanweather.shared.model.NmcCityItem
 import com.cyanweather.shared.model.NmcProvinceItem
 import com.cyanweather.app.update.UpdateChecker
 import com.cyanweather.app.update.UpdateResult
+import com.cyanweather.shared.data.OpenMeteoApi
 import com.cyanweather.shared.model.WeatherData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -35,6 +36,7 @@ data class UiState(
     val loading: Boolean = true,
     val refreshing: Boolean = false,
     val error: String? = null,
+    val locationNotice: String? = null,
     val weather: WeatherData? = null,
     val provinces: List<NmcProvinceItem> = emptyList(),
     val cities: List<NmcCityItem> = emptyList(),
@@ -54,6 +56,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val settingsStore = SettingsStore
     private val locationHelper = LocationHelper(context)
     private val repository = WeatherRepository(context, locationHelper)
+    private var updateFileName: String? = null
 
     var ui by mutableStateOf(UiState())
         private set
@@ -73,7 +76,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
         }
-        refresh()
+        viewModelScope.launch {
+            ui = ui.copy(locationNotice = refreshLocation())
+            refresh()
+        }
         startAutoRefresh()
         observeLifecycle()
         if (ui.settings.autoCheckUpdate) checkUpdate()
@@ -109,6 +115,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (url.isBlank()) return@launch
             val fileName = "cyanweather-v${update.version}.apk"
             val downloadId = com.cyanweather.app.update.UpdateChecker.downloadAndInstall(context, url, fileName)
+            updateFileName = fileName
             ui = ui.copy(updateDownloading = true, updateDownloadId = downloadId)
         }
     }
@@ -124,9 +131,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (statusIdx >= 0) {
                     val status = c.getInt(statusIdx)
                     if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
-                        val version = (ui.updateResult as? UpdateResult.UpdateAvailable)?.version ?: ""
-                        val fileUri = com.cyanweather.app.update.UpdateChecker.getApkFileUri(context, "cyanweather-v${version}.apk")
+                        val fileName = updateFileName ?: return@use
+                        val fileUri = com.cyanweather.app.update.UpdateChecker.getApkFileUri(context, fileName)
                         com.cyanweather.app.update.UpdateChecker.installApk(context, fileUri)
+                        updateFileName = null
                         ui = ui.copy(updateDownloading = false, updateDownloadId = null)
                     } else if (status == android.app.DownloadManager.STATUS_FAILED) {
                         ui = ui.copy(updateDownloading = false, updateDownloadId = null)
@@ -158,23 +166,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             ui = ui.copy(refreshing = true, error = null, loading = ui.weather == null)
             try {
-                // If GPS enabled, get fresh location first
-                if (ui.settings.useGps && locationHelper.hasPermission()) {
-                    val loc = locationHelper.requestFreshLocation()
-                    if (loc != null) {
-                        settingsStore.setLatLng(context, loc.latitude, loc.longitude)
-                    }
-                }
+                val locationNotice = refreshLocation()
                 val w = repository.loadWeather()
                 settingsStore.saveCache(context, w)
-                ui = ui.copy(weather = w, loading = false, refreshing = false)
+                ui = ui.copy(weather = w, loading = false, refreshing = false, locationNotice = locationNotice)
             } catch (e: Exception) {
                 val msg = e.message ?: "网络错误"
-                ui = ui.copy(
-                    loading = false,
-                    refreshing = false,
-                    error = msg
-                )
+                ui = ui.copy(loading = false, refreshing = false, error = msg)
             }
         }
     }
@@ -212,15 +210,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setAutoCheckUpdate(v: Boolean) = launchEdit { settingsStore.setAutoCheckUpdate(context, v) }
 
-    fun setUseGps(v: Boolean) = launchEdit { settingsStore.setUseGps(context, v) }
+    fun setUseGps(v: Boolean) = launchEdit { settingsStore.setUseGps(context, v); refresh() }
 
     fun saveLatLng(lat: Double, lng: Double) = launchEdit { settingsStore.setLatLng(context, lat, lng) }
 
     fun saveCurrentLocation() {
         viewModelScope.launch {
-            val loc = locationHelper.requestFreshLocation() ?: return@launch
-            settingsStore.setLatLng(context, loc.latitude, loc.longitude)
+            ui = ui.copy(locationNotice = refreshLocation())
         }
+    }
+
+    private suspend fun refreshLocation(): String? {
+        if (!ui.settings.useGps) return null
+        if (!locationHelper.hasPermission()) return "未获取定位权限，请手动选择城市；当前默认显示北京天气"
+        if (!locationHelper.isLocationEnabled()) return "定位服务未开启，当前显示默认城市北京"
+        val loc = locationHelper.requestFreshLocation()
+            ?: return "定位失败，请检查网络/GPS后重试；当前显示默认城市北京"
+        settingsStore.setLatLng(context, loc.latitude, loc.longitude)
+        // 反向解析城市名并保存，避免设置页仍显示北京
+        if (!ui.settings.manualCity) {
+            try {
+                val name = OpenMeteoApi.reverseGeocode(loc.latitude, loc.longitude)
+                if (name.isNotBlank() && name != ui.settings.cityName) {
+                    settingsStore.setCity(context, name, ui.settings.cityCode, manual = false)
+                }
+            } catch (_: Exception) { }
+        }
+        return null
     }
 
     fun selectCity(name: String, code: String) {

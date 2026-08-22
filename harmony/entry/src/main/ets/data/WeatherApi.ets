@@ -136,10 +136,14 @@ export async function fetchWeather(lat: number, lon: number, cityName: string): 
   const airUrl: string = OPEN_METEO_AIR + '/air-quality?latitude=' + lat + '&longitude=' + lon + '&current=us_aqi';
 
   const weatherText: string = await fetchJson(weatherUrl);
-  const airText: string = await fetchJson(airUrl);
+  let airText: string | null = null;
+  try {
+    airText = await fetchJson(airUrl);
+  } catch (_) {
+  }
 
   const w: OpenMeteoWeatherResp = JSON.parse(weatherText) as OpenMeteoWeatherResp;
-  const airResp: OpenMeteoAirResp = JSON.parse(airText) as OpenMeteoAirResp;
+  const airResp: OpenMeteoAirResp | null = airText ? JSON.parse(airText) as OpenMeteoAirResp : null;
 
   const current: OpenMeteoCurrent = w.current;
   const daily: OpenMeteoDaily = w.daily;
@@ -191,8 +195,8 @@ export async function fetchWeather(lat: number, lon: number, cityName: string): 
     }
   }
 
-  const aqi: number | null = (airResp.current !== undefined && airResp.current !== null)
-    ? safeNum(airResp.current.us_aqi) : null;
+  const aqi: number | null = (airResp?.current !== undefined && airResp?.current !== null)
+    ? safeNum(airResp!.current.us_aqi) : null;
 
   let sunriseVal: string | null = null;
   let sunsetVal: string | null = null;

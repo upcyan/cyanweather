@@ -1,5 +1,6 @@
 import { SettingsStore, DataSource } from '../data/SettingsStore';
 import { router } from '@kit.ArkUI';
+import { AppBarIcon } from '../ui/AppBarIcon';
 
 @Entry
 @Component
@@ -36,13 +37,10 @@ struct SettingsPage {
     Column() {
       // 顶部导航栏
       Row() {
-        Text('\u2190')
-          .fontSize(this.fs(24))
-          .fontColor('#333333')
+        AppBarIcon({ icon: 'back', iconSize: this.fs(24), color: '#333333' })
           .onClick(() => { router.back(); })
           .width(40)
           .height(40)
-          .textAlign(TextAlign.Center)
         Text('设置')
           .fontSize(this.fs(28))
           .fontWeight(FontWeight.Bold)

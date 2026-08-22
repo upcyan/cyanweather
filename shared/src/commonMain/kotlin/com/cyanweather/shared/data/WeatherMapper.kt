@@ -236,7 +236,7 @@ fun parseOpenMeteo(w: OpenMeteoResponse, air: OpenMeteoAirQuality?, cityName: St
     val aqi = air?.current?.usAqi?.cleanInt()
 
     return WeatherData(
-        cityName = cityName.ifBlank { "当前位置" },
+        cityName = cityName.ifBlank { "未识别位置" },
         updatedAt = current.time.takeIf { it.length >= 16 }?.substring(5, 16)?.replace("T", " ") ?: current.time,
         temperature = current.temperature2m?.clean(),
         condition = wmoToText(current.weatherCode),
@@ -264,6 +264,12 @@ fun parseOpenMeteo(w: OpenMeteoResponse, air: OpenMeteoAirQuality?, cityName: St
 
 // ---------- Parse NMC ----------
 
+fun cleanNmcText(s: String?): String {
+    if (s == null) return ""
+    val v = s.trim()
+    return if (v.isEmpty() || v == "9999" || v == "0") "" else v
+}
+
 fun parseNmc(data: NmcData?, cityName: String): WeatherData {
     if (data == null) throw RuntimeException("气象局暂无数据")
     val real = data.real
@@ -276,13 +282,14 @@ fun parseNmc(data: NmcData?, cityName: String): WeatherData {
     val predict = data.predict?.detail ?: emptyList()
     if (predict.isNotEmpty()) {
         val first = predict[0]
-        todayHigh = first.day?.weather?.temperature?.toDoubleOrNull()?.clean()
-        todayLow = first.night?.weather?.temperature?.toDoubleOrNull()?.clean()
+        val currentTemp = weather?.temperature?.clean()
+        todayHigh = first.day?.weather?.temperature?.toDoubleOrNull()?.clean() ?: currentTemp
+        todayLow = first.night?.weather?.temperature?.toDoubleOrNull()?.clean() ?: currentTemp
         daily = predict.map { d ->
             DailyItem(
                 date = d.date,
-                dayText = d.day?.weather?.info ?: "",
-                nightText = d.night?.weather?.info ?: "",
+                dayText = cleanNmcText(d.day?.weather?.info),
+                nightText = cleanNmcText(d.night?.weather?.info),
                 high = d.day?.weather?.temperature?.toDoubleOrNull()?.clean(),
                 low = d.night?.weather?.temperature?.toDoubleOrNull()?.clean()
             )
@@ -294,8 +301,8 @@ fun parseNmc(data: NmcData?, cityName: String): WeatherData {
             if (t.maxTemp?.clean() == null && t.minTemp?.clean() == null) null
             else DailyItem(
                 date = t.time.replace("/", "-"),
-                dayText = t.dayText.ifEmpty { t.nightText }.ifEmpty { "" },
-                nightText = t.nightText,
+                dayText = cleanNmcText(t.dayText).ifEmpty { cleanNmcText(t.nightText) },
+                nightText = cleanNmcText(t.nightText),
                 high = t.maxTemp.clean(),
                 low = t.minTemp.clean()
             )
@@ -333,11 +340,11 @@ fun parseNmc(data: NmcData?, cityName: String): WeatherData {
         cityName = cityName.ifBlank { real?.station?.city ?: "" },
         updatedAt = real?.publishTime ?: "",
         temperature = weather?.temperature?.clean(),
-        condition = weather?.info ?: "",
+        condition = cleanNmcText(weather?.info),
         feelsLike = weather?.feelst?.clean(),
         humidity = weather?.humidity?.clean()?.toInt(),
-        windDirect = wind?.direct ?: "",
-        windPower = wind?.power ?: "",
+        windDirect = cleanNmcText(wind?.direct),
+        windPower = cleanNmcText(wind?.power),
         todayHigh = todayHigh,
         todayLow = todayLow,
         aqi = data.air?.aqi?.cleanInt(),
@@ -412,7 +419,7 @@ fun parseCaiyun(w: CaiyunWeather, cityName: String): WeatherData {
     val aqi = rt.airQuality?.aqi?.chn?.clean()?.toInt()
 
     return WeatherData(
-        cityName = cityName.ifBlank { "当前位置" },
+        cityName = cityName.ifBlank { "未识别位置" },
         updatedAt = currentTimestamp(),
         temperature = rt.temperature?.clean(),
         condition = caiyunSkyconText(rt.skycon),

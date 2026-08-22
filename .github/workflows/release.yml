@@ -1,4 +1,4 @@
-name: Build Release APK
+name: Build Release APKs
 
 on:
   push:
@@ -23,34 +23,57 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Decode keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release-key.jks
+        run: |
+          mkdir -p keystore
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore/release-key.jks
+          cat > keystore.properties <<EOF
+          storeFile=keystore/release-key.jks
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
+          keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          EOF
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Grant execute permission
+        run: chmod +x gradlew capacitor/android/gradlew
 
-      - name: Build Release APK
+      - name: Build Native APK
         run: ./gradlew assembleRelease
 
-      - name: Find APK
-        id: find_apk
-        run: |
-          APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
-          echo "apk_path=$APK" >> $GITHUB_OUTPUT
-          echo "Found APK: $APK"
+      - name: Build Flutter APK
+        working-directory: flutter
+        run: flutter build apk --release
 
-      - name: Get version
-        id: version
+      - name: Build Capacitor APK
+        working-directory: capacitor
         run: |
-          VERSION=$(grep 'versionName' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          npm ci
+          cd android
+          ./gradlew assembleRelease
+
+      - name: Collect APKs
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk dist/cyanweather-v1.0-release.apk
+          cp flutter/build/app/outputs/flutter-apk/app-release.apk dist/cyanweather-flutter-experimental-v1.0-release.apk
+          cp capacitor/android/app/build/outputs/apk/release/app-release.apk dist/cyanweather-capacitor-experimental-v1.0-release.apk
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: v${{ steps.version.outputs.version }}
-          tag_name: v${{ steps.version.outputs.version }}
-          files: ${{ steps.find_apk.outputs.apk_path }}
+          name: v1.0
+          tag_name: ${{ github.ref_name }}
+          files: dist/*.apk
           draft: false
           generate_release_notes: true
         env:

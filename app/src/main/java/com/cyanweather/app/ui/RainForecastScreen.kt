@@ -84,7 +84,11 @@ private fun RainHourRow(item: com.cyanweather.shared.model.HourlyItem) {
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(hourLabel(item.time), style = fst(20), color = Color(0xFF666666), modifier = Modifier.width(88.dp), maxLines = 1)
+            Column(modifier = Modifier.width(92.dp)) {
+                val (datePart, hourPart) = rainDateHour(item.time)
+                Text(datePart, style = fst(18), color = Color(0xFF666666), maxLines = 1)
+                Text(hourPart, style = fst(20), color = Color(0xFF666666), maxLines = 1)
+            }
             Text(item.condition.ifEmpty { "-" }, style = fst(20), color = accent, modifier = Modifier.weight(1f))
             Text("${prob.toInt()}%", style = fst(20), color = accent, fontWeight = FontWeight.Bold)
         }
@@ -100,6 +104,23 @@ Box(
                 .background(if (prob >= 50) Color(0xFF0B6BCB) else Color(0xFF90CAF9), MaterialTheme.shapes.small)
         )
         }
+    }
+}
+
+private fun rainDateHour(time: String): Pair<String, String> {
+    val t = time.trim()
+    return when {
+        t.length >= 13 && t.contains("T") -> {
+            val date = t.substring(5, 10).replace("-", "/")
+            val hour = "${t.substring(11, 13).toIntOrNull() ?: "?"}时"
+            date to hour
+        }
+        t.length >= 16 && t.contains(" ") -> {
+            val date = t.substring(5, 10).replace("-", "/")
+            val hour = "${t.substring(11, 13).toIntOrNull() ?: "?"}时"
+            date to hour
+        }
+        else -> "" to t
     }
 }
 

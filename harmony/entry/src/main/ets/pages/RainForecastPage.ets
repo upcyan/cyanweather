@@ -2,6 +2,7 @@ import { WeatherData, HourlyItem, DailyItem } from '../model/WeatherData';
 import { WeatherManager } from '../data/WeatherManager';
 import { router } from '@kit.ArkUI';
 import { SettingsStore } from '../data/SettingsStore';
+import { AppBarIcon } from '../ui/AppBarIcon';
 
 @Entry
 @Component
@@ -62,11 +63,8 @@ struct RainForecastPage {
     Column() {
       // ===== 顶部栏 =====
       Row() {
-        Text('\u2190')
-          .fontSize(this.fs(28))
+        AppBarIcon({ icon: 'back', iconSize: this.fs(28), color: '#333333' })
           .width(48).height(48)
-          .textAlign(TextAlign.Center)
-          .fontColor('#333333')
           .onClick(() => { router.back(); })
 
         Text('降雨趋势预报')

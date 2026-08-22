@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Card
@@ -38,6 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cyanweather.app.data.AppSettings
@@ -97,6 +100,8 @@ fun SettingsScreen(
                         onValueChange = { token = it.replace(Regex("\\s"), ""); onToken(token) },
                         placeholder = { Text("填写 V1 Token", style = fst(18)) },
                         textStyle = MaterialTheme.typography.bodyLarge,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(8.dp))
@@ -111,6 +116,8 @@ fun SettingsScreen(
                         onValueChange = { key = it.replace(Regex("\\s"), ""); onCaiyunV3Key(key) },
                         placeholder = { Text("填写 AppKey", style = fst(18)) },
                         textStyle = MaterialTheme.typography.bodyLarge,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(8.dp))
@@ -119,6 +126,8 @@ fun SettingsScreen(
                         onValueChange = { secret = it.replace(Regex("\\s"), ""); onCaiyunV3Secret(secret) },
                         placeholder = { Text("填写 AppSecret", style = fst(18)) },
                         textStyle = MaterialTheme.typography.bodyLarge,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(8.dp))

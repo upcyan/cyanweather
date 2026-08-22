@@ -31,8 +31,8 @@ data class AppSettings(
     val getYesterday: Boolean = false,
     val autoCheckUpdate: Boolean = true,
     val useGps: Boolean = true,
-    val lat: Double = 116.4074,
-    val lng: Double = 39.9042
+    val lat: Double = 39.9042,
+    val lng: Double = 116.4074
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -79,8 +79,8 @@ object SettingsStore {
             getYesterday = p[KEY_GET_YESTERDAY] ?: false,
             autoCheckUpdate = p[KEY_AUTO_UPDATE] ?: true,
             useGps = p[KEY_GPS] ?: true,
-            lat = p[KEY_LAT] ?: 116.4074,
-            lng = p[KEY_LNG] ?: 39.9042
+            lat = p[KEY_LAT] ?: 39.9042,
+            lng = p[KEY_LNG] ?: 116.4074
         )
     }
 

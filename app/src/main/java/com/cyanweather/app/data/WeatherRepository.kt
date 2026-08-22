@@ -60,25 +60,21 @@ class WeatherRepository(
         var name = settings.cityName
 
         if (settings.useGps && !settings.manualCity) {
-            // Use saved coordinates from settings (already obtained in refresh())
-            val lat = settings.lat
-            val lng = settings.lng
-            if (lat != 116.4074 || lng != 39.9042) {
-                // Not default Beijing coordinates, try to resolve city
-                val cached = cachedLocation?.takeIf { it.first == lat && it.second == lng }
-                if (cached != null) {
-                    name = cached.third.first
-                    code = cached.third.second
-                } else {
-                    try {
-                        val (n, c) = resolveNmcByLocation(lat, lng)
-                        cachedLocation = Triple(lat, lng, n to c)
-                        name = n
-                        code = c
-                        SettingsStore.setCity(context, n, c, manual = false)
-                    } catch (e: Exception) {
-                        // GPS resolution failed, fallback to manual city
-                    }
+            // Use real location (fetch GPS if coords still at Beijing defaults)
+            val (lat, lng) = currentLatLng(settings)
+            val cached = cachedLocation?.takeIf { it.first == lat && it.second == lng }
+            if (cached != null) {
+                name = cached.third.first
+                code = cached.third.second
+            } else {
+                try {
+                    val (n, c) = resolveNmcByLocation(lat, lng)
+                    cachedLocation = Triple(lat, lng, n to c)
+                    name = n
+                    code = c
+                    SettingsStore.setCity(context, n, c, manual = false)
+                } catch (e: Exception) {
+                    // GPS resolution failed, fallback to manual city
                 }
             }
         }
@@ -89,22 +85,45 @@ class WeatherRepository(
     }
 
     private suspend fun resolveNmcByLocation(lat: Double, lng: Double): Pair<String, String> {
-        val geoName = OpenMeteoApi.reverseGeocode(lat, lng)
-        if (geoName.isBlank()) throw RuntimeException("定位失败，无法自动选择城市")
+        val geo = OpenMeteoApi.reverseGeocodeFull(lat, lng)
+            ?: throw RuntimeException("定位失败，无法自动选择城市")
+        val provName = simp(geo.first).trim()
+        val cityName = simp(geo.second).trim()
+        val locName = simp(geo.third).trim()
+        if (provName.isBlank() && cityName.isBlank() && locName.isBlank()) {
+            throw RuntimeException("定位失败，无法自动选择城市")
+        }
 
         val provinces = NmcApi.loadProvinces()
         val prov = provinces.firstOrNull { p ->
             val n = simp(p.name).stripAdmin()
-            n.isNotEmpty() && geoName.contains(n)
+            n.isNotEmpty() && provName.contains(n)
+        } ?: provinces.firstOrNull { p ->
+            val n = simp(p.name).stripAdmin()
+            n.isNotEmpty() && (cityName.contains(n) || locName.contains(n))
         } ?: provinces.first()
         val cities = NmcApi.loadCities(prov.code)
 
-        val match = cities.firstOrNull { c ->
-            val cn = simp(c.city).stripAdmin()
-            cn.isNotEmpty() && geoName.contains(cn)
+        fun matches(g: String, c: NmcCityItem): Boolean {
+            val full = simp(c.city).trim()
+            if (full.isEmpty()) return false
+            val stripped = full.stripAdmin()
+            return full == g || g.startsWith(full) || g.contains(full) ||
+                (stripped.length >= 2 && (stripped == g || g.startsWith(stripped) || g.contains(stripped)))
         }
-        val picked = match ?: cities.first()
-        return picked.city to picked.code
+
+        val geoParts = listOfNotNull(locName, cityName)
+        var match: NmcCityItem? = null
+        for (g in geoParts) {
+            match = cities.firstOrNull { matches(g, it) }
+            if (match != null) break
+        }
+        val picked = match ?: cities.firstOrNull { c -> geoParts.any { g -> matches(g, c) } }
+            ?: cities.first()
+
+        // 显示用名称优先取 locality（如 宿松县），退而取城市名
+        val displayName = locName.ifBlank { cityName.ifBlank { picked.city } }
+        return displayName to picked.code
     }
 
     private suspend fun resolveBeijingCode(): String {
@@ -179,7 +198,7 @@ class WeatherRepository(
         val (lat, lng) = currentLatLng(settings)
         val w = OpenMeteoApi.weather(lat, lng)
         val air = OpenMeteoApi.airQuality(lat, lng)
-        var cityName = settings.cityName.ifBlank { "当前位置" }
+        var cityName = if (settings.useGps && !settings.manualCity) "未识别位置" else settings.cityName.ifBlank { "未识别位置" }
         if (settings.useGps) {
             try {
                 val geoName = OpenMeteoApi.reverseGeocode(lat, lng)
@@ -193,7 +212,16 @@ class WeatherRepository(
     }
 
     private suspend fun currentLatLng(settings: AppSettings): Pair<Double, Double> {
-        return settings.lat to settings.lng
+        var lat = settings.lat
+        var lng = settings.lng
+        if (settings.useGps && lat == 39.9042 && lng == 116.4074) {
+            val loc = locationHelper.getBestLocation()
+            if (loc != null) {
+                lat = loc.latitude
+                lng = loc.longitude
+            }
+        }
+        return lat to lng
     }
 
     // ---------- Name normalization ----------
@@ -226,5 +254,5 @@ class WeatherRepository(
         s.map { TRAD_TO_SIMP[it.toString()] ?: it.toString() }.joinToString("")
 
     private fun String.stripAdmin(): String =
-        replace(Regex("自治区|自治州|特别行政区|省|市|区|县|盟|州"), "")
+        trim().replace(Regex("(自治区|自治州|特别行政区|省|市|区|县|盟|州)$"), "")
 }

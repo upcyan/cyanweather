@@ -2,7 +2,7 @@ import { SkyKind } from './SkyKind';
 
 /**
  * 自定义天气图标组件
- * 使用 Canvas 绘制，移植自 Android WeatherIcon.kt
+ * 使用 Canvas 绘制扁平化矢量图标，精确移植自 Android WeatherIcon.kt
  */
 
 // 图标颜色（与 Android 保持一致）
@@ -13,93 +13,151 @@ const BOLT_COLOR: string = '#F2A93B';
 const SNOW_COLOR: string = '#90CAF9';
 const FOG_COLOR: string = '#B0BEC5';
 
+// 各类型图标归一化缩放因子（与 Android 一致）
+function normOf(kind: SkyKind): number {
+  switch (kind) {
+    case SkyKind.SUN: return 0.80;
+    case SkyKind.PARTLY: return 0.68;
+    case SkyKind.MOON: return 1.08;
+    case SkyKind.CLOUD: return 0.98;
+    case SkyKind.RAIN: return 1.06;
+    case SkyKind.SNOW: return 1.06;
+    case SkyKind.THUNDER: return 0.94;
+    case SkyKind.SLEET: return 1.06;
+    case SkyKind.FOG: return 1.22;
+    case SkyKind.HAZE: return 1.22;
+    case SkyKind.WIND: return 0.98;
+    default: return 1.10;
+  }
+}
+
 @Component
 export struct WeatherGlyph {
   @Prop kind: SkyKind = SkyKind.UNKNOWN;
-  @Prop size: number = 88;
+  @Prop iconSize: number = 88;
+  private settings: RenderingContextSettings = new RenderingContextSettings(true);
+  private context: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
 
   build() {
-    Canvas(this.getSetting())
-      .width(this.size)
-      .height(this.size)
-      .onReady((ctx: CanvasRenderingContext2D) => {
-        this.draw(ctx);
+    Canvas(this.context)
+      .width(this.iconSize)
+      .height(this.iconSize)
+      .onReady(() => {
+        this.draw(this.context);
       })
   }
 
-  private getSetting(): RenderingContextSettings {
-    const settings: RenderingContextSettings = new RenderingContextSettings(true);
-    return settings;
-  }
-
   private draw(ctx: CanvasRenderingContext2D): void {
-    const s: number = this.size;
+    const s: number = this.iconSize;
+    const norm: number = normOf(this.kind);
+    const size: number = Math.min(s, s) * norm;
     const cx: number = s / 2;
     const cy: number = s / 2;
 
     ctx.clearRect(0, 0, s, s);
 
-    // 先画云底（部分类型需要）
-    if (this.kind === SkyKind.CLOUD || this.kind === SkyKind.RAIN ||
-        this.kind === SkyKind.SNOW || this.kind === SkyKind.THUNDER ||
-        this.kind === SkyKind.SLEET || this.kind === SkyKind.PARTLY) {
-      this.drawCloud(ctx, cx, cy, s);
-    }
-
     switch (this.kind) {
       case SkyKind.SUN:
-        this.drawSun(ctx, cx, cy, s);
+        this.drawSun(ctx, cx, cy, size);
         break;
       case SkyKind.MOON:
-        this.drawMoon(ctx, cx, cy, s);
-        break;
-      case SkyKind.PARTLY:
-        this.drawSun(ctx, cx - s * 0.15, cy - s * 0.15, s * 0.7);
+        this.drawMoon(ctx, cx, cy, size);
         break;
       case SkyKind.CLOUD:
-        // 云已画
+        this.drawCloudBody(ctx, cx, cy + size * 0.08, size * 0.72);
+        break;
+      case SkyKind.PARTLY:
+        this.drawSun(ctx, cx - size * 0.30, cy - size * 0.30, size * 0.42);
+        this.drawCloudBody(ctx, cx + size * 0.16, cy + size * 0.22, size * 0.58);
         break;
       case SkyKind.RAIN:
-        this.drawRain(ctx, cx, cy, s);
+        this.drawCloudBody(ctx, cx, cy - size * 0.16, size * 0.66);
+        this.drawRaindrops(ctx, cx, cy, size);
         break;
       case SkyKind.SNOW:
-        this.drawSnow(ctx, cx, cy, s);
+        this.drawCloudBody(ctx, cx, cy - size * 0.16, size * 0.66);
+        this.drawSnowflakes(ctx, cx, cy, size);
         break;
       case SkyKind.THUNDER:
-        this.drawBolt(ctx, cx, cy, s);
+        this.drawCloudBody(ctx, cx, cy - size * 0.22, size * 0.64);
+        this.drawBolt(ctx, cx, cy, size);
         break;
       case SkyKind.SLEET:
-        this.drawSleet(ctx, cx, cy, s);
+        this.drawCloudBody(ctx, cx, cy - size * 0.16, size * 0.66);
+        this.drawSleet(ctx, cx, cy, size);
         break;
       case SkyKind.FOG:
-        this.drawFog(ctx, cx, cy, s);
+        this.drawCloudBody(ctx, cx, cy - size * 0.20, size * 0.52);
+        this.drawFogLines(ctx, cx, cy, size);
         break;
       case SkyKind.HAZE:
-        this.drawHaze(ctx, cx, cy, s);
+        this.drawCloudBody(ctx, cx, cy - size * 0.20, size * 0.52);
+        this.drawFogLines(ctx, cx, cy, size);
         break;
       case SkyKind.WIND:
-        this.drawWind(ctx, cx, cy, s);
+        this.drawWind(ctx, cx, cy, size);
         break;
       default:
-        this.drawSun(ctx, cx, cy, s);
+        this.drawCloudBody(ctx, cx, cy + size * 0.06, size * 0.60);
         break;
     }
   }
 
-  // 绘制太阳
+  // ========= 基本图形元素 =========
+
+  /** 绘制云体：三个圆 + 圆角矩形底部 */
+  private drawCloudBody(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
+    ctx.fillStyle = CLOUD_COLOR;
+    // 左圆
+    ctx.beginPath();
+    ctx.arc(cx - s * 0.30, cy - s * 0.15, s * 0.27, 0, Math.PI * 2);
+    ctx.fill();
+    // 中圆
+    ctx.beginPath();
+    ctx.arc(cx, cy - s * 0.30, s * 0.34, 0, Math.PI * 2);
+    ctx.fill();
+    // 右圆
+    ctx.beginPath();
+    ctx.arc(cx + s * 0.32, cy - s * 0.13, s * 0.27, 0, Math.PI * 2);
+    ctx.fill();
+    // 圆角矩形底部
+    const rx: number = cx - s * 0.50;
+    const ry: number = cy - s * 0.08;
+    const rw: number = s * 1.0;
+    const rh: number = s * 0.40;
+    const cr: number = s * 0.20;
+    this.drawRoundRect(ctx, rx, ry, rw, rh, cr);
+    ctx.fill();
+  }
+
+  /** 绘制圆角矩形路径（辅助） */
+  private drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+
+  /** 绘制太阳：圆 + 8条光线 */
   private drawSun(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
-    const r: number = s * 0.18;
-    // 画圆
+    // 中心圆
     ctx.fillStyle = SUN_COLOR;
     ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.arc(cx, cy, s * 0.30, 0, Math.PI * 2);
     ctx.fill();
 
-    // 画光线
-    const r1: number = s * 0.25;
-    const r2: number = s * 0.36;
+    // 8条光线
+    const r1: number = s * 0.42;
+    const r2: number = s * 0.60;
     ctx.strokeStyle = SUN_COLOR;
-    ctx.lineWidth = s * 0.04;
+    ctx.lineWidth = s * 0.09;
     ctx.lineCap = 'round';
     for (let i = 0; i < 8; i++) {
       const ang: number = (i * 45) * Math.PI / 180;
@@ -112,128 +170,133 @@ export struct WeatherGlyph {
     }
   }
 
-  // 绘制月亮
+  /** 绘制月亮：两个圆重叠产生月牙 */
   private drawMoon(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
-    const r: number = s * 0.22;
     ctx.fillStyle = SUN_COLOR;
     ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.arc(cx - s * 0.08, cy, s * 0.36, 0, Math.PI * 2);
     ctx.fill();
 
-    // 用背景色画偏移圆制造弯月效果
-    ctx.fillStyle = '#F5F9FF';
+    // 使用 globalCompositeOperation 替代 BlendMode.Clear
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0,0,0,1)';
     ctx.beginPath();
-    ctx.arc(cx + r * 0.5, cy - r * 0.3, r * 0.9, 0, Math.PI * 2);
+    ctx.arc(cx + s * 0.12, cy - s * 0.12, s * 0.30, 0, Math.PI * 2);
     ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
   }
 
-  // 绘制云
-  private drawCloud(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
-    ctx.fillStyle = CLOUD_COLOR;
-    const cloudR: number = s * 0.15;
-    // 三个圆组成云
-    ctx.beginPath();
-    ctx.arc(cx - s * 0.12, cy + s * 0.02, cloudR * 0.9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(cx, cy - s * 0.05, cloudR * 1.1, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(cx + s * 0.12, cy + s * 0.02, cloudR * 0.85, 0, Math.PI * 2);
-    ctx.fill();
-    // 底部矩形
-    ctx.fillRect(cx - s * 0.2, cy + s * 0.02, s * 0.4, s * 0.1);
-  }
-
-  // 绘制雨滴
-  private drawRain(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
+  /** 绘制雨滴：3条斜线段 */
+  private drawRaindrops(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
     ctx.strokeStyle = RAIN_COLOR;
-    ctx.lineWidth = s * 0.035;
+    ctx.lineWidth = s * 0.10;
     ctx.lineCap = 'round';
-    const startY: number = cy + s * 0.12;
-    const len: number = s * 0.12;
-    for (let i = -1; i <= 1; i++) {
-      const x: number = cx + i * s * 0.12;
+    const xs: number[] = [-s * 0.22, 0, s * 0.22];
+    for (const x of xs) {
       ctx.beginPath();
-      ctx.moveTo(x, startY);
-      ctx.lineTo(x, startY + len);
+      ctx.moveTo(cx + x - s * 0.03, cy + s * 0.18);
+      ctx.lineTo(cx + x + s * 0.03, cy + s * 0.40);
       ctx.stroke();
     }
   }
 
-  // 绘制雪花
-  private drawSnow(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
-    ctx.fillStyle = SNOW_COLOR;
-    const r: number = s * 0.04;
-    const startY: number = cy + s * 0.15;
-    for (let i = -1; i <= 1; i++) {
-      const x: number = cx + i * s * 0.12;
-      ctx.beginPath();
-      ctx.arc(x, startY, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(x, startY + s * 0.08, r, 0, Math.PI * 2);
-      ctx.fill();
+  /** 绘制雪花：3个星形雪花 */
+  private drawSnowflakes(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
+    const xs: number[] = [-s * 0.24, 0, s * 0.24];
+    for (const x of xs) {
+      this.drawSnowflake(ctx, cx + x, cy + s * 0.28, s * 0.10, s * 0.03);
     }
   }
 
-  // 绘制闪电
+  /** 绘制单个雪花（六角星形） */
+  private drawSnowflake(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, strokeW: number): void {
+    ctx.strokeStyle = SNOW_COLOR;
+    ctx.lineWidth = strokeW;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      const ang: number = i * Math.PI / 3;
+      const dx: number = Math.cos(ang);
+      const dy: number = Math.sin(ang);
+      ctx.beginPath();
+      ctx.moveTo(cx + dx * r, cy + dy * r);
+      ctx.lineTo(cx - dx * r, cy - dy * r);
+      ctx.stroke();
+    }
+    // 中心点
+    ctx.fillStyle = SNOW_COLOR;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /** 绘制闪电（折线路径） */
   private drawBolt(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
     ctx.fillStyle = BOLT_COLOR;
     ctx.beginPath();
-    ctx.moveTo(cx - s * 0.04, cy + s * 0.1);
-    ctx.lineTo(cx + s * 0.06, cy + s * 0.1);
-    ctx.lineTo(cx, cy + s * 0.18);
-    ctx.lineTo(cx + s * 0.08, cy + s * 0.18);
-    ctx.lineTo(cx - s * 0.02, cy + s * 0.32);
-    ctx.lineTo(cx - s * 0.04, cy + s * 0.2);
-    ctx.lineTo(cx - s * 0.1, cy + s * 0.2);
+    ctx.moveTo(cx - s * 0.06, cy + s * 0.08);
+    ctx.lineTo(cx + s * 0.12, cy + s * 0.08);
+    ctx.lineTo(cx - s * 0.02, cy + s * 0.28);
+    ctx.lineTo(cx + s * 0.12, cy + s * 0.28);
+    ctx.lineTo(cx - s * 0.14, cy + s * 0.50);
+    ctx.lineTo(cx - s * 0.04, cy + s * 0.30);
+    ctx.lineTo(cx - s * 0.12, cy + s * 0.30);
     ctx.closePath();
     ctx.fill();
   }
 
-  // 绘制雨夹雪
+  /** 绘制雨夹雪 */
   private drawSleet(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
-    this.drawRain(ctx, cx - s * 0.06, cy, s);
-    ctx.fillStyle = SNOW_COLOR;
-    const r: number = s * 0.04;
+    // 雨滴
+    ctx.strokeStyle = RAIN_COLOR;
+    ctx.lineWidth = s * 0.09;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.arc(cx + s * 0.12, cy + s * 0.18, r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(cx - s * 0.18, cy + s * 0.18);
+    ctx.lineTo(cx - s * 0.12, cy + s * 0.36);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + s * 0.18, cy + s * 0.18);
+    ctx.lineTo(cx + s * 0.24, cy + s * 0.36);
+    ctx.stroke();
+    // 雪花
+    this.drawSnowflake(ctx, cx, cy + s * 0.34, s * 0.09, s * 0.025);
   }
 
-  // 绘制雾
-  private drawFog(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
+  /** 绘制雾线：3条横线 */
+  private drawFogLines(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
     ctx.strokeStyle = FOG_COLOR;
-    ctx.lineWidth = s * 0.05;
+    ctx.lineWidth = s * 0.10;
     ctx.lineCap = 'round';
-    for (let i = -2; i <= 2; i++) {
-      const y: number = cy + i * s * 0.1;
+    for (let i = 0; i < 3; i++) {
+      const y: number = cy + s * (0.05 + i * 0.16);
+      const half: number = s * (0.34 - i * 0.05);
       ctx.beginPath();
-      ctx.moveTo(cx - s * 0.2, y);
-      ctx.lineTo(cx + s * 0.2, y);
+      ctx.moveTo(cx - half, y);
+      ctx.lineTo(cx + half, y);
       ctx.stroke();
     }
   }
 
-  // 绘制霾
-  private drawHaze(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
-    this.drawSun(ctx, cx, cy - s * 0.1, s * 0.6);
-    this.drawFog(ctx, cx, cy + s * 0.15, s * 0.8);
-  }
-
-  // 绘制风
+  /** 绘制风：线 + 弧线 */
   private drawWind(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number): void {
     ctx.strokeStyle = CLOUD_COLOR;
-    ctx.lineWidth = s * 0.04;
+    ctx.lineWidth = s * 0.10;
     ctx.lineCap = 'round';
-    // 三条风线
-    for (let i = 0; i < 3; i++) {
-      const y: number = cy + (i - 1) * s * 0.12;
-      ctx.beginPath();
-      ctx.moveTo(cx - s * 0.2, y);
-      ctx.bezierCurveTo(cx - s * 0.05, y - s * 0.05, cx + s * 0.05, y + s * 0.05, cx + s * 0.15, y);
-      ctx.stroke();
-    }
+
+    // 上横线
+    ctx.beginPath();
+    ctx.moveTo(cx - s * 0.38, cy - s * 0.18);
+    ctx.lineTo(cx + s * 0.38, cy - s * 0.18);
+    ctx.stroke();
+
+    // 中弧线
+    ctx.beginPath();
+    ctx.arc(cx - s * 0.08, cy - s * 0.02, s * 0.30, Math.PI * 1.0, Math.PI * 1.5);
+    ctx.stroke();
+
+    // 下弧线
+    ctx.beginPath();
+    ctx.arc(cx + s * 0.12, cy + s * 0.32, s * 0.30, Math.PI * 0.22, Math.PI * 0.78);
+    ctx.stroke();
   }
 }
