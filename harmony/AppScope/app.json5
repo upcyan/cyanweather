@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.cyanweather.app",  // 包名
     "vendor": "upcyan",                       // 开发者名称
-    "versionCode": 1000000,                   // 版本号（整数）
-    "versionName": "1.0.0",                   // 版本名称（字符串）
+    "versionCode": 1001000,                   // 版本号（整数）
+    "versionName": "1.1.0",                   // 版本名称（字符串）
     "icon": "$media:app_icon",                // 应用图标
     "label": "$string:app_name"               // 应用名称
   }

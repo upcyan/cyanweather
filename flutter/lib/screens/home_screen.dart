@@ -27,12 +27,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _cityCode = '';
   double _lat = 39.9042, _lng = 116.4074;
   String _caiyunToken = '';
-  String _fontSize = 'xlarge';
+  String _fontSize = 'large';
   bool _useGps = true;
   String? _locationNotice;
   bool _locationServiceDisabled = false;
   double get _fs =>
       {'standard': 1.0, 'large': 1.3, 'xlarge': 1.6}[_fontSize] ?? 1.3;
+
+  // 繁体转简体映射
+  static Map<String, String> get _tradToSimp => {
+    '東': '东', '濟': '济', '廣': '广', '陽': '阳', '陰': '阴',
+    '臺': '台', '灣': '湾', '龍': '龙', '雲': '云', '島': '岛',
+    '縣': '县', '區': '区', '寧': '宁', '蘇': '苏', '澤': '泽',
+    '漢': '汉', '濱': '滨', '豐': '丰', '麗': '丽', '門': '门',
+    '華': '华', '廈': '厦', '閩': '闽', '贛': '赣', '晉': '晋',
+    '陝': '陕', '貴': '贵', '瓊': '琼', '遼': '辽', '鄒': '邹',
+    '臨': '临', '萊': '莱', '蕪': '芜', '長': '长', '慶': '庆',
+    '榮': '荣', '單': '单', '費': '费', '濰': '潍', '諸': '诸',
+    '兗': '兖', '嶧': '峄', '鄆': '郓', '棲': '栖', '遠': '远',
+    '樂': '乐', '無': '无', '蓮': '莲', '齊': '齐', '蘭': '兰',
+    '鄉': '乡', '膠': '胶', '黃': '黄', '饒': '饶', '興': '兴',
+    '棗': '枣', '莊': '庄', '幹': '干', '烏': '乌', '雙': '双',
+    '澳': '澳', '蒼': '苍', '潁': '颍', '滁': '滁', '亳': '亳',
+    '懷': '怀', '滬': '沪', '渝': '渝', '豫': '豫', '冀': '冀',
+    '蒙': '蒙', '吉': '吉', '黑': '黑', '浙': '浙', '皖': '皖',
+    '魯': '鲁', '鄂': '鄂', '湘': '湘', '粵': '粤', '桂': '桂',
+    '瓊': '琼', '川': '川', '黔': '黔', '滇': '滇', '藏': '藏',
+    '甘': '甘', '青': '青', '新': '新', '寧': '宁',
+  };
+
+  static String _simp(String s) =>
+      s.split('').map((c) => _tradToSimp[c] ?? c).join('');
+
+  static String _stripAdmin(String s) =>
+      s.trim().replaceAll(RegExp(r'(自治区|自治州|特别行政区|省|市|区|县|盟|州)$'), '');
 
   @override
   void initState() {
@@ -68,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _cityCode = widget.prefs.getString('cityCode') ?? '';
     _lat = widget.prefs.getDouble('lat') ?? 39.9042;
     _lng = widget.prefs.getDouble('lng') ?? 116.4074;
-    _fontSize = widget.prefs.getString('fontSize') ?? 'xlarge';
+    _fontSize = widget.prefs.getString('fontSize') ?? 'large';
     _caiyunToken = widget.prefs.getString('caiyunToken') ?? '';
     _useGps = widget.prefs.getBool('useGps') ?? true;
   }
@@ -96,38 +124,103 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         });
       return;
     }
+    Position? position;
     try {
-      final position = await Geolocator.getCurrentPosition(
+      position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
           timeLimit: Duration(seconds: 15),
         ),
       );
-      await widget.prefs.setDouble('lat', position.latitude);
-      await widget.prefs.setDouble('lng', position.longitude);
-      await widget.prefs.setString('cityName', '');
-      await widget.prefs.setString('cityCode', '');
-      if (mounted)
-        setState(() {
-          _lat = position.latitude;
-          _lng = position.longitude;
-          _cityName = '';
-          _cityCode = '';
-          _locationNotice = null;
-          _locationServiceDisabled = false;
-        });
     } catch (_) {
+      position = await Geolocator.getLastKnownPosition();
+    }
+    if (position == null) {
       if (mounted)
         setState(() {
           _locationNotice = '定位失败，请检查网络/GPS后重试；当前显示默认城市北京';
           _locationServiceDisabled = false;
         });
+      return;
+    }
+    final pos = position!;
+    await widget.prefs.setDouble('lat', pos.latitude);
+    await widget.prefs.setDouble('lng', pos.longitude);
+    await widget.prefs.setString('cityName', '');
+    await widget.prefs.setString('cityCode', '');
+    if (mounted)
+      setState(() {
+        _lat = pos.latitude;
+        _lng = pos.longitude;
+        _cityName = '';
+        _cityCode = '';
+        _locationNotice = null;
+        _locationServiceDisabled = false;
+      });
+    // NMC 源且使用 GPS：自动解析城市代码
+    if (_source == 'nmc' && _useGps) {
+      await _resolveNmcCity(pos.latitude, pos.longitude);
     }
   }
 
   Future<void> _reloadLocation({bool requestPermission = true}) async {
     await _refreshLocation(requestPermission: requestPermission);
     if (mounted) await _loadWeather();
+  }
+
+  Future<void> _resolveNmcCity(double lat, double lng) async {
+    try {
+      final geo = await ApiService.reverseGeocodeFull(lat, lng);
+      final provName = _simp(geo['prov'] ?? '');
+      final cityName = _simp(geo['city'] ?? '');
+      final locName = _simp(geo['local'] ?? '');
+      if (provName.isEmpty && cityName.isEmpty && locName.isEmpty) return;
+      final provinces = await ApiService.fetchNmcProvinces();
+      Map<String, dynamic>? prov;
+      for (final p in provinces) {
+        final n = _stripAdmin(_simp(p['name']?.toString() ?? ''));
+        if (n.isNotEmpty && provName.contains(n)) { prov = p; break; }
+      }
+      prov ??= provinces.first;
+      final cities = await ApiService.fetchNmcCities(prov['code'].toString());
+      bool match(Map<String, dynamic> c, String g) {
+        final full = (c['city']?.toString() ?? '').trim();
+        if (full.isEmpty || g.isEmpty) return false;
+        final stripped = _stripAdmin(full);
+        return g.contains(full) || (stripped.length >= 2 && g.contains(stripped));
+      }
+      Map<String, dynamic>? picked;
+      for (final g in [locName, cityName]) {
+        if (g.isEmpty) continue;
+        for (final c in cities) { if (match(c, g)) { picked = c; break; } }
+        if (picked != null) break;
+      }
+      picked ??= cities.first;
+      final display = locName.isNotEmpty ? locName : (cityName.isNotEmpty ? cityName : _simp(picked['city']?.toString() ?? ''));
+      await widget.prefs.setString('cityName', display);
+      await widget.prefs.setString('cityCode', picked!['code'].toString());
+      if (mounted) setState(() { _cityName = display; _cityCode = picked!['code'].toString(); });
+    } catch (_) {}
+  }
+
+  // 清洗 NMC 文本：过滤 9999/0/空
+  static String _cleanNmcText(String? s) {
+    final v = (s ?? '').trim();
+    return (v.isEmpty || v == '9999' || v == '0') ? '' : v;
+  }
+
+  // 清洗温度：>=9998 视为无效
+  static double? _cleanNmcTemp(String? s) {
+    final v = double.tryParse(s ?? '');
+    return (v == null || v >= 9998) ? null : v;
+  }
+
+  // 合并白天/夜间天气文本
+  static String _combineDayNight(String day, String night) {
+    if (day.isNotEmpty && night.isNotEmpty && day != night) return '$day转$night';
+    if (day.isNotEmpty) return day;
+    if (night.isNotEmpty) return night;
+    return '-';
   }
 
   Future<void> _loadWeather() async {
@@ -250,29 +343,90 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final real = d['data']?['real'];
     final w = real?['weather'];
     final wind = real?['wind'];
+    final warn = real?['warn'];
+    final sunriseSunset = real?['sunriseSunset'];
     final predict = d['data']?['predict']?['detail'] as List? ?? [];
-    double? high, low;
+    final passed = d['data']?['passedchart'] as List? ?? [];
+    final air = d['data']?['air'];
+
+    double? todayHigh, todayLow;
     String condition = '';
     if (predict.isNotEmpty) {
       final first = predict[0];
-      high = double.tryParse(
-          first['day']?['weather']?['temperature']?.toString() ?? '');
-      low = double.tryParse(
-          first['night']?['weather']?['temperature']?.toString() ?? '');
-      condition = first['day']?['weather']?['info']?.toString() ?? '';
+      todayHigh = _cleanNmcTemp(first['day']?['weather']?['temperature']?.toString());
+      todayLow = _cleanNmcTemp(first['night']?['weather']?['temperature']?.toString());
+      condition = _cleanNmcText(first['day']?['weather']?['info']?.toString());
     }
+    // 今日最高温回退到实时温度
+    todayHigh ??= _cleanNmcTemp(w?['temperature']?.toString());
+    todayLow ??= _cleanNmcTemp(w?['temperature']?.toString());
+
+    // 实时天气
+    final realtimeCond = _cleanNmcText(w?['info']);
+    if (condition.isEmpty) condition = realtimeCond;
+
+    // 逐时（过去 24h 实况）
+    final hourly = <HourlyItem>[];
+    for (final p in passed) {
+      final temp = _cleanNmcTemp(p['temperature']?.toString());
+      if (temp != null) {
+        hourly.add(HourlyItem(
+          time: p['time']?.toString() ?? '',
+          temperature: temp,
+          condition: '',
+          isForecast: false,
+        ));
+      }
+    }
+
+    // 多日预报
+    final daily = <DailyItem>[];
+    for (final d in predict) {
+      final dayText = _cleanNmcText(d['day']?['weather']?['info']?.toString());
+      final nightText = _cleanNmcText(d['night']?['weather']?['info']?.toString());
+      final high = _cleanNmcTemp(d['day']?['weather']?['temperature']?.toString());
+      final low = _cleanNmcTemp(d['night']?['weather']?['temperature']?.toString());
+      daily.add(DailyItem(
+        date: d['date']?.toString().replaceAll('/', '-') ?? '',
+        dayText: dayText,
+        nightText: nightText,
+        high: high,
+        low: low,
+      ));
+    }
+
+    // 昨日
+    final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+    final yItems = hourly.where((h) => !h.time.startsWith(todayStr)).toList()
+      ..sort((a, b) => a.time.compareTo(b.time));
+    YesterdayData? yesterday;
+    if (yItems.isNotEmpty) {
+      final temps = yItems.where((h) => h.temperature != null).map((h) => h.temperature!).toList();
+      yesterday = YesterdayData(
+        high: temps.isNotEmpty ? temps.reduce((a, b) => a > b ? a : b) : null,
+        low: temps.isNotEmpty ? temps.reduce((a, b) => a < b ? a : b) : null,
+        hourly: yItems.takeLast(24).toList(),
+      );
+    }
+
     return WeatherData(
       cityName: cityName,
       condition: condition,
-      temperature: double.tryParse(w?['temperature']?.toString() ?? '') ?? 0,
-      todayHigh: high,
-      todayLow: low,
+      temperature: _cleanNmcTemp(w?['temperature']?.toString()) ?? 0,
+      feelsLike: _cleanNmcTemp(w?['feelst']?.toString()),
+      todayHigh: todayHigh,
+      todayLow: todayLow,
       humidity: real?['weather']?['humidity']?.toInt(),
-      windDirect: _windDir(wind?['direction'] ?? 0),
-      windPower: _beaufort(wind?['speed'] ?? 0),
-      sunrise: d['data']?['real']?['weather']?['sunrise'] ?? '',
-      sunset: d['data']?['real']?['weather']?['sunset'] ?? '',
+      windDirect: _cleanNmcText(wind?['direct']?.toString()),
+      windPower: _cleanNmcText(wind?['power']?.toString()),
+      aqi: air?['aqi']?.toInt(),
+      aqiText: _cleanNmcText(air?['text']?.toString()),
+      sunrise: sunriseSunset?['sunrise']?.toString().substring(11, 16) ?? '',
+      sunset: sunriseSunset?['sunset']?.toString().substring(11, 16) ?? '',
       sourceTag: '数据来源：中央气象台',
+      hourly: hourly,
+      daily: daily,
+      yesterday: yesterday,
     );
   }
 
@@ -303,7 +457,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         final json = jsonDecode(resp.body);
         final latest =
             (json['tag_name'] as String?)?.replaceFirst('v', '') ?? '';
-        if (latest.isNotEmpty && _isNewerVersion(latest, '1.0.0') && mounted) {
+        if (latest.isNotEmpty && _isNewerVersion(latest, '1.1.0') && mounted) {
           _showUpdateDialog(json['tag_name'] ?? latest, json['body'] ?? '',
               json['html_url'] ?? '');
         }
@@ -536,18 +690,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _infoCard(String title, String value) => Card(
       margin: EdgeInsets.symmetric(vertical: 4 * _fs),
-      child: Padding(
-          padding:
-              EdgeInsets.symmetric(horizontal: 20 * _fs, vertical: 12 * _fs),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title,
-                style: TextStyle(fontSize: 17 * _fs, color: Colors.grey)),
-            SizedBox(height: 4 * _fs),
-            Text(value,
-                style:
-                    TextStyle(fontSize: 24 * _fs, fontWeight: FontWeight.w500)),
-          ])));
+      child: SizedBox(
+          width: double.infinity,
+          child: Padding(
+              padding:
+                  EdgeInsets.symmetric(horizontal: 20 * _fs, vertical: 12 * _fs),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style:
+                            TextStyle(fontSize: 17 * _fs, color: Colors.grey)),
+                    SizedBox(height: 4 * _fs),
+                    Text(value,
+                        style: TextStyle(
+                            fontSize: 24 * _fs, fontWeight: FontWeight.w500)),
+                  ]))));
 
   Widget _statCol(String l, String v, Color c) => Column(children: [
         Text(l, style: TextStyle(fontSize: 15 * _fs, color: Colors.grey)),

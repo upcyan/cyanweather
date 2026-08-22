@@ -30,9 +30,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _save(String key, dynamic value) async {
-    if (value is String) await widget.prefs.setString(key, value);
-    if (value is bool) await widget.prefs.setBool(key, value);
-    setState(() {});
+    if (value is String) {
+      await widget.prefs.setString(key, value);
+      setState(() {
+        switch (key) {
+          case 'source': _source = value; break;
+          case 'fontSize': _fontSize = value; break;
+          case 'refreshInterval': _refreshInterval = value; break;
+          case 'caiyunToken': _caiyunToken = value; break;
+          case 'caiyunMode': _caiyunMode = value; break;
+        }
+      });
+    } else if (value is bool) {
+      await widget.prefs.setBool(key, value);
+      setState(() {
+        switch (key) {
+          case 'autoCheckUpdate': _autoCheckUpdate = value; break;
+          case 'useGps': _useGps = value; break;
+        }
+      });
+    }
   }
 
   @override
@@ -107,7 +124,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Column(children: [
-              Text('晴暖天气 v1.0',
+              Text('晴暖天气 v1.1',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               SizedBox(height: 8),
               Text('为长辈设计的简洁大字天气应用',

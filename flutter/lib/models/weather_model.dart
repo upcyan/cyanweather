@@ -40,6 +40,50 @@ class WeatherData {
     this.hourly = const [],
     this.daily = const [],
   });
+
+  WeatherData copyWith({
+    String? cityName,
+    String? condition,
+    double? temperature,
+    double? feelsLike,
+    double? todayHigh,
+    double? todayLow,
+    int? humidity,
+    String? windDirect,
+    String? windPower,
+    int? aqi,
+    String? aqiText,
+    String? sunrise,
+    String? sunset,
+    String? uvIndex,
+    String? minutelyText,
+    String? sourceTag,
+    YesterdayData? yesterday,
+    List<HourlyItem>? hourly,
+    List<DailyItem>? daily,
+  }) {
+    return WeatherData(
+      cityName: cityName ?? this.cityName,
+      condition: condition ?? this.condition,
+      temperature: temperature ?? this.temperature,
+      feelsLike: feelsLike ?? this.feelsLike,
+      todayHigh: todayHigh ?? this.todayHigh,
+      todayLow: todayLow ?? this.todayLow,
+      humidity: humidity ?? this.humidity,
+      windDirect: windDirect ?? this.windDirect,
+      windPower: windPower ?? this.windPower,
+      aqi: aqi ?? this.aqi,
+      aqiText: aqiText ?? this.aqiText,
+      sunrise: sunrise ?? this.sunrise,
+      sunset: sunset ?? this.sunset,
+      uvIndex: uvIndex ?? this.uvIndex,
+      minutelyText: minutelyText ?? this.minutelyText,
+      sourceTag: sourceTag ?? this.sourceTag,
+      yesterday: yesterday ?? this.yesterday,
+      hourly: hourly ?? this.hourly,
+      daily: daily ?? this.daily,
+    );
+  }
 }
 
 class HourlyItem {

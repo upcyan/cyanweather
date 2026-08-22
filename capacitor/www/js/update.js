@@ -8,7 +8,7 @@ function checkUpdate(){
     try{
       const j=JSON.parse(x.responseText);
       const v=(j.tag_name||'').replace('v','');
-      if(v&&v!=='1.0')showUpdateDialog(j.tag_name,j.body||'',j.html_url||'');
+      if(v&&v!=='1.1')showUpdateDialog(j.tag_name,j.body||'',j.html_url||'');
     }catch(e){}
   };
   x.onerror=x.ontimeout=function(){};
@@ -36,6 +36,16 @@ function showUpdateDialog(ver,notes,url){
 // --- Settings ---
 function openSettings(){document.getElementById('settingsPanel').style.display='block';document.getElementById('autoUpdate').checked=S.autoCheckUpdate;document.getElementById('useGps').checked=S.useGps;document.querySelectorAll('input[name="source"]').forEach(r=>r.checked=r.value===S.source);document.querySelectorAll('input[name="font"]').forEach(r=>r.checked=r.value===S.fontSize);document.querySelectorAll('input[name="refresh"]').forEach(r=>r.checked=r.value===S.refreshInterval);}
 function closeSettings(){document.getElementById('settingsPanel').style.display='none';loadWeather();}
-async function saveSetting(k,v){S[k]=v;await savePrefs();if(k==='fontSize')applyFont();if(k==='refreshInterval')startRefresh();}
+async function saveSetting(k,v){S[k]=v;await savePrefs();if(k==='fontSize')applyFont();if(k==='refreshInterval')startRefresh();if(k==='source'||k==='useGps')loadWeather();}
 
 document.addEventListener('DOMContentLoaded',init);
+// 拦截系统返回键：设置面板打开时先关闭面板，否则默认退出App
+document.addEventListener('DOMContentLoaded',function(){
+  const App=window.Capacitor?.Plugins?.App;
+  if(!App)return;
+  App.addListener('backButton',function(){
+    const panel=document.getElementById('settingsPanel');
+    if(panel&&panel.style.display==='block'){closeSettings();return;}
+    App.exitApp();
+  });
+});

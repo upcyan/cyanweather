@@ -11,7 +11,14 @@ async function init(){
 }
 async function loadPrefs(){if(P){const r=await P.get({key:'s'});if(r.value)try{S={...S,...JSON.parse(r.value)}}catch(e){}}applyFont();}
 function savePrefs(){if(P)P.set({key:'s',value:JSON.stringify(S)});}
-function applyFont(){document.body.fontSize={standard:'14px',large:'16px',xlarge:'18px'}[S.fontSize]||'16px';}
+function applyFont(){document.documentElement.style.fontSize={standard:'14px',large:'16px',xlarge:'18px'}[S.fontSize]||'16px';}
+async function saveSetting(key, value){
+    S[key] = value;
+    await savePrefs();
+    if(key==='fontSize') applyFont();
+    if(key==='refreshInterval') startRefresh();
+    if(key==='source'||key==='useGps') loadWeather();
+}
 function startRefresh(){if(RT)clearInterval(RT);const m=parseInt(S.refreshInterval);if(m>0)RT=setInterval(loadWeather,m*60*1000);}
 
 async function updateLocation(requestPermission){
@@ -67,6 +74,9 @@ async function loadWeather(){
     showLocationNotice();
   }catch(e){$('loading').style.display='none';$('error').textContent=e.message||'网络错误';$('error').style.display='block';}
 }
+
+function openSettings(){document.getElementById('settingsPanel').style.display='block';}
+function closeSettings(){document.getElementById('settingsPanel').style.display='none';}
 
 function showLocationNotice(){
   const box=document.getElementById('locationNotice');

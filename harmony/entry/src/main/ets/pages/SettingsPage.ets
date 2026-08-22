@@ -203,7 +203,7 @@ struct SettingsPage {
             .margin({ top: 24, left: 16, bottom: 8 })
 
           this.AboutRow('应用名称', 'cyanweather')
-          this.AboutRow('版本', '1.0.0')
+          this.AboutRow('版本', '1.1.0')
           this.AboutRow('开发者', 'cyanweather')
 
           Text('数据来源：NMC / Open-Meteo / 彩云天气')

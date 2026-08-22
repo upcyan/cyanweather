@@ -64,14 +64,14 @@ jobs:
       - name: Collect APKs
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk dist/cyanweather-v1.0-release.apk
-          cp flutter/build/app/outputs/flutter-apk/app-release.apk dist/cyanweather-flutter-experimental-v1.0-release.apk
-          cp capacitor/android/app/build/outputs/apk/release/app-release.apk dist/cyanweather-capacitor-experimental-v1.0-release.apk
+          cp app/build/outputs/apk/release/app-release.apk dist/cyanweather-v1.1-release.apk
+          cp flutter/build/app/outputs/flutter-apk/app-release.apk dist/cyanweather-flutter-experimental-v1.1-release.apk
+          cp capacitor/android/app/build/outputs/apk/release/app-release.apk dist/cyanweather-capacitor-experimental-v1.1-release.apk
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: v1.0
+          name: v1.1
           tag_name: ${{ github.ref_name }}
           files: dist/*.apk
           draft: false

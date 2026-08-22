@@ -9,6 +9,66 @@ class ApiService {
   static const _nmcBase = 'https://www.nmc.cn/rest';
   static const _caiyunBase = 'https://api.caiyunapp.com/v2.6';
 
+  // 传统字转简体（用于匹配 NMC 行政区名）
+  static Map<String, String> get _tradToSimp => {
+    '東': '东', '濟': '济', '廣': '广', '陽': '阳', '陰': '阴',
+    '臺': '台', '灣': '湾', '龍': '龙', '雲': '云', '島': '岛',
+    '縣': '县', '區': '区', '寧': '宁', '蘇': '苏', '澤': '泽',
+    '漢': '汉', '濱': '滨', '豐': '丰', '麗': '丽', '門': '门',
+    '華': '华', '廈': '厦', '閩': '闽', '贛': '赣', '晉': '晋',
+    '陝': '陕', '貴': '贵', '瓊': '琼', '遼': '辽', '鄒': '邹',
+    '臨': '临', '萊': '莱', '蕪': '芜', '長': '长', '慶': '庆',
+    '榮': '荣', '單': '单', '費': '费', '濰': '潍', '諸': '诸',
+    '兗': '兖', '嶧': '峄', '鄆': '郓', '棲': '栖', '遠': '远',
+    '樂': '乐', '無': '无', '蓮': '莲', '齊': '齐', '蘭': '兰',
+    '鄉': '乡', '膠': '胶', '黃': '黄', '饒': '饶', '興': '兴',
+    '棗': '枣', '莊': '庄', '幹': '干', '烏': '乌', '雙': '双',
+    '澳': '澳', '蒼': '苍', '潁': '颍', '滁': '滁', '亳': '亳',
+    '懷': '怀', '滬': '沪', '渝': '渝', '豫': '豫', '冀': '冀',
+    '蒙': '蒙', '吉': '吉', '黑': '黑', '浙': '浙', '皖': '皖',
+    '魯': '鲁', '鄂': '鄂', '湘': '湘', '粵': '粤', '桂': '桂',
+    '瓊': '琼', '川': '川', '黔': '黔', '滇': '滇', '藏': '藏',
+    '甘': '甘', '青': '青', '新': '新', '寧': '宁',
+  };
+
+  static String _simp(String s) =>
+      s.split('').map((c) => _tradToSimp[c] ?? c).join('');
+
+  static String _stripAdmin(String s) =>
+      s.trim().replaceAll(RegExp(r'(自治区|自治州|特别行政区|省|市|区|县|盟|州)$'), '');
+
+  // 清洗 NMC 文本字段：过滤 9999、0、空
+  static String cleanText(String? s) {
+    final v = (s ?? '').trim();
+    return (v.isEmpty || v == '9999' || v == '0') ? '' : v;
+  }
+
+  // 清洗温度：>=9998 视为无效
+  static double? cleanTemp(String? s) {
+    final v = double.tryParse(s ?? '');
+    return (v == null || v >= 9998) ? null : v;
+  }
+
+  // 完整反向地理编码：返回省/市/县
+  static Future<Map<String, String>> reverseGeocodeFull(double lat, double lng) async {
+    try {
+      final g = await http.get(Uri.parse(
+          '$_reverseGeoBase?latitude=$lat&longitude=$lng&localityLanguage=zh'))
+          .timeout(const Duration(seconds: 10));
+      if (g.statusCode != 200) return {};
+      final gj = jsonDecode(g.body);
+      return {
+        'prov': (gj['principalSubdivision'] ?? '').toString().trim(),
+        'city': (gj['city'] ?? '').toString().trim(),
+        'local': (gj['locality'] ?? '').toString().trim(),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  // ... existing methods ...
+
   // Caiyun V1
   static Future<Map<String, dynamic>> fetchCaiyunV1(
       String token, double lat, double lng) async {
