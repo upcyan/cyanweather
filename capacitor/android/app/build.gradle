@@ -10,7 +10,7 @@ android {
     namespace "com.cyanweather.app"
     compileSdkVersion rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.cyanweather.app"
+        applicationId "com.cyanweather.capacitor"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
