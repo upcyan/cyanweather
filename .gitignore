@@ -58,3 +58,6 @@ capacitor/android/app/build/
 # Signing keystore files
 **/release-key.jks
 *.jks
+
+# Keystore base64 (sensitive, in GitHub secrets)
+keystore_base64.txt
