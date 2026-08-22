@@ -54,3 +54,7 @@ capacitor/node_modules/
 capacitor/android/.gradle/
 capacitor/android/local.properties
 capacitor/android/app/build/
+
+# Signing keystore files
+**/release-key.jks
+*.jks
