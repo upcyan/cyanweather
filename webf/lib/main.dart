@@ -74,19 +74,6 @@ void main() {
   SystemLocation.init();
   ModuleManager.defineModule((moduleManager) => GpsModule(moduleManager));
 
-  WebFControllerManager.instance.initialize(
-    const WebFControllerManagerConfig(
-      maxAliveInstances: 5,
-      maxAttachedInstances: 3,
-    ),
-  );
-
-  WebFControllerManager.instance.addWithPrerendering(
-    name: 'home',
-    createController: () => WebFController(),
-    bundle: WebFBundle.fromUrl('assets:///assets/web/index.html'),
-  );
-
   runApp(const CyanWeatherWebfApp());
 }
 
@@ -102,6 +89,8 @@ class CyanWeatherWebfApp extends StatelessWidget {
         body: SafeArea(
           child: WebF.fromControllerName(
             controllerName: 'home',
+            bundle: WebFBundle.fromUrl('assets:///assets/web/index.html'),
+            createController: () => WebFController(),
             loadingWidget: const Center(child: CircularProgressIndicator()),
           ),
         ),
