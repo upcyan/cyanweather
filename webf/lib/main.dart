@@ -1,37 +1,35 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webf/webf.dart';
 
-/// 系统 LocationManager 定位：原生启动即后台解析并缓存，
-/// JS 通过同步模块读取，完全避开跨 FFI 异步回调。
+/// 系统 LocationManager 定位：原生 onCreate 即后台解析并写入
+/// files/gps_fix.json；任意 Flutter 引擎/隔离区直接读该文件，
+/// 完全避开跨引擎 MethodChannel 注册时序问题。
 class SystemLocation {
-  static const _channel = MethodChannel('cyanweather/location');
+  static const _fixFile = '/data/data/com.cyanweather.cyanweather_webf/files/gps_fix.json';
   static String? latest;
 
   static void init() {
-    _channel.setMethodCallHandler((call) async {
-      if (call.method == 'onFix' && call.arguments is String) {
-        latest = call.arguments as String;
-        debugPrint('[GPS] cache updated: $latest');
-      }
-      return null;
-    });
-    // 原生 handler 注册时序可能晚于 Dart main，重试直至接通
-    Future(() async {
-      for (var i = 0; i < 10; i++) {
-        try {
-          await _channel.invokeMethod<String>('start');
-          debugPrint('[GPS] start ok (attempt $i)');
-          return;
-        } catch (e) {
-          debugPrint('[GPS] start retry $i: ${e.toString().replaceAll(String.fromCharCode(10), " | ")}');
-          await Future.delayed(const Duration(seconds: 1));
+    // 周期读取原生落盘的定位结果（最多 60 秒）
+    var n = 0;
+    Timer.periodic(const Duration(seconds: 2), (t) async {
+      n++;
+      if (latest != null || n > 30) { t.cancel(); return; }
+      try {
+        final f = File(_fixFile);
+        if (!await f.exists()) return;
+        final s = await f.readAsString();
+        if (s.contains('latitude')) {
+          latest = s;
+          debugPrint('[GPS] cache updated from file: $s');
+          t.cancel();
         }
-      }
+      } catch (_) { }
     });
   }
 }
@@ -54,6 +52,15 @@ class GpsModule extends WebFBaseModule {
       debugPrint('[GPS] sync read: $v');
       return v ?? '{"error":"not-ready"}';
     }
+    if (method == 'trace') {
+      // JS 调试通道：写入共享 trace 文件
+      try {
+        File('/data/data/com.cyanweather.cyanweather_webf/files/gps_trace.txt')
+            .writeAsStringSync('[js] ${params.isNotEmpty ? params[0] : ""}\n',
+                mode: FileMode.append);
+      } catch (_) {}
+      return '';
+    }
     return null;
   }
 
@@ -74,11 +81,10 @@ void main() {
     ),
   );
 
-  WebFControllerManager.instance.addOrUpdateControllerWithLoading(
+  WebFControllerManager.instance.addWithPrerendering(
     name: 'home',
     createController: () => WebFController(),
     bundle: WebFBundle.fromUrl('assets:///assets/web/index.html'),
-    mode: WebFLoadingMode.preloading,
   );
 
   runApp(const CyanWeatherWebfApp());

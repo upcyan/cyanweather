@@ -24,17 +24,56 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         @JvmStatic @Volatile var latestFix: String? = null
+        @JvmStatic fun trace(ctx: Context?, msg: String) {
+            try {
+                android.util.Log.w("GPS", msg)
+                if (ctx != null) {
+                    java.io.File(ctx.filesDir, "gps_trace.txt")
+                        .appendText(java.text.SimpleDateFormat("HH:mm:ss.SSS ", java.util.Locale.US)
+                            .format(java.util.Date()) + msg + "\n")
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase)
+        trace(newBase.applicationContext ?: newBase, "attachBaseContext")
     }
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        trace(this, "onCreate")
         super.onCreate(savedInstanceState)
-        // 启动即在后台线程解析位置并缓存，JS 稍后同步读取
+        // 全新安装时权限被清空：主动弹授权
+        if (!hasLocationPermission()) {
+            ActivityCompat.requestPermissions(this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), 1)
+        }
+        // 启动即在后台线程解析位置并缓存（写文件，供所有引擎的 Dart 读取）
+        Thread {
+            trace(this, "worker enter")
+            try { resolveLocation(null) } catch (t: Throwable) { trace(this, "WORKER EXC: $t") }
+            trace(this, "worker exit")
+        }.start()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        trace(this, "perm result: " + grantResults.joinToString(","))
         Thread { resolveLocation(null) }.start()
+    }
+
+    /** 把定位结果写入 files 目录，跨引擎共享 */
+    private fun persist(l: Location) {
+        try {
+            java.io.File(getFilesDir(), "gps_fix.json").writeText(toJson(l))
+            trace(this, "persisted ${l.latitude},${l.longitude}")
+        } catch (e: Exception) { trace(this, "persist fail: $e") }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        android.util.Log.i("GPS", "configureFlutterEngine: registering $channelName")
+        trace(this, "configureFlutterEngine: registering $channelName")
         val ch = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
         methodChannel = ch
         ch.setMethodCallHandler { call, result ->
@@ -73,16 +112,21 @@ class MainActivity : FlutterActivity() {
         fun deliver(action: () -> Unit) = runOnUiThread(action)
         try {
             if (!hasLocationPermission()) {
+                trace(this, "NO PERMISSION")
                 result?.let { deliver { it.error("no-permission", "定位权限未授予，请在系统设置中允许", null) } }
                 return
             }
+            trace(this, "perm ok")
             val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            trace(this, "lm ok")
+            val best0 = bestLastKnown(lm)
+            trace(this, "bestLastKnown: " + (best0?.let { "${it.latitude},${it.longitude} @${(System.currentTimeMillis()-it.time)/60000}min ${it.provider}" } ?: "none"))
 
             // 1) 最近已知位置（passive 会吸收其它 App 的定位结果）
             bestLastKnown(lm)?.let { last ->
                 val ageMin = (System.currentTimeMillis() - last.time) / 60000L
                 android.util.Log.i("GPS", "lastKnown age=${ageMin}min ${last.latitude},${last.longitude} (${last.provider})")
-                if (ageMin < 120) { result?.let { runOnUiThread { it.success(toJson(last)) } }; return }
+                if (ageMin < 120) { persist(last); result?.let { runOnUiThread { it.success(toJson(last)) } }; return }
             }
 
             // 2) 主动单次请求：优先 WiFi/基站（NETWORK_PROVIDER），失败再 GPS
@@ -109,7 +153,9 @@ class MainActivity : FlutterActivity() {
             }
 
             val chosen = fixed ?: bestLastKnown(lm)
+            trace(this, "resolved: " + (chosen?.latitude?.toString() ?: "null") + "," + (chosen?.longitude?.toString() ?: "null"))
             if (chosen != null) {
+                persist(chosen)
                 val json = toJson(chosen)
                 latestFix = json
                 runOnUiThread {
@@ -121,6 +167,7 @@ class MainActivity : FlutterActivity() {
                 result?.let { runOnUiThread { it.error("no-fix", "无法获取位置：请确认系统“位置信息”已开启并稍后重试", null) } }
             }
         } catch (e: Exception) {
+            trace(this, "resolve EXC: $e")
             result?.let { runOnUiThread { it.error("error", e.message ?: "定位异常", null) } }
         }
     }

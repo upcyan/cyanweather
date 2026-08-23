@@ -51,97 +51,100 @@ function nmcTextKind(t) { /* native nmcSkyconKind */
 }
 var KIND_ICON = { SUN:'☀️', PARTLY:'⛅', CLOUD:'☁️', RAIN:'🌧️', SNOW:'❄️', THUNDER:'⛈️', FOG:'🌫️', SLEET:'🌨️', WIND:'🌬️', HAZE:'😷', UNKNOWN:'' };
 
-/* ---- Canvas 风格 SVG 图标（对齐 native WeatherIcon.kt 配色与几何） ---- */
+/* ---- Canvas 天气图标：复刻 native WeatherIcon.kt 几何与配色 ---- */
 var IC = { sun:'#f6a821', cloud:'#7c97ab', rain:'#3fa3f0', bolt:'#f2a93b', snow:'#90caf9', fog:'#b0bec5' };
 var KIND_NORM = { SUN:.80, MOON:1.08, PARTLY:.68, CLOUD:.98, RAIN:1.06, SNOW:1.06, THUNDER:.94, SLEET:1.06, FOG:1.22, HAZE:1.22, WIND:.98, UNKNOWN:1.10 };
 
-function svgIcon(kind, sizePx) {
-  var s = (KIND_NORM[kind] || 1.10) * 100;
-  var cx = 50, cy = 50;
-  var el = [];
+function paintIcon(cv, kind) {
+  var ctx = cv.getContext && cv.getContext('2d');
+  if (!ctx) return;
+  var u = cv.width / 100;                 /* 单位换算：设计视图 0..100 */
+  var s = (KIND_NORM[kind] || 1.10) * 100 * u;
+  var cx = 50 * u, cy = 50 * u;
+  function C(v){ return v; }             /* 占位保持可读 */
   function cloudBody(ccx, ccy, cs) {
-    el.push('<circle cx="' + (ccx - .30 * cs).toFixed(2) + '" cy="' + (ccy - .15 * cs).toFixed(2) + '" r="' + (.27 * cs).toFixed(2) + '" fill="' + IC.cloud + '"/>');
-    el.push('<circle cx="' + ccx + '" cy="' + (ccy - .30 * cs).toFixed(2) + '" r="' + (.34 * cs).toFixed(2) + '" fill="' + IC.cloud + '"/>');
-    el.push('<circle cx="' + (ccx + .32 * cs).toFixed(2) + '" cy="' + (ccy - .13 * cs).toFixed(2) + '" r="' + (.27 * cs).toFixed(2) + '" fill="' + IC.cloud + '"/>');
-    el.push('<rect x="' + (ccx - .50 * cs).toFixed(2) + '" y="' + (ccy - .08 * cs).toFixed(2) + '" width="' + cs.toFixed(2) + '" height="' + (.40 * cs).toFixed(2) + '" rx="' + (.20 * cs).toFixed(2) + '" fill="' + IC.cloud + '"/>');
+    ctx.fillStyle = IC.cloud;
+    ctx.beginPath(); ctx.arc(ccx - .30*cs, ccy - .15*cs, .27*cs, 0, 6.284); ctx.fill();
+    ctx.beginPath(); ctx.arc(ccx,            ccy - .30*cs, .34*cs, 0, 6.284); ctx.fill();
+    ctx.beginPath(); ctx.arc(ccx + .32*cs, ccy - .13*cs, .27*cs, 0, 6.284); ctx.fill();
+    ctx.fillRect(ccx - .50*cs, ccy - .08*cs, cs, .40*cs);
+  }
+  function line(x1,y1,x2,y2,color,w) {
+    ctx.strokeStyle = color; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
   }
   function rays(rcx, rcy, r1, r2, w) {
     for (var i = 0; i < 8; i++) {
       var a = i * 45 * Math.PI / 180;
-      el.push('<line x1="' + (rcx + Math.cos(a) * r1).toFixed(2) + '" y1="' + (rcy + Math.sin(a) * r1).toFixed(2) +
-        '" x2="' + (rcx + Math.cos(a) * r2).toFixed(2) + '" y2="' + (rcy + Math.sin(a) * r2).toFixed(2) +
-        '" stroke="' + IC.sun + '" stroke-width="' + w.toFixed(2) + '" stroke-linecap="round"/>');
+      line(rcx + Math.cos(a)*r1, rcy + Math.sin(a)*r1, rcx + Math.cos(a)*r2, rcy + Math.sin(a)*r2, IC.sun, w);
     }
   }
   function flake(fx, fy, fr, fw) {
     for (var i = 0; i < 3; i++) {
       var a = i * Math.PI / 3;
-      el.push('<line x1="' + (fx + Math.cos(a) * fr).toFixed(2) + '" y1="' + (fy + Math.sin(a) * fr).toFixed(2) +
-        '" x2="' + (fx - Math.cos(a) * fr).toFixed(2) + '" y2="' + (fy - Math.sin(a) * fr).toFixed(2) +
-        '" stroke="' + IC.snow + '" stroke-width="' + fw.toFixed(3) + '" stroke-linecap="round"/>');
+      line(fx + Math.cos(a)*fr, fy + Math.sin(a)*fr, fx - Math.cos(a)*fr, fy - Math.sin(a)*fr, IC.snow, fw);
     }
-    el.push('<circle cx="' + fx.toFixed(2) + '" cy="' + fy.toFixed(2) + '" r="' + (fr * .22).toFixed(2) + '" fill="' + IC.snow + '"/>');
+    ctx.fillStyle = IC.snow; ctx.beginPath(); ctx.arc(fx, fy, fr*.22, 0, 6.284); ctx.fill();
   }
   switch (kind) {
     case 'SUN':
-      el.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + (.30 * s).toFixed(2) + '" fill="' + IC.sun + '"/>');
-      rays(cx, cy, .42 * s, .60 * s, .09 * s);
+      ctx.fillStyle = IC.sun; ctx.beginPath(); ctx.arc(cx, cy, .30*s, 0, 6.284); ctx.fill();
+      rays(cx, cy, .42*s, .60*s, .09*s); break;
+    case 'MOON':
+      ctx.fillStyle = IC.sun; ctx.beginPath(); ctx.arc(cx - .08*s, cy, .36*s, 0, 6.284); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(cx + .12*s, cy - .12*s, .30*s, 0, 6.284); ctx.fill();
       break;
-    case 'MOON': /* 月牙：亮圆+底色圆遮罩 */
-      el.push('<circle cx="' + (cx - .08 * s).toFixed(2) + '" cy="' + cy + '" r="' + (.36 * s).toFixed(2) + '" fill="' + IC.sun + '"/>');
-      el.push('<circle cx="' + (cx + .12 * s).toFixed(2) + '" cy="' + (cy - .12 * s).toFixed(2) + '" r="' + (.30 * s).toFixed(2) + '" fill="#ffffff"/>');
-      break;
-    case 'CLOUD':
-      cloudBody(cx, cy + .08 * s, .72 * s);
-      break;
+    case 'CLOUD': cloudBody(cx, cy + .08*s, .72*s); break;
     case 'PARTLY':
-      el.push('<circle cx="' + (cx - .30 * s).toFixed(2) + '" cy="' + (cy - .30 * s).toFixed(2) + '" r="' + (.20 * s).toFixed(2) + '" fill="' + IC.sun + '"/>');
-      rays(cx - .30 * s, cy - .30 * s, .27 * s, .40 * s, .07 * s);
-      cloudBody(cx + .16 * s, cy + .22 * s, .58 * s);
-      break;
+      ctx.fillStyle = IC.sun; ctx.beginPath(); ctx.arc(cx - .30*s, cy - .30*s, .20*s, 0, 6.284); ctx.fill();
+      rays(cx - .30*s, cy - .30*s, .27*s, .40*s, .07*s);
+      cloudBody(cx + .16*s, cy + .22*s, .58*s); break;
     case 'RAIN':
-      cloudBody(cx, cy - .16 * s, .66 * s);
-      [-.22, 0, .22].forEach(function (dx) {
-        el.push('<line x1="' + (cx + dx * s).toFixed(2) + '" y1="' + (cy + .16 * s).toFixed(2) + '" x2="' + (cx + dx * s - .05 * s).toFixed(2) + '" y2="' + (cy + .36 * s).toFixed(2) +
-          '" stroke="' + IC.rain + '" stroke-width="' + (.09 * s).toFixed(2) + '" stroke-linecap="round"/>');
-      });
+      cloudBody(cx, cy - .16*s, .66*s);
+      [-.22, 0, .22].forEach(function(dx){
+        line(cx + dx*s, cy + .16*s, cx + dx*s - .05*s, cy + .36*s, IC.rain, .09*s); });
       break;
     case 'SNOW':
-      cloudBody(cx, cy - .16 * s, .66 * s);
-      [[-.20, .28], [0, .34], [.20, .28]].forEach(function (p) { flake(cx + p[0] * s, cy + p[1] * s, .085 * s, .025 * s); });
+      cloudBody(cx, cy - .16*s, .66*s);
+      [[-.20,.28],[0,.34],[.20,.28]].forEach(function(p){ flake(cx + p[0]*s, cy + p[1]*s, .085*s, .025*s); });
       break;
     case 'THUNDER':
-      cloudBody(cx, cy - .18 * s, .62 * s);
-      el.push('<path d="M' + (cx - .06 * s) + ' ' + (cy + .08 * s) + ' L' + (cx + .12 * s) + ' ' + (cy + .08 * s) +
-        ' L' + (cx - .02 * s) + ' ' + (cy + .28 * s) + ' L' + (cx + .12 * s) + ' ' + (cy + .28 * s) +
-        ' L' + (cx - .14 * s) + ' ' + (cy + .50 * s) + ' L' + (cx - .04 * s) + ' ' + (cy + .30 * s) +
-        ' L' + (cx - .12 * s) + ' ' + (cy + .30 * s) + ' Z" fill="' + IC.bolt + '"/>');
+      cloudBody(cx, cy - .18*s, .62*s);
+      ctx.fillStyle = IC.bolt; ctx.beginPath();
+      ctx.moveTo(cx - .06*s, cy + .08*s); ctx.lineTo(cx + .12*s, cy + .08*s);
+      ctx.lineTo(cx - .02*s, cy + .28*s); ctx.lineTo(cx + .12*s, cy + .28*s);
+      ctx.lineTo(cx - .14*s, cy + .50*s); ctx.lineTo(cx - .04*s, cy + .30*s);
+      ctx.lineTo(cx - .12*s, cy + .30*s); ctx.closePath(); ctx.fill();
       break;
     case 'SLEET':
-      cloudBody(cx, cy - .16 * s, .66 * s);
-      el.push('<line x1="' + (cx - .18 * s) + '" y1="' + (cy + .18 * s) + '" x2="' + (cx - .12 * s) + '" y2="' + (cy + .36 * s) + '" stroke="' + IC.rain + '" stroke-width="' + (.09 * s).toFixed(2) + '" stroke-linecap="round"/>');
-      el.push('<line x1="' + (cx + .18 * s) + '" y1="' + (cy + .18 * s) + '" x2="' + (cx + .24 * s) + '" y2="' + (cy + .36 * s) + '" stroke="' + IC.rain + '" stroke-width="' + (.09 * s).toFixed(2) + '" stroke-linecap="round"/>');
-      flake(cx, cy + .34 * s, .09 * s, .025 * s);
+      cloudBody(cx, cy - .16*s, .66*s);
+      line(cx - .18*s, cy + .18*s, cx - .12*s, cy + .36*s, IC.rain, .09*s);
+      line(cx + .18*s, cy + .18*s, cx + .24*s, cy + .36*s, IC.rain, .09*s);
+      flake(cx, cy + .34*s, .09*s, .025*s);
       break;
-    case 'FOG':
-    case 'HAZE':
-      cloudBody(cx, cy - .20 * s, .52 * s);
+    case 'FOG': case 'HAZE':
+      cloudBody(cx, cy - .20*s, .52*s);
       for (var fi = 0; fi < 3; fi++) {
-        var fy = cy + s * (.05 + fi * .16), half = s * (.34 - fi * .05);
-        el.push('<line x1="' + (cx - half).toFixed(2) + '" y1="' + fy.toFixed(2) + '" x2="' + (cx + half).toFixed(2) + '" y2="' + fy.toFixed(2) + '" stroke="' + IC.fog + '" stroke-width="' + (.10 * s).toFixed(2) + '" stroke-linecap="round"/>');
+        var fy = cy + s*(.05 + fi*.16), half = s*(.34 - fi*.05);
+        line(cx - half, fy, cx + half, fy, IC.fog, .10*s);
       }
       break;
     case 'WIND':
-      el.push('<line x1="' + (cx - .38 * s).toFixed(2) + '" y1="' + (cy - .18 * s).toFixed(2) + '" x2="' + (cx + .38 * s).toFixed(2) + '" y2="' + (cy - .18 * s).toFixed(2) + '" stroke="' + IC.cloud + '" stroke-width="' + (.10 * s).toFixed(2) + '" stroke-linecap="round"/>');
-      el.push('<path d="M' + (cx - .38 * s).toFixed(2) + ' ' + (cy + .12 * s).toFixed(2) + ' A ' + (.15 * s).toFixed(2) + ' ' + (.15 * s).toFixed(2) + ' 0 0 0 ' + (cx - .23 * s).toFixed(2) + ' ' + (cy - .03 * s).toFixed(2) + '" stroke="' + IC.cloud + '" stroke-width="' + (.10 * s).toFixed(2) + '" fill="none" stroke-linecap="round"/>');
-      el.push('<path d="M' + (cx - .02 * s).toFixed(2) + ' ' + (cy + .31 * s).toFixed(2) + ' A ' + (.15 * s).toFixed(2) + ' ' + (.17 * s).toFixed(2) + ' 0 0 1 ' + (cx + .08 * s).toFixed(2) + ' ' + (cy + .15 * s).toFixed(2) + '" stroke="' + IC.cloud + '" stroke-width="' + (.10 * s).toFixed(2) + '" fill="none" stroke-linecap="round"/>');
+      line(cx - .38*s, cy - .18*s, cx + .38*s, cy - .18*s, IC.cloud, .10*s);
+      ctx.strokeStyle = IC.cloud; ctx.lineWidth = .10*s; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(cx - .23*s, cy + .00*s, .15*s, Math.PI, Math.PI*1.5); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + .04*s, cy + .17*s, .15*s, Math.PI*1.1, Math.PI*1.9); ctx.stroke();
       break;
-    default:
-      cloudBody(cx, cy + .06 * s, .60 * s);
+    default: cloudBody(cx, cy + .06*s, .60*s);
   }
-  return '<svg class="wicon-svg" viewBox="0 0 100 100" width="' + sizePx + '" height="' + sizePx + '">' + el.join('') + '</svg>';
 }
-function iconForCondition(condText, sizePx) { return svgIcon(nmcTextKind(condText), sizePx); }
+function paintAllIcons(root) { /* 对容器内所有标记 canvas 批量绘制 */
+  var list = (root || document).querySelectorAll('canvas[data-kind]');
+  for (var i = 0; i < list.length; i++) {
+      var c = list[i];
+      paintIcon(c, c.getAttribute('data-kind'));
+  }
+}
 
 function windDirName(deg) {
   var dirs = ['北风','东北风','东风','东南风','南风','西南风','西风','西北风'];
@@ -224,7 +227,7 @@ function hourCardHTML(timeStr, temperature, cond, icon, rainProb) {
   var h = '<div class="hour-item">' +
     '<div class="hour-date">' + timeStr.substring(5, 10).replace('-', '/') + '</div>' +
     '<div class="hour-time">' + parseInt(timeStr.substring(11, 13), 10) + '时</div>';
-  if (icon) h += '<div class="hour-icon">' + svgIcon(icon, 30) + '</div>';
+  if (icon) h += '<div class="hour-icon"><canvas width="34" height="34" data-kind="' + icon + '"></canvas></div>';
   if (cond) h += '<div class="hour-cond">' + cond + '</div>';
   h += '<div class="hour-temp">' + tempStr(temperature) + '°</div>';
   if (rainProb !== undefined && rainProb !== null && rainProb > 0) {
@@ -478,7 +481,8 @@ function parseNmc(data, cityName) { /* native parseNmc 完整移植 */
 function resolveNmcStation() {
   /* 坐标已由 ensureGpsFix 刷新：GPS 时直接按坐标匹配气象站，否则用已存/默认站码 */
   var cn;
-  if (state.useGps && !state.manualCity) {
+        dtrace('reverse cond: gps=' + state.useGps + ' manual=' + state.manualCity);
+        if (state.useGps && !state.manualCity) {
     cn = resolveNmcByLocation(state.lat, state.lon).then(function (rc) {
       state.city = rc.name; state.cityCode = rc.code; state.manualCity = false;
       saveState();
@@ -510,6 +514,7 @@ function loadNmcWeather() {
 /* ================= GPS 桥接 =================
    WebF 回调形状存在两种可能：(err,data) 双参 或 (result) 单参。
    Dart 端返回 JSON 字符串。这里全部兼容，12 秒超时。 */
+function dtrace(m) { try { var b = getNativeBridge(); if (b) b.invokeModule('GPS', 'trace', [m], function(){}); } catch (e) { } }
 function getNativeBridge() {
   try { if (typeof webf !== 'undefined' && webf && typeof webf.invokeModule === 'function') return webf; } catch (e) { }
   try { if (typeof kraken !== 'undefined' && kraken && typeof kraken.invokeModule === 'function') return kraken; } catch (e) { }
@@ -543,6 +548,10 @@ function locateViaBridge() {
   });
 }
 
+function paintGlyph(el, kind, px) {
+  el.innerHTML = '<canvas width="' + px + '" height="' + px + '"></canvas>';
+  var c = el.firstChild; paintIcon(c, kind);
+}
 /* ================= 渲染（统一模型） ================= */
 function renderWeather(w) {
   $('cityName').textContent = w.cityName || state.city;
@@ -550,7 +559,7 @@ function renderWeather(w) {
   $('curTemp').textContent = tempStr(w.temperature);
   $('curUnit').textContent = '°C';
   $('curCond').textContent = w.condition || '-';
-  $('weatherGlyph').innerHTML = svgIcon(nmcTextKind(w.condition), 92);
+  paintGlyph($('weatherGlyph'), nmcTextKind(w.condition), 96);
   $('todayHigh').textContent = tempStr(w.todayHigh) + '°';
   $('todayLow').textContent = tempStr(w.todayLow) + '°';
   $('feelsLike').textContent = tempStr(w.feelsLike) + '°';
@@ -587,7 +596,7 @@ function renderWeather(w) {
     dh += '<div class="day-row">' +
       '<span class="day-name">' + dayLabelCN(dd.date) + '</span>' +
       '<div class="day-main">' +
-      (dd.icon ? '<span class="day-icon">' + svgIcon(dd.icon, 26) + '</span>' : '') +
+      (dd.icon ? '<span class="day-icon"><canvas width="30" height="30" data-kind="' + dd.icon + '"></canvas></span>' : '') +
       '<span class="day-cond">' + combineDayNight(dd.dayText, dd.nightText) + '</span>' +
       '<span class="day-temp"><span class="day-high">' + tempStr(dd.high) + '°</span>' +
       '<span class="day-slash">/</span>' +
@@ -624,6 +633,7 @@ function renderWeather(w) {
   }
 
   $('sourceFooter').textContent = w.sourceTag;
+  paintAllIcons($('content'));
   $('content').classList.remove('error-mode');
 }
 
@@ -695,37 +705,23 @@ function setRefreshing(on) {
 
 /* ================= 刷新主流程 ================= */
 /* 统一定位前置：useGps 且非手动城市时先取真实坐标 */
-function probeFire(tag, info) {
-  /* 诊断通道：借 dio 请求日志把 JS 侧状态带回 logcat */
-  try {
-    fetch(FC_URL + '?latitude=0&longitude=0&current=&_probe=' + tag + ':' + encodeURIComponent(info)).catch(function () { });
-  } catch (e) { }
-}
-
 function ensureGpsFix() {
-  var w = 'undef', im = 'no';
-  try { w = typeof webf; } catch (e) { }
-  try { if (typeof webf !== 'undefined' && webf) im = typeof webf.invokeModule; } catch (e) { }
-  var k = 'undef', kim = 'no';
-  try { k = typeof kraken; } catch (e) { }
-  try { if (typeof kraken !== 'undefined' && kraken) kim = typeof kraken.invokeModule; } catch (e) { }
-  probeFire('bridge', 'webf=' + w + ',' + im + ';kraken=' + k + ',' + kim + ';gps=' + state.useGps + ',manual=' + state.manualCity);
-
   if (!(state.useGps && !state.manualCity)) return Promise.resolve();
   return locateViaBridge().then(function (pos) {
     state.lat = pos.lat;
     state.lon = pos.lon;
     saveState();
-    probeFire('gpsok', pos.lat.toFixed(4) + ',' + pos.lon.toFixed(4));
     return null;
   }).catch(function (e) {
-    probeFire('gpserr', e.message);
     showNotice('定位失败：' + e.message + '，当前使用上次位置');
     return null;
   });
 }
 
 function fullRefresh() {
+  dtrace('fullRefresh src=' + state.source + ' gps=' + state.useGps + ' manual=' + state.manualCity + ' lat=' + state.lat);
+  if (refreshing) { dtrace('fullRefresh skipped: refreshing'); return; }
+  refreshing = true;
   if (refreshing) return;
   refreshing = true;
   clearErrors();
@@ -809,7 +805,8 @@ $('searchResults').addEventListener('click', function (ev) {
     resolveNmcByLocation(state.lat, state.lon).then(function (rc) {
       state.city = rc.name; state.cityCode = rc.code;
       saveState();
-      fullRefresh();
+  dtrace('init: calling fullRefresh');
+  fullRefresh();
     }).catch(function () { fullRefresh(); });
   } else {
     fullRefresh();
