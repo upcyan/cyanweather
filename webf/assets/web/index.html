@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CyanWeather</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <button id="settingsBtn" class="icon-btn" title="设置">⚙️</button>
+      <div class="city-center" id="cityCenter">
+        <span class="city" id="cityName">加载中…</span>
+        <span class="updated-at" id="updatedAt"></span>
+      </div>
+      <button id="refreshBtn" class="icon-btn" title="刷新">🔄</button>
+    </header>
+
+    <main id="content" class="error-mode-hidden-by-default">
+      <div id="errorBox" class="error-box hidden"></div>
+      <div id="noticeBox"></div>
+      <div class="warn-card hidden" id="warnCard"></div>
+
+      <!-- 刷新遮罩 -->
+      <div class="refresh-overlay hidden" id="refreshOverlay">
+        <div class="overlay-box">
+          <div class="spinner"></div>
+          <div class="overlay-text">正在刷新天气…</div>
+        </div>
+      </div>
+
+      <!-- 主天气卡片 -->
+      <section class="main-card card" id="mainCard">
+        <div class="main-row">
+          <div class="main-left">
+            <div class="weather-glyph" id="weatherGlyph">☁️</div>
+            <div class="condition" id="curCond">—</div>
+          </div>
+          <div class="main-right">
+            <div class="temp"><span id="curTemp">--</span><span class="unit" id="curUnit">°C</span></div>
+          </div>
+        </div>
+        <div class="stats-row" id="statsRow">
+          <div class="stat-col">
+            <span class="stat-label">最高</span>
+            <span class="stat-value stat-high" id="todayHigh">--</span>
+          </div>
+          <div class="stat-col">
+            <span class="stat-label">最低</span>
+            <span class="stat-value stat-low" id="todayLow">--</span>
+          </div>
+          <div class="stat-col">
+            <span class="stat-label">体感</span>
+            <span class="stat-value stat-feel" id="feelsLike">--</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 日出日落 -->
+      <section class="sun-card card" id="sunCard">
+        <div class="sun-col">
+          <span class="sun-label">日出</span>
+          <span class="sun-value" id="sunrise">--</span>
+        </div>
+        <div class="sun-col">
+          <span class="sun-label">日落</span>
+          <span class="sun-value" id="sunset">--</span>
+        </div>
+      </section>
+
+      <!-- 信息卡片列：湿度 / 风力 / 空气质量 / 紫外线 -->
+      <section class="info-list" id="infoList">
+        <div class="info-card card">
+          <span class="info-label">湿度</span>
+          <span class="info-value" id="humidityVal">--</span>
+        </div>
+        <div class="info-card card">
+          <span class="info-label">风力</span>
+          <span class="info-value" id="windVal">--</span>
+        </div>
+        <div class="info-card card">
+          <span class="info-label">空气质量</span>
+          <span class="info-value" id="aqiVal">--</span>
+        </div>
+        <div class="info-card card">
+          <span class="info-label">紫外线强度</span>
+          <span class="info-value" id="uvVal">--</span>
+        </div>
+      </section>
+
+      <!-- 降雨提醒卡 -->
+      <section class="rain-tip-card card hidden" id="rainTipCard">
+        <span class="rain-tip-icon">🌂</span>
+        <span class="rain-tip-text" id="rainTipText"></span>
+        <span class="rain-tip-action">查看降雨趋势 ›</span>
+      </section>
+
+      <!-- 逐小时预报 -->
+      <section class="block">
+        <h3 id="hourlyLabel">未来48小时逐时预报</h3>
+        <div class="hourly scroll-x" id="hourly"></div>
+      </section>
+
+      <!-- 多日预报 -->
+      <section class="block">
+        <h3 id="dailyLabel">未来多日预报（7天）</h3>
+        <div class="daily" id="daily"></div>
+      </section>
+
+      <!-- 昨日天气 -->
+      <section class="block">
+        <h3>昨日天气</h3>
+        <div class="yesterday card hidden" id="yesterdayCard">
+          <div class="yesterday-row">
+            <span class="yesterday-label">昨日最高</span>
+            <span class="yesterday-value yesterday-high" id="yestHigh">--</span>
+          </div>
+          <div class="yesterday-row">
+            <span class="yesterday-label">昨日最低</span>
+            <span class="yesterday-value yesterday-low" id="yestLow">--</span>
+          </div>
+          <div class="yest-hourly scroll-x" id="yestHourly"></div>
+        </div>
+      </section>
+
+      <!-- 降雨趋势 -->
+      <section class="block hidden" id="rainBlock">
+        <h3>降雨趋势（未来24小时）</h3>
+        <div class="rain scroll-x" id="rain"></div>
+      </section>
+
+      <!-- 数据来源底部 -->
+      <div class="source-footer" id="sourceFooter">数据来源：Open-Meteo</div>
+    </main>
+  </div>
+
+  <!-- 城市搜索弹层 -->
+  <div class="modal hidden" id="searchModal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <input id="searchInput" placeholder="输入城市名，如：北京 / 上海 / 杭州" autocomplete="off" />
+        <button id="searchClose" class="icon-btn">✕</button>
+      </div>
+      <ul id="searchResults" class="results"></ul>
+    </div>
+  </div>
+
+  <!-- 设置弹层 -->
+  <div class="modal hidden" id="settingsModal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <b>设置</b>
+        <button id="settingsClose" class="icon-btn">✕</button>
+      </div>
+      <div class="settings-body">
+        <!-- 数据源 -->
+        <div class="setting-card">
+          <b>天气数据源</b>
+          <div class="radio-row">
+            <input type="radio" name="src" id="srcOpenMeteo" value="openmeteo" checked />
+            <label for="srcOpenMeteo">Open-Meteo</label>
+            <span class="radio-hint">免费开放源，最长15天预报+紫外线+降水概率，按定位获取</span>
+          </div>
+          <div class="radio-row">
+            <input type="radio" name="src" id="srcNmc" value="nmc" />
+            <label for="srcNmc">中国气象局</label>
+            <span class="radio-hint">中央气象台，免费无需密钥，支持县区级，含昨日天气与预警</span>
+          </div>
+        </div>
+
+        <!-- 字号 -->
+        <div class="setting-card">
+          <b>字体大小</b>
+          <div class="radio-row">
+            <input type="radio" name="font" id="fontStandard" value="standard" />
+            <label for="fontStandard">标准</label>
+          </div>
+          <div class="radio-row">
+            <input type="radio" name="font" id="fontLarge" value="large" checked />
+            <label for="fontLarge">大 <span class="badge">推荐</span></label>
+          </div>
+          <div class="radio-row">
+            <input type="radio" name="font" id="fontXLarge" value="xlarge" />
+            <label for="fontXLarge">特大</label>
+          </div>
+        </div>
+
+        <!-- 自动定位 -->
+        <div class="setting-card">
+          <label class="switch-row">
+            <span class="switch-label">
+              <b>使用自动定位</b>
+              <span class="switch-hint">Open-Meteo 按定位获取；需要定位权限</span>
+            </span>
+            <input type="checkbox" id="useGps" checked />
+          </label>
+        </div>
+
+        <!-- 自动刷新 -->
+        <div class="setting-card">
+          <b>自动刷新</b>
+          <div class="radio-row">
+            <input type="radio" name="refresh" id="refOff" value="off" />
+            <label for="refOff">关闭</label>
+          </div>
+          <div class="radio-row">
+            <input type="radio" name="refresh" id="refResume" value="on_resume" />
+            <label for="refResume">每次进入App</label>
+          </div>
+          <div class="radio-row">
+            <input type="radio" name="refresh" id="ref10" value="10" />
+            <label for="ref10">每 10 分钟</label>
+          </div>
+          <div class="radio-row">
+            <input type="radio" name="refresh" id="ref30" value="30" checked />
+            <label for="ref30">每 30 分钟 <span class="badge">推荐</span></label>
+          </div>
+          <div class="radio-row">
+            <input type="radio" name="refresh" id="ref60" value="60" />
+            <label for="ref60">每 60 分钟</label>
+          </div>
+          <div class="radio-row">
+            <input type="radio" name="refresh" id="ref360" value="360" />
+            <label for="ref360">每 6 小时</label>
+          </div>
+          <div class="radio-row">
+            <input type="radio" name="refresh" id="ref720" value="720" />
+            <label for="ref720">每 12 小时</label>
+          </div>
+          <div class="radio-row">
+            <input type="radio" name="refresh" id="ref1440" value="1440" />
+            <label for="ref1440">每 24 小时</label>
+          </div>
+        </div>
+
+        <!-- 检查更新 -->
+        <div class="setting-card">
+          <label class="switch-row">
+            <span class="switch-label">
+              <b>自动检查更新</b>
+              <span class="switch-hint">进入App时检查GitHub是否有新版本</span>
+            </span>
+            <input type="checkbox" id="autoCheckUpdate" checked />
+          </label>
+        </div>
+        <div class="setting-card">
+          <button id="manualCheckUpdate" class="check-update-btn">
+            <span>手动检查更新</span>
+            <span class="check-update-action">检查 ›</span>
+          </button>
+        </div>
+
+        <!-- 关于 -->
+        <div class="setting-card about-card">
+          <div class="about-title">
+            <b>关于</b>
+            <span class="version" id="appVersion"></span>
+          </div>
+          <div class="about-text">晴暖天气：为长辈设计的简洁大字天气应用。</div>
+          <div class="about-text">数据来源：中央气象台 / 彩云天气 / Open-Meteo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,437 @@
+/* CyanWeather WebF —— 与 native 版视觉对齐
+   根字号缩放：标准 16px / 大 21px(1.3x) / 特大 26px(1.6x) */
+:root {
+  /* CyanWeatherTheme.kt LightColors 对齐 */
+  --bg: #f5f9ff;        /* background */
+  --card: #ffffff;      /* surface */
+  --text: #111111;      /* onBackground */
+  --muted: #333333;     /* onSurfaceVariant */
+  --soft: #66707f;
+  --accent: #0b6bcb;    /* primary */
+  --accent-soft: #e3edf9; /* surfaceVariant */
+  --border: #e3edf9;
+  --bar: #3fa3f0;       /* WeatherIcon RainColor */
+  --high-red: #c62828;  /* error / 最高温 */
+  --low-blue: #1565c0;  /* 最低温 */
+  --feel-teal: #00897b; /* 体感 */
+  --shadow: 0 2px 12px rgba(11, 107, 203, 0.07);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { width: 100%; height: 100%; font-size: 21px; }
+
+body {
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 1rem;
+}
+
+#app { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* ---- 顶栏：设置 | 城市+更新时间 | 刷新 ---- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: transparent;
+}
+.icon-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: #333333;
+}
+.city-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+.city {
+  font-size: 1.35rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.updated-at { font-size: 0.7rem; color: var(--muted); white-space: nowrap; }
+.icon-btn.spinning { animation: cw-spin 1s linear infinite; }
+@keyframes cw-spin { to { transform: rotate(360deg); } }
+
+/* ---- 内容区 ---- */
+#content { flex: 1; padding: 4px 16px 30px; max-width: 720px; width: 100%; margin: 0 auto; }
+#content.error-mode .card,
+#content.error-mode .block,
+#content.error-mode .info-list,
+#content.error-mode .source-footer,
+#content.error-mode #noticeBox { display: none !important; }
+
+.card { background: var(--card); border-radius: 14px; box-shadow: var(--shadow); }
+
+/* 错误横幅 + 全量错误态 */
+.error-box {
+  background: #fdecea;
+  color: #b3261e;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+}
+.error-full { text-align: center; padding: 60px 10px 20px; }
+.error-full .error-msg { font-size: 1.05rem; color: #b3261e; margin-bottom: 24px; }
+.big-btn {
+  display: inline-block;
+  background: var(--accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 16px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  padding: 14px 40px;
+  cursor: pointer;
+}
+
+/* 定位提示（黄卡） */
+.notice-card {
+  background: #fff3cd;
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+  color: #7a5600;
+  font-size: 0.85rem;
+}
+
+/* 刷新遮罩 */
+.refresh-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(245, 249, 255, 0.72);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.spinner {
+  width: 44px;
+  height: 44px;
+  border: 4px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: cw-spin 0.9s linear infinite;
+  margin: 0 auto 14px;
+}
+.overlay-text { text-align: center; color: #333333; font-size: 1rem; }
+
+/* ---- 主天气卡：图标+天气 | 温度；最高/最低/体感三列 ---- */
+.main-card { padding: 18px 18px 14px; margin-bottom: 12px; }
+.main-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+.main-left { display: flex; flex-direction: column; align-items: center; }
+.weather-glyph { font-size: 3.2rem; line-height: 1.15; }
+.weather-glyph .wicon-svg { display: block; margin: 0 auto; }
+.hour-icon .wicon-svg, .day-icon .wicon-svg { display: block; margin: 0 auto; }
+.condition { font-size: 1.2rem; font-weight: 500; text-align: center; }
+.temp { font-size: 2.9rem; font-weight: 700; color: #111111; line-height: 1; }
+.temp .unit { font-size: 1.4rem; font-weight: 400; vertical-align: super; }
+.stats-row {
+  display: flex;
+  margin-top: 14px;
+}
+.stat-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.stat-label { font-size: 0.95rem; color: var(--muted); }
+.stat-value { font-size: 1.3rem; font-weight: 700; }
+.stat-high { color: var(--high-red); }
+.stat-low { color: var(--low-blue); }
+.stat-feel { color: var(--feel-teal); }
+
+/* ---- 日出日落两列 ---- */
+.sun-card {
+  display: flex;
+  padding: 12px 0;
+  margin-bottom: 8px;
+}
+.sun-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.sun-label { font-size: 0.95rem; color: var(--muted); }
+.sun-value { font-size: 0.95rem; font-weight: 500; }
+
+/* ---- 信息卡片列 ---- */
+.info-list { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
+.info-card { padding: 12px 20px; }
+.info-label { display: block; font-size: 0.9rem; color: var(--muted); margin-bottom: 4px; }
+.info-value { display: block; font-size: 1.2rem; font-weight: 500; }
+
+/* ---- 降雨提醒卡 ---- */
+.rain-tip-card {
+  background: #e3f2fd;
+  padding: 16px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+}
+.rain-tip-icon { font-size: 1rem; }
+.rain-tip-text { font-size: 1rem; }
+.rain-tip-action { font-size: 0.85rem; color: var(--accent); }
+
+.block { margin-bottom: 16px; }
+.block h3 { font-size: 1.05rem; font-weight: 700; color: var(--text); margin: 0 0 10px; }
+
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.scroll-x::-webkit-scrollbar { height: 0; }
+
+/* ---- 逐小时 ---- */
+.hourly {
+  display: flex;
+  gap: 8px;
+  padding: 4px;
+}
+.hour-item {
+  min-width: 88px;
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  padding: 10px 4px;
+  flex-shrink: 0;
+}
+.hour-date { font-size: 0.75rem; color: var(--muted); }
+.hour-time { font-size: 0.85rem; color: var(--muted); }
+.hour-icon { font-size: 1.6rem; margin: 6px 0 2px; }
+.hour-cond { font-size: 0.85rem; min-height: 1.1em; }
+.hour-temp { font-size: 1rem; font-weight: 700; margin-top: 2px; }
+
+/* ---- 多日预报 ---- */
+.daily { display: flex; flex-direction: column; gap: 10px; }
+.day-row {
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 10px 16px;
+}
+.day-name { display: block; font-size: 1rem; font-weight: 500; margin-bottom: 4px; }
+.day-main { display: flex; align-items: center; }
+.day-icon { font-size: 1.7rem; width: 42px; flex-shrink: 0; }
+.day-cond { flex: 1; font-size: 1rem; padding-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.day-temp { font-size: 1.1rem; font-weight: 700; white-space: nowrap; }
+.day-high { color: var(--high-red); }
+.day-slash { color: var(--muted); }
+.day-low { color: var(--low-blue); }
+
+/* ---- 昨日 ---- */
+.yesterday { padding: 16px; }
+.yesterday-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+.yesterday-label { font-size: 1.05rem; }
+.yesterday-value { font-size: 1.25rem; font-weight: 700; }
+.yesterday-high { color: var(--high-red); }
+.yesterday-low { color: var(--low-blue); }
+
+/* ---- 降雨趋势 ---- */
+.rain {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 12px 8px 8px;
+  height: 150px;
+}
+.rain-col { min-width: 40px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.rain-label { font-size: 0.625rem; color: var(--muted); margin-top: 4px; text-align: center; line-height: 1.3; }
+.rain-pct { font-size: 0.625rem; color: var(--accent); }
+.rain-bar-wrap { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.rain-bar {
+  width: 60%;
+  max-width: 18px;
+  background: linear-gradient(to top, var(--bar), #9fd0fa);
+  border-radius: 4px 4px 2px 2px;
+}
+
+.source-footer {
+  text-align: center;
+  color: #888888;
+  font-size: 0.75rem;
+  padding-top: 16px;
+}
+
+/* ---- 弹层 ---- */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(17, 17, 17, 0.45);
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 50px 16px 16px;
+}
+.modal-box {
+  background: var(--bg);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 520px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+.modal-head b { font-size: 1.3rem; }
+.modal-head input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.95rem;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+.settings-body { padding: 0 14px 20px; overflow-y: auto; }
+.setting-card {
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.setting-card > b { display: block; font-size: 1.05rem; margin-bottom: 8px; }
+.radio-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  font-size: 1rem;
+}
+.radio-row input[type="radio"] { margin-right: 8px; accent-color: var(--accent); }
+.radio-hint { width: 100%; font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+.badge {
+  display: inline-block;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 0.65rem;
+  padding: 1px 10px;
+  border-radius: 50px;
+  vertical-align: middle;
+}
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+.switch-label { display: flex; flex-direction: column; gap: 2px; }
+.switch-label b { font-size: 1rem; }
+.switch-hint { font-size: 0.75rem; color: var(--muted); }
+.switch-row input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); }
+.city-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 1.05rem;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.city-entry .go { color: var(--accent); }
+.check-update-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--accent-soft);
+  color: var(--text);
+  border: none;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+.check-update-action { color: var(--accent); }
+.about-title { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.about-title b { font-size: 1.05rem; }
+.version { font-size: 0.75rem; color: #888888; }
+.about-text { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
+.results { list-style: none; overflow-y: auto; flex: 1; background: var(--card); }
+.results li {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.results li:active { background: var(--accent-soft); }
+.result-sub { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+.empty-tip { padding: 20px; text-align: center; color: var(--muted); font-size: 0.85rem; }
+
+/* ---- 气象预警横幅 ---- */
+.warn-card {
+  background: #ffe9e0;
+  color: #b3261e;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.warn-title { font-weight: 700; margin-bottom: 4px; }
+.warn-body { font-size: 0.85rem; line-height: 1.5; }
+
+/* ---- 昨日实况横滑 ---- */
+.yest-hourly {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.yest-hourly .yh-item {
+  min-width: 52px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.yh-time { font-size: 0.7rem; color: var(--muted); }
+.yh-temp { font-size: 0.85rem; font-weight: 600; }
+
+.hidden { display: none !important; }
