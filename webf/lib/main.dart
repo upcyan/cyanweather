@@ -12,7 +12,14 @@ import 'package:webf/webf.dart';
 /// 完全避开跨引擎 MethodChannel 注册时序问题。
 class SystemLocation {
   static const _fixFile = '/data/data/com.cyanweather.cyanweather_webf/files/gps_fix.json';
+  static const _channel = MethodChannel('cyanweather/location');
   static String? latest;
+
+  /** 应用内更新：交给系统 DownloadManager */
+  static Future<String> installApk(String url, {String title = '晴暖天气更新'}) async {
+    final r = await _channel.invokeMethod<String>('installApk', {'url': url, 'title': title});
+    return r ?? 'ok';
+  }
 
   static void init() {
     // 周期读取原生落盘的定位结果（最多 60 秒）

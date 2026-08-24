@@ -887,12 +887,14 @@ function checkUpdate(manual) {
           if (manual) alert('当前已是最新版本 v' + APP_VERSION);
           return;
         }
-        showUpdateDialog(latest, rel.body || '', rel.html_url || '');
+        var apkUrl = '';
+        try { (rel.assets || []).forEach(function (a) { if (!apkUrl && /\.apk(\?|$)/.test(a.browser_download_url || '')) apkUrl = a.browser_download_url; }); } catch (e2) { }
+        showUpdateDialog(latest, rel.body || '', rel.html_url || '', apkUrl);
       })
       .catch(function () { if (manual) alert('检查更新失败，请检查网络'); });
   } catch (e) { }
 }
-function showUpdateDialog(version, notes, url) {
+function showUpdateDialog(version, notes, url, apkUrl) {
   var old = $('updateModal');
   if (old) old.remove();
   var modal = document.createElement('div');
@@ -908,8 +910,21 @@ function showUpdateDialog(version, notes, url) {
     '</div></div>';
   document.body.appendChild(modal);
   modal.querySelector('#updateGo').addEventListener('click', function () {
-    try { window.open(url, '_blank'); } catch (e) { }
-    try { window.location.href = url; } catch (e) { }
+    var started = false;
+    if (apkUrl) {
+      try {
+        var b = getNativeBridge();
+        if (b && b.invokeModule('GPS', 'installApk', [apkUrl, '晴暖天气 v' + version], function () { }) === 'ok') {
+          started = true;
+          modal.remove();
+          showNotice('已开始下载 v' + version + ' 更新包，完成后请在通知栏点击安装');
+        }
+      } catch (e) { }
+    }
+    if (!started) {
+      try { window.open(url, '_blank'); } catch (e1) { }
+      try { window.location.href = url; } catch (e2) { }
+    }
   });
   modal.querySelector('#updateLater').addEventListener('click', function () { modal.remove(); });
 }

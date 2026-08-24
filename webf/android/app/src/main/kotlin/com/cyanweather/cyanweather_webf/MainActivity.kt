@@ -82,6 +82,27 @@ class MainActivity : FlutterActivity() {
                 Thread { resolveLocation(result) }.start()
             } else if (call.method == "cached") {
                 result.success(latestFix)
+            } else if (call.method == "installApk") {
+                // 应用内更新：交给系统 DownloadManager 下载，完成后通知栏点击安装
+                val url = call.argument<String>("url")
+                val title = call.argument<String>("title") ?: "晴暖天气更新"
+                if (url.isNullOrBlank()) {
+                    result.error("bad-args", "url 为空", null); return@setMethodCallHandler
+                }
+                try {
+                    val dm = getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+                    val req = android.app.DownloadManager.Request(android.net.Uri.parse(url))
+                        .setTitle(title)
+                        .setDescription("正在下载更新包…")
+                        .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                        .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, "cyanweather_update.apk")
+                        .setMimeType("application/vnd.android.package-archive")
+                    dm.enqueue(req)
+                    trace(this, "download enqueued: $url")
+                    result.success("ok")
+                } catch (e: Exception) {
+                    result.error("dl-error", e.message ?: "下载启动失败", null)
+                }
             } else {
                 result.notImplemented()
             }
