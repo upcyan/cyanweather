@@ -21,6 +21,7 @@
       <div id="errorBox" class="error-box hidden"></div>
       <div id="noticeBox"></div>
       <div class="warn-card hidden" id="warnCard"></div>
+      <div class="notice-card hidden" id="minutelyCard"></div>
 
       <!-- 刷新遮罩 -->
       <div class="refresh-overlay hidden" id="refreshOverlay">
@@ -178,6 +179,20 @@
             <input type="radio" name="src" id="srcNmc" value="nmc" />
             <label for="srcNmc">中国气象局</label>
             <span class="radio-hint">中央气象台，免费无需密钥，支持县区级，含昨日天气与预警</span>
+          </div>
+          <div class="radio-row">
+            <input type="radio" name="src" id="srcCaiyun" value="caiyun" />
+            <label for="srcCaiyun">彩云天气</label>
+            <span class="radio-hint">分钟级降水/实时空气质量，需在下方填写凭据</span>
+          </div>
+          <div id="cyConfig" class="hidden" style="margin-top:8px">
+            <div class="radio-row"><input type="radio" name="cymode" id="cymV1" value="v1" checked /><label for="cymV1">个人版 Token (v1)</label></div>
+            <div class="radio-row"><input type="radio" name="cymode" id="cymV3" value="v3" /><label for="cymV3">专业版 Key/Secret (v3)</label></div>
+            <input type="text" id="cyToken" placeholder="彩云 Token (v1)" class="text-input" />
+            <input type="text" id="cyKey" placeholder="AppKey (v3)" class="text-input" />
+            <input type="password" id="cySecret" placeholder="AppSecret (v3)" class="text-input" />
+            <div class="switch-row"><span>扩展多日预报（含昨日）</span><input type="checkbox" id="cyExt" /></div>
+            <select id="cyDays" class="text-input"><option value="7">扩展 7 天</option><option value="15" selected>扩展 15 天</option><option value="30">扩展 30 天</option></select>
           </div>
         </div>
 
