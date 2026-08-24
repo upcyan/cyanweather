@@ -434,4 +434,19 @@ body {
 .yh-time { font-size: 0.7rem; color: var(--muted); }
 .yh-temp { font-size: 0.85rem; font-weight: 600; }
 
+/* ---- 省市级联列表 ---- */
+.casc-list {
+  max-height: 46vh;
+  overflow-y: auto;
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.casc-list li {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.casc-list li:active { background: var(--accent-soft); }
+
 .hidden { display: none !important; }

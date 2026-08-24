@@ -774,6 +774,42 @@ document.addEventListener('visibilitychange', function () {
 });
 
 /* ================= 城市搜索 ================= */
+
+/* ================= 省市级联选择（中国气象局） ================= */
+var cascLevel = 'province', cascProv = null;
+function openCascade() {
+  if (state.source !== 'nmc') { showNotice('省市级联需使用「中国气象局」数据源，请先在上方切换'); return; }
+  $('cascadeModal').classList.remove('hidden');
+  cascLevel = 'province'; cascProv = null;
+  $('cascTitle').textContent = '选择省份';
+  $('cascList').innerHTML = '<li class="empty-tip">加载中…</li>';
+  $('cascBack').style.display = 'none';
+  nmcLoadProvinces().then(function (ps) {
+    var html = '';
+    for (var i = 0; i < ps.length; i++) html += '<li data-code="' + ps[i].code + '" data-name="' + ps[i].name + '">' + ps[i].name + '</li>';
+    $('cascList').innerHTML = html;
+  }).catch(function (e) { $('cascList').innerHTML = '<li class="empty-tip">加载失败：' + e.message + '</li>'; });
+}
+function cascPickProvince(code, name) {
+  cascProv = { code: code, name: name };
+  cascLevel = 'city';
+  $('cascTitle').textContent = name + ' · 选择城市/区县';
+  $('cascList').innerHTML = '<li class="empty-tip">加载中…</li>';
+  $('cascBack').style.display = 'block';
+  nmcLoadCities(code).then(function (cs) {
+    var html = '';
+    for (var i = 0; i < cs.length; i++) html += '<li data-code="' + cs[i].code + '" data-name="' + cs[i].city + '">' + cs[i].city + '</li>';
+    $('cascList').innerHTML = html || '<li class="empty-tip">该省份暂无站点</li>';
+  }).catch(function (e) { $('cascList').innerHTML = '<li class="empty-tip">加载失败：' + e.message + '</li>'; });
+}
+function cascPickCity(code, name) {
+  state.city = stripAdmin(name);
+  state.cityCode = code;
+  state.manualCity = true;
+  saveState();
+  $('cascadeModal').classList.add('hidden');
+  fullRefresh();
+}
 function doSearch(q) {
   if (!q) return;
   $('searchResults').innerHTML = '<li class="empty-tip">搜索中…</li>';
@@ -890,6 +926,17 @@ document.addEventListener('DOMContentLoaded', function () {
   });
   $('settingsClose').addEventListener('click', function () { $('settingsModal').classList.add('hidden'); });
   $('searchClose').addEventListener('click', function () { $('searchModal').classList.add('hidden'); });
+  $('cascClose').addEventListener('click', function () { $('cascadeModal').classList.add('hidden'); });
+  $('cascBack').addEventListener('click', function () {
+    if (cascLevel === 'city') openCascade(); /* 回到省份列表 */
+  });
+  $('cascList').addEventListener('click', function (ev) {
+    var node = ev.target;
+    while (node && node !== this && !(node.tagName === 'LI' && node.getAttribute('data-code'))) node = node.parentNode;
+    if (!node || node === this) return;
+    var code = node.getAttribute('data-code'), name = node.getAttribute('data-name');
+    if (cascLevel === 'province') cascPickProvince(code, name); else cascPickCity(code, name);
+  });
   $('rainTipCard').addEventListener('click', function () {
     try { $('rainBlock').scrollIntoView({ behavior: 'smooth' }); } catch (e) { }
   });
@@ -939,6 +986,12 @@ document.addEventListener('DOMContentLoaded', function () {
   });
   var body = document.querySelector('.settings-body');
   body.insertBefore(cityEntry, body.firstChild);
+
+  var cascEntry = document.createElement('div');
+  cascEntry.className = 'city-entry';
+  cascEntry.innerHTML = '<span>省市级联选择（中国气象局）</span><span class="go">选择 ›</span>';
+  cascEntry.addEventListener('click', function () { openCascade(); });
+  body.insertBefore(cascEntry, cityEntry.nextSibling);
 
   if (state.autoCheckUpdate) checkUpdate(false);
 
