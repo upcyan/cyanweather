@@ -28,11 +28,6 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Decode keystore
         run: |
           mkdir -p keystore
@@ -45,7 +40,7 @@ jobs:
           EOF
 
       - name: Grant execute permission
-        run: chmod +x gradlew capacitor/android/gradlew
+        run: chmod +x gradlew
 
       - name: Build Native APK
         run: ./gradlew assembleRelease
@@ -54,24 +49,21 @@ jobs:
         working-directory: flutter
         run: flutter build apk --release
 
-      - name: Build Capacitor APK
-        working-directory: capacitor
-        run: |
-          npm ci
-          cd android
-          ./gradlew assembleRelease
+      - name: Build WebF APK
+        working-directory: webf
+        run: flutter build apk --release
 
       - name: Collect APKs
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk dist/cyanweather-v1.1-release.apk
-          cp flutter/build/app/outputs/flutter-apk/app-release.apk dist/cyanweather-flutter-experimental-v1.1-release.apk
-          cp capacitor/android/app/build/outputs/apk/release/app-release.apk dist/cyanweather-capacitor-experimental-v1.1-release.apk
+          cp app/build/outputs/apk/release/app-release.apk "dist/cyanweather-${{ github.ref_name }}-release.apk"
+          cp flutter/build/app/outputs/flutter-apk/app-release.apk "dist/cyanweather-flutter-experimental-${{ github.ref_name }}-release.apk"
+          cp webf/build/app/outputs/flutter-apk/app-release.apk "dist/cyanweather-webf-experimental-${{ github.ref_name }}-release.apk"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: v1.1
+          name: ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           files: dist/*.apk
           draft: false

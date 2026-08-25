@@ -7,7 +7,7 @@
 | `app` | Kotlin + Jetpack Compose（原生） | ✅ 主推版本 |
 | `shared` + `harmony` | KMP 共享模块 + ArkTS（鸿蒙 NEXT） | 🚧 移植中 |
 | `flutter` | Flutter | ⚗️ 实验版 |
-| `capacitor` | Capacitor (WebView) | ⚗️ 实验版 |
+| `webf` | WebF（Flutter WebView，HTML/CSS/JS 渲染） | ⚗️ 实验版 |
 
 ## 下载安装
 
@@ -17,17 +17,18 @@
 |------|------|
 | `cyanweather-vX.Y-release.apk` | 原生版（推荐） |
 | `cyanweather-flutter-experimental-vX.Y-release.apk` | Flutter 实验版 |
-| `cyanweather-capacitor-experimental-vX.Y-release.apk` | Capacitor 实验版 |
+| `cyanweather-webf-experimental-vX.Y-release.apk` | WebF 实验版 |
 
-三个版本使用同一 release 签名。
+三个版本使用同一 release 签名，可并存安装（包名不同）。
 
 ## 功能
 
 - **实时天气**：温度、体感、湿度、风向风力、空气质量（AQI）、紫外线强度、日出日落
 - **逐时预报**：未来48小时逐时天气（Open-Meteo / 彩云 / 气象局过去24小时实况）
 - **多日预报**：15天预报（Open-Meteo）/ 7天（气象局）/ 可扩展更多天（彩云多次请求叠加）
-- **昨日天气**：昨日温度回顾（气象局 / 彩云开启扩展时 / Open-Meteo `past_days=1`）
-- **分钟级降水**：降雨趋势预报，精确到分钟（彩云 / Open-Meteo 逐时降水概率）
+- **昨日天气**：昨日温度回顾与逐时对比（气象局 / 彩云开启扩展时 / Open-Meteo `past_days=1`）
+- **分钟级降水**：降雨趋势预报（彩云 / Open-Meteo 逐时降水概率）
+- **降雨提醒**：三档提醒——逐时雨字紧急提示 / 未来12小时降水概率≥60% 带伞提醒 / 近期可能有雨提示
 - **气象预警提示**（气象局 / 彩云数据源）
 - **GPS 定位自动选城**：定位后按 省→市→(县) 匹配气象站，显示实际所在区县名
 - **城市选择**：全国省→市层级选择，支持全局搜索
@@ -47,7 +48,7 @@
 | 昨日天气 | ✓ | ✓ | ✓（需开启扩展） |
 | 分钟级降水 | ✗ | 逐时降水概率 | ✓（分钟级） |
 | 预警 | ✓ | ✗ | ✓ |
-| AQI | ✓ | ✓ | ✓ |
+| AQI | ✓ | ✓（无站点时自动反解气象站兜底） | ✓ |
 | 紫外线 | ✗ | ✓ | ✗ |
 
 ### 彩云天气接入
@@ -67,7 +68,7 @@
 
 ## 构建
 
-环境要求：JDK 17、Android SDK（platform 36）。
+环境要求：JDK 17、Android SDK（platform 36）、Flutter 3.x（三个安卓端共用仓库根的构建配置）。
 
 ### 原生版（app/）
 
@@ -87,17 +88,18 @@ flutter build apk --release
 
 输出：`flutter/build/app/outputs/flutter-apk/app-release.apk`
 
-### Capacitor 版（capacitor/）
+### WebF 版（webf/）
+
+WebF 版用 HTML/CSS/JS 编写界面，由 [WebF](https://openwebf.com) 引擎在 Flutter 壳内渲染：
 
 ```bash
-cd capacitor
-npm ci
-cd android && ./gradlew assembleRelease
+cd webf
+flutter build apk --release
 ```
 
-输出：`capacitor/android/app/build/outputs/apk/release/app-release.apk`
+输出：`webf/build/app/outputs/flutter-apk/app-release.apk`
 
-> 注意：Capacitor 版 WebView 内直接请求外部 API 受 CORS 限制，部分接口可能不可用，故标记为 experimental。
+> 注意：WebF 0.24 对 `display:none` 切换与运行时节点选择器存在已知限制，界面代码采用「摘除=隐藏、重挂=显示」模型规避，详见 `webf/assets/web/app.js` 内注释。
 
 ## Release 签名
 
@@ -123,8 +125,8 @@ keystore.properties     # 密码配置（不入库），格式：
 推送 `v*` 标签时自动构建三个 Release APK 并发布到 GitHub Releases：
 
 ```bash
-git tag v1.2
-git push origin v1.2
+git tag v1.3
+git push origin v1.3
 ```
 
 需在仓库 Settings → Secrets and variables → Actions 中配置：
@@ -161,9 +163,10 @@ App 内置检查更新功能（原生版）：
 ├── harmony/                      # 鸿蒙 NEXT 移植版
 ├── flutter/                      # Flutter 版（experimental）
 │   └── lib/                      # screens / services / widgets
-├── capacitor/                    # Capacitor 版（experimental）
-│   ├── www/                      # Web 资源（js/css/icons）
-│   └── android/                  # Android 壳工程
+├── webf/                         # WebF 版（experimental）
+│   ├── assets/web/               # HTML/CSS/JS 界面与逻辑（app.js/index.html/styles.css）
+│   └── android/                  # Flutter 壳工程（含 GPS 缓存桥接）
+├── _screenshots/                 # 本地测试截图（gitignore）
 ├── keystore/                     # 签名文件（gitignore）
 └── .github/workflows/release.yml # CI 三端打包发布
 ```
@@ -173,6 +176,6 @@ App 内置检查更新功能（原生版）：
 - Kotlin + Jetpack Compose + Material 3（原生版）
 - Kotlin Multiplatform 共享数据层（原生 / 鸿蒙）
 - Kotlin Serialization、OkHttp3、DataStore Preferences
-- Flutter / Capacitor（实验版）
+- Flutter / WebF（实验版）
 - Canvas 自绘天气图标
 - GitHub Actions CI/CD

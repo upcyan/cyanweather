@@ -40,6 +40,7 @@ dist/
 
 # Test screenshots & misc
 /*.png
+/_screenshots/
 .gradle-agent/
 
 # Flutter (subdirectory)
@@ -48,12 +49,6 @@ flutter/build/
 flutter/.idea/
 flutter/android/.gradle/
 flutter/android/local.properties
-
-# Capacitor (subdirectory)
-capacitor/node_modules/
-capacitor/android/.gradle/
-capacitor/android/local.properties
-capacitor/android/app/build/
 
 # Signing keystore files
 **/release-key.jks
@@ -71,4 +66,5 @@ keystore_base64.txt
 _backup_full.bundle
 dsh-usage/
 flutter347/
-.dsh-vision-router/
+.dsh-vision-router/.opencode/
+.tools/

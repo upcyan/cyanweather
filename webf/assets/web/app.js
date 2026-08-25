@@ -1,11 +1,5 @@
 /* CyanWeather WebF — 数据源：Open-Meteo / 中央气象台（对齐 native app/ 版） */
 var APP_VERSION = '1.5.5';
-/* TEMP-PAINT-PROBE */
-setInterval(function () {
-  var c = document.getElementById('cwClock');
-  if (!c) { c = document.createElement('div'); c.id = 'cwClock'; c.style.cssText = 'position:absolute;top:2px;left:50%;margin-left:-40px;font-size:12px;color:#888888;z-index:999'; document.body.appendChild(c); }
-  c.textContent = new Date().toTimeString().substring(0, 8);
-}, 1000);
 window.addEventListener('error', function (ev) { console.log('[CWJS] ERR ' + ev.message + ' @line ' + ev.lineno); });
 window.addEventListener('unhandledrejection', function (ev) { console.log('[CWJS] REJ ' + (ev.reason && ev.reason.message ? ev.reason.message : ev.reason)); });
 
@@ -21,10 +15,12 @@ function showEl(el, disp) {
   if (!el) return;
   try { window.scrollTo(0, 0); } catch (e) { }
   if (!el.parentNode) document.body.appendChild(el);
+  if (el.id) delete DETACHED[el.id];
   el.style.display = disp || 'block';
 }
+var DETACHED = {};
 function hideEl(el) {
-  if (el && el.parentNode) el.parentNode.removeChild(el);
+  if (el && el.parentNode) { if (el.id) DETACHED[el.id] = el; el.parentNode.removeChild(el); }
 }
 function openOverlay(el, disp) {
   showEl(el, disp || 'flex');
@@ -264,7 +260,23 @@ function loadState() {
 }
 
 /* ================= 工具 ================= */
-function $(id) { return document.getElementById(id); }
+function $(id) {
+  var key = id.charAt(0) === '#' ? id.substring(1) : id;
+  var n = document.querySelector('#' + key);
+  if (n) return n;
+  /* webf 选择器索引不含运行时挂载/摘除的节点；* 通配符亦不可用，children 逐层遍历兜底（含摘除子树） */
+  if (DETACHED[key]) return DETACHED[key];
+  var root = document.body || document.documentElement;
+  if (!root) return null;
+  var stack = [root];
+  while (stack.length) {
+    var cur = stack.pop();
+    if (cur.id === key) return cur;
+    var ch = cur.children || [];
+    for (var i = 0; i < ch.length; i++) stack.push(ch[i]);
+  }
+  return null;
+}
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 function ymd(x) { var d = new Date(x); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
 function applyFontSize() {
@@ -706,11 +718,13 @@ function renderWeather(w) {
   $('sourceFooter').textContent = w.sourceTag;
   paintAllIcons($('content'));
   $('content').classList.remove('error-mode');
-  /* webf 对 class 变更同样不重绘：移除错误节点并整块重挂 content 强制刷新 */
+  /* webf 对 class 变更同样不重绘：仅错误恢复时重挂 content 强制刷新；正常启动不动 content */
   var ef = $('errorFull');
-  if (ef && ef.parentNode) ef.parentNode.removeChild(ef);
-  var ct = $('content');
-  if (ct && ct.parentNode) { ct.parentNode.removeChild(ct); document.body.appendChild(ct); }
+  if (ef && ef.parentNode) {
+    ef.parentNode.removeChild(ef);
+    var ct = $('content');
+    if (ct && ct.parentNode) { ct.parentNode.removeChild(ct); document.body.appendChild(ct); }
+  }
 }
 
 function renderRainTip(w) {
@@ -773,6 +787,7 @@ function showNotice(msg) {
 function showErrorBanner(msg) { $('errorBox').textContent = msg; showEl($('errorBox'), true); }
 function clearErrors() { hideEl($('errorBox')); showNotice(null); }
 function showErrorFull(msg) {
+  console.log('[CWJS] SHOWERROR >>> ' + msg);
   $('content').classList.add('error-mode');
   var old = $('errorFull');
   if (old) old.remove();
@@ -1005,6 +1020,7 @@ function fullRefresh() {
     renderWeather(w);
     saveState();
   }).catch(function (e) {
+    console.log('[CWJS] STACK >>> ' + (e && e.stack ? String(e.stack).split('\n').slice(0, 6).join(' | ') : 'no-stack'));
     showErrorFull('天气数据获取失败：' + e.message);
   }).then(function () {
     refreshing = false;

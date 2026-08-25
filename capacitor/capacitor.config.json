@@ -1,1 +1,0 @@
-{"appId":"com.cyanweather.capacitor","appName":"晴暖天气","webDir":"www","server":{"androidScheme":"https","allowNavigation":["api.open-meteo.com","api.bigdatacloud.net","api.github.com","github.com"]},"android":{"allowMixedContent":false}}

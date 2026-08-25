@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <!-- 阴天：云朵 -->
-  <circle cx="38" cy="42" r="18" fill="#7C97AB"/>
-  <circle cx="55" cy="34" r="22" fill="#7C97AB"/>
-  <circle cx="72" cy="43" r="17" fill="#7C97AB"/>
-  <rect x="20" y="48" width="68" height="22" rx="11" fill="#7C97AB"/>
-</svg>
