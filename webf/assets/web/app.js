@@ -697,6 +697,7 @@ function renderRainTip(w) {
       if (txt.indexOf('雨') >= 0 || txt.indexOf('雷') >= 0) { tip = '近期可能有雨，请留意天气变化'; break; }
     }
   }
+  console.log('[CWJS] raintip=' + tip);
   if (tip) { $('rainTipText').textContent = tip; setVisible($('rainTipCard'), true); }
   else setVisible($('rainTipCard'), false);
 }
@@ -743,7 +744,7 @@ function showErrorFull(msg) {
 }
 function setRefreshing(on) {
   setVisible($('refreshOverlay'), on, 'flex');
-  setVisible($('refreshIcon'), true); $('refreshIcon').classList.toggle('spinning', on); $('refreshBtn').classList.toggle('spinning', on);
+  $('refreshIcon').classList.toggle('spinning', on);
 }
 
 
