@@ -1,8 +1,0 @@
-﻿
-Name       
-----       
-colors.xml 
-strings.xml
-themes.xml 
-
-

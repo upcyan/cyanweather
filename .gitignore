@@ -26,6 +26,8 @@ harmony/truncate.ps1
 harmony/append_build.ps1
 harmony/build_part.txt
 harmony/temp_build_part1.ets
+harmony/tmp_android/
+harmony/*list.txt
 
 # Kotlin
 .kotlin/
@@ -58,6 +60,7 @@ flutter/android/local.properties
 keystore_base64.txt
 
 # 本地工具链副本与构建杂项
+.tools/
 .appdata/
 .build_*.log
 .fv*.txt
