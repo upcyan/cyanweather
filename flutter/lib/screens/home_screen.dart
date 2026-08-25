@@ -405,7 +405,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       yesterday = YesterdayData(
         high: temps.isNotEmpty ? temps.reduce((a, b) => a > b ? a : b) : null,
         low: temps.isNotEmpty ? temps.reduce((a, b) => a < b ? a : b) : null,
-        hourly: yItems.takeLast(24).toList(),
       );
     }
 

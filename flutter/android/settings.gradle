@@ -7,7 +7,8 @@ pluginManagement {
         return flutterSdkPath
     }()
 
-    includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
+    // 使用工作区内修补版 flutter_tools gradle（绕过 Flutter 3.47.1 dependency_version_checker 编译 bug）
+    includeBuild("E:/project/cyanweather/.tools/flutter_tools_gradle")
 
     repositories {
         google()
