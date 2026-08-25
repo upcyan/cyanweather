@@ -1,5 +1,11 @@
 /* CyanWeather WebF — 数据源：Open-Meteo / 中央气象台（对齐 native app/ 版） */
 var APP_VERSION = '1.5.5';
+/* TEMP-PAINT-PROBE */
+setInterval(function () {
+  var c = document.getElementById('cwClock');
+  if (!c) { c = document.createElement('div'); c.id = 'cwClock'; c.style.cssText = 'position:absolute;top:2px;left:50%;margin-left:-40px;font-size:12px;color:#888888;z-index:999'; document.body.appendChild(c); }
+  c.textContent = new Date().toTimeString().substring(0, 8);
+}, 1000);
 window.addEventListener('error', function (ev) { console.log('[CWJS] ERR ' + ev.message + ' @line ' + ev.lineno); });
 window.addEventListener('unhandledrejection', function (ev) { console.log('[CWJS] REJ ' + (ev.reason && ev.reason.message ? ev.reason.message : ev.reason)); });
 
@@ -630,16 +636,16 @@ function renderWeather(w) {
 
   /* 预警横幅 */
   if (w.warning) {
-    $('warnCard').innerHTML = '<div class="warn-title">⚠️ 气象预警</div><div class="warn-body">' + w.warning + '</div>';
     showEl($('warnCard'), 'block');
+    $('warnCard').innerHTML = '<div class="warn-title">⚠️ 气象预警</div><div class="warn-body">' + w.warning + '</div>';
   } else {
     hideEl($('warnCard'));
   }
 
   /* 分钟级降水描述（彩云） */
   if (w.minutelyText) {
-    $('minutelyCard').textContent = '⏱ ' + w.minutelyText;
     showEl($('minutelyCard'), 'block');
+    $('minutelyCard').textContent = '⏱ ' + w.minutelyText;
   } else {
     hideEl($('minutelyCard'));
   }
@@ -673,17 +679,17 @@ function renderWeather(w) {
   /* 昨日 */
   console.log('[CWJS] yest-diag src=' + w.sourceTag + ' y=' + JSON.stringify(w.yesterday ? {h: w.yesterday.high, l: w.yesterday.low, n: (w.yesterday.hourly || []).length} : null));
   if (w.yesterday && (w.yesterday.high != null || w.yesterday.low != null)) {
-    $('yestHigh').textContent = tempStr(w.yesterday.high) + '°';
-    $('yestLow').textContent = tempStr(w.yesterday.low) + '°';
     var yh = '';
     for (var k = 0; k < (w.yesterday.hourly || []).length; k++) {
       var yy = w.yesterday.hourly[k];
       yh += '<div class="yh-item"><div class="yh-time">' + parseInt(yy.time.substring(11, 13), 10) + '时</div>' +
         '<div class="yh-temp">' + tempStr(yy.temperature) + '°</div></div>';
     }
+    showEl($('yesterdayCard'), 'block');
+    $('yestHigh').textContent = tempStr(w.yesterday.high) + '°';
+    $('yestLow').textContent = tempStr(w.yesterday.low) + '°';
     $('yestHourly').innerHTML = yh;
     $('yestHourly').style.display = yh ? 'flex' : 'none';
-    showEl($('yesterdayCard'), 'block');
   } else {
     hideEl($('yesterdayCard'));
   }
@@ -700,6 +706,11 @@ function renderWeather(w) {
   $('sourceFooter').textContent = w.sourceTag;
   paintAllIcons($('content'));
   $('content').classList.remove('error-mode');
+  /* webf 对 class 变更同样不重绘：移除错误节点并整块重挂 content 强制刷新 */
+  var ef = $('errorFull');
+  if (ef && ef.parentNode) ef.parentNode.removeChild(ef);
+  var ct = $('content');
+  if (ct && ct.parentNode) { ct.parentNode.removeChild(ct); document.body.appendChild(ct); }
 }
 
 function renderRainTip(w) {
@@ -728,7 +739,7 @@ function renderRainTip(w) {
     }
   }
   console.log('[CWJS] raintip=' + tip);
-  if (tip) { $('rainTipText').textContent = tip; showEl($('rainTipCard'), 'block'); }
+  if (tip) { showEl($('rainTipCard'), 'block'); $('rainTipText').textContent = tip; }
   else hideEl($('rainTipCard'));
 }
 
