@@ -317,7 +317,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           w = await ApiService.fetchWeather(_lat, _lng);
         }
       } else {
-        w = await ApiService.fetchWeather(_lat, _lng);
+        w = await ApiService.fetchWeather(_lat, _lng,
+            nmcStationId: _cityCode);
         try {
           final g = await ApiService.reverseGeocode(_lat, _lng);
           if (g.isNotEmpty)

@@ -78,16 +78,21 @@ function paintIcon(cv, kind) {
   var s = (KIND_NORM[kind] || 1.10) * 100 * u;
   var cx = 50 * u, cy = 50 * u;
   function C(v){ return v; }             /* 占位保持可读 */
+  function rr(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
+    ctx.fill();
+  }
   function cloudBody(ccx, ccy, cs) {
     ctx.fillStyle = IC.cloud;
-    /* 三朵云峰 */
-    ctx.beginPath(); ctx.arc(ccx - .33*cs, ccy + .00*cs, .26*cs, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(ccx - .02*cs, ccy - .24*cs, .33*cs, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(ccx + .31*cs, ccy - .04*cs, .27*cs, 0, Math.PI * 2); ctx.fill();
-    /* 底座带圆角，避免面包块观感 */
-    ctx.fillRect(ccx - .46*cs, ccy - .06*cs, .92*cs, .30*cs);
-    ctx.beginPath(); ctx.arc(ccx - .32*cs, ccy + .24*cs, .14*cs, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(ccx + .32*cs, ccy + .24*cs, .14*cs, 0, Math.PI * 2); ctx.fill();
+    rr(ccx - .48*cs, ccy - .04*cs, .96*cs, .34*cs, .17*cs);
+    ctx.beginPath(); ctx.arc(ccx - .28*cs, ccy - .10*cs, .21*cs, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ccx + .02*cs, ccy - .24*cs, .29*cs, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ccx + .31*cs, ccy - .10*cs, .22*cs, 0, Math.PI * 2); ctx.fill();
   }
   function line(x1,y1,x2,y2,color,w) {
     ctx.strokeStyle = color; ctx.lineWidth = w;
@@ -1147,20 +1152,57 @@ function toggleCyConfig() {
   setVisible($('cyConfig'), state.source === 'caiyun', 'block');
 }
 
+/* TEMP-DEBUG: 昨日卡可视性证明（下版本移除） */
+setTimeout(function () {
+  var c = $('yesterdayCard');
+  if (!c) { console.log('[CWJS] yestcard NULL'); return; }
+  c.style.border = '4px solid #ff0000';
+  window.scrollTo(0, Math.max(0, c.offsetTop - 30));
+  console.log('[CWJS] yestcard outlined offsetTop=' + c.offsetTop);
+}, 8000);
+
 /* ================= 初始化 ================= */
 document.addEventListener('DOMContentLoaded', function () {
   loadState();
   applyFontSize();
 
-  $('refreshBtn').addEventListener('click', fullRefresh);
-  $('settingsBtn').addEventListener('click', function () {
+  /* 启动即用内联样式隐藏全部浮层（防引擎差异导致透明遮罩吃触摸） */
+  ['refreshOverlay', 'warnCard', 'settingsModal', 'cascadeModal', 'searchModal'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) setVisible(el, false);
+  });
+
+  /* 全局输入探针：任何触摸/点击都留痕到 logcat */
+  ['touchstart', 'pointerdown', 'click'].forEach(function (t) {
+    document.addEventListener(t, function (e) {
+      var tg = e.target && e.target.id ? e.target.id : ((e.target && e.target.tagName) || '?');
+      console.log('[CWJS] doc-' + t + ' -> ' + tg);
+    }, true);
+  });
+
+  /* 双事件去重绑定（click + touchend，400ms 窗口内只触发一次） */
+  var lastFire = 0;
+  function onTap(el, fn) {
+    if (!el) { console.log('[CWJS] onTap bind NULL'); return; }
+    ['click', 'touchend'].forEach(function (t) {
+      el.addEventListener(t, function (e) {
+        console.log('[CWJS] onTap ' + el.id + ' ' + t);
+        if (t === 'touchend' && e.cancelable) e.preventDefault();
+        var now = Date.now(); if (now - lastFire < 400) return; lastFire = now;
+        fn();
+      });
+    });
+  }
+
+  onTap($('refreshBtn'), fullRefresh);
+  onTap($('settingsBtn'), function () {
     openOverlay($('settingsModal'));
     syncSettingsUI();
     console.log('[CWJS] settings modal shown, hidden=' + $('settingsModal').className);
   });
-  $('settingsClose').addEventListener('click', function () { setVisible($('settingsModal'), false); });
-  $('searchClose').addEventListener('click', function () { setVisible($('searchModal'), false); });
-  $('cascClose').addEventListener('click', function () { setVisible($('cascadeModal'), false); });
+  onTap($('settingsClose'), function () { setVisible($('settingsModal'), false); });
+  onTap($('searchClose'), function () { setVisible($('searchModal'), false); });
+  onTap($('cascClose'), function () { setVisible($('cascadeModal'), false); });
   $('cascBack').addEventListener('click', function () { if (cascLevel === 'city') openCascade(); });
   $('cascList').addEventListener('click', function (ev) {
     var node = ev.target;

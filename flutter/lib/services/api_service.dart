@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import '../models/weather_model.dart';
 
@@ -108,7 +109,8 @@ class ApiService {
   }
 
   // Open-Meteo
-  static Future<WeatherData> fetchWeather(double lat, double lng) async {
+  static Future<WeatherData> fetchWeather(double lat, double lng,
+      {String? nmcStationId}) async {
     final url = '$_openMeteoBase/forecast?latitude=$lat&longitude=$lng'
         '&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m'
         '&hourly=temperature_2m,weather_code,precipitation_probability,uv_index'
@@ -130,17 +132,47 @@ class ApiService {
         final airResp = await http
             .get(Uri.parse(airUrl))
             .timeout(const Duration(seconds: 10));
+        assert(() {
+          debugPrint('[CW] aqi try$attempt http ${airResp.statusCode}');
+          return true;
+        }());
         if (airResp.statusCode == 200) {
           final airJson = jsonDecode(airResp.body);
           aqi = airJson['current']?['us_aqi']?.round();
           aqiText = _aqiText(aqi);
         }
-      } catch (_) {}
+      } catch (e) {
+        assert(() {
+          debugPrint('[CW] aqi try$attempt ERR ${e.runtimeType}: $e');
+          return true;
+        }());
+      }
       if (aqi == null && attempt < 2) {
         await Future.delayed(const Duration(milliseconds: 500));
       }
     }
 
+    // Open-Meteo 空气质量兜底：air-quality 子域名被网络过滤时，用气象台站点数据补 AQI
+    if (aqi == null && nmcStationId != null && nmcStationId.isNotEmpty) {
+      try {
+        final nresp = await http
+            .get(Uri.parse('$_nmcBase/weather?stationid=$nmcStationId'))
+            .timeout(const Duration(seconds: 10));
+        if (nresp.statusCode == 200) {
+          final nj = jsonDecode(nresp.body);
+          final air = nj is Map && nj['data'] is Map ? nj['data']['air'] : null;
+          if (air is Map) {
+            final raw = air['aqi'];
+            final av = raw is num ? raw.round() : int.tryParse('$raw');
+            if (av != null) {
+              aqi = av;
+              final t = '${air['text'] ?? ''}'.trim();
+              aqiText = t.isNotEmpty ? t : _aqiText(av);
+            }
+          }
+        }
+      } catch (_) {}
+    }
     return _parseOpenMeteo(json, aqi: aqi, aqiText: aqiText);
   }
 

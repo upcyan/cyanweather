@@ -392,6 +392,9 @@ private fun buildRainReminder(w: WeatherData): String? {
             return if (idx <= 1) "现在或很快有降雨，出门请带伞"
             else "预计约 ${idx} 小时后可能有降雨，出门请带伞"
         }
+        // 概率档：现象未报雨但概率显著时兜底
+        val maxProb = upcoming.mapNotNull { it.rainProb }.maxOrNull() ?: 0.0
+        if (maxProb >= 60.0) return "未来12小时降水概率最高达 ${maxProb.toInt()}%，出门建议带伞"
     }
     val soon = w.daily.take(3).any { (it.dayText + it.nightText).contains("雨") || (it.dayText + it.nightText).contains("雷") }
     return if (soon) "近期可能有雨，请留意天气变化" else null
