@@ -993,6 +993,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ? '现在或很快有降雨，出门请带伞'
             : '预计约 $idx 小时后可能有降雨，出门请带伞';
       }
+      // 概率档：现象未报雨但概率显著时兜底
+      final maxProb = upcoming
+          .map((h) => h.rainProb ?? 0)
+          .reduce((a, b) => a > b ? a : b);
+      if (maxProb >= 60) {
+        return '未来12小时降水概率最高达 $maxProb%，出门建议带伞';
+      }
     }
     final soon = w.daily.take(3).any((d) {
       final t = d.dayText + d.nightText;
