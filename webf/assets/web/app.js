@@ -7,6 +7,10 @@ window.onerror = function (msg) {
   try { console.log('[CWJS] onerror: ' + msg); } catch (e) { }
 };
 /* 显隐助手：classList + 内联 style 双保险，规避 WebF class 变更不重排的怪癖 */
+function openOverlay(el, disp) {
+  try { window.scrollTo(0, 0); } catch (e) { }
+  setVisible(el, true, disp || 'flex');
+}
 function setVisible(el, on, disp) {
   if (!el) return;
   try { if (on) el.classList.remove('hidden'); else el.classList.add('hidden'); } catch (e) { }
@@ -298,13 +302,19 @@ function mapOpenMeteo(w, air, cityNameOverride) {
   var nowYmd = ymd(new Date());
   var ti = daily.time.indexOf(nowYmd);
 
-  var items = [];
+  var allItems = [];
   for (var i = 0; i < hourly.time.length; i++) {
-    if (hourly.time[i] >= c.time) {
-      items.push({ time: hourly.time[i], temperature: cleanNum(hourly.temperature_2m[i]),
-        condition: wmoText(hourly.weather_code[i]), isForecast: true,
-        rainProb: cleanNum(hourly.precipitation_probability[i]),
-        icon: wmoKind(hourly.weather_code[i]) });
+    var tstr = hourly.time[i];
+    var pastDay = tstr.substring(0, 10) < nowYmd;
+    allItems.push({ time: tstr, temperature: cleanNum(hourly.temperature_2m[i]),
+      condition: wmoText(hourly.weather_code[i]), isForecast: !pastDay,
+      rainProb: cleanNum(hourly.precipitation_probability[i]),
+      icon: wmoKind(hourly.weather_code[i]) });
+  }
+  var items = [];
+  for (var i = 0; i < allItems.length; i++) {
+    if (allItems[i].time >= c.time) {
+      items.push(allItems[i]);
       if (items.length >= 48) break;
     }
   }
@@ -337,7 +347,12 @@ function mapOpenMeteo(w, air, cityNameOverride) {
     sourceTag: '数据来源：Open-Meteo',
     hourly: items, hourlyLabel: '未来48小时逐时预报',
     daily: dailyList,
-    yesterday: ti >= 1 ? { high: cleanNum(daily.temperature_2m_max[ti - 1]), low: cleanNum(daily.temperature_2m_min[ti - 1]), hourly: [] } : null
+    yesterday: (function () {
+      if (ti < 1) return null;
+      var yh = allItems.filter(function (x) { return x.time.substring(0, 10) < nowYmd; });
+      if (yh.length > 24) yh = yh.slice(yh.length - 24);
+      return { high: cleanNum(daily.temperature_2m_max[ti - 1]), low: cleanNum(daily.temperature_2m_min[ti - 1]), hourly: yh };
+    })()
   };
 }
 
@@ -634,6 +649,7 @@ function renderWeather(w) {
   $('daily').innerHTML = dh || '<div class="empty-tip">暂无数据</div>';
 
   /* 昨日 */
+  console.log('[CWJS] yest-diag src=' + w.sourceTag + ' y=' + JSON.stringify(w.yesterday ? {h: w.yesterday.high, l: w.yesterday.low, n: (w.yesterday.hourly || []).length} : null));
   if (w.yesterday && (w.yesterday.high != null || w.yesterday.low != null)) {
     $('yestHigh').textContent = tempStr(w.yesterday.high) + '°';
     $('yestLow').textContent = tempStr(w.yesterday.low) + '°';
@@ -727,7 +743,7 @@ function showErrorFull(msg) {
 }
 function setRefreshing(on) {
   setVisible($('refreshOverlay'), on, 'flex');
-  $('refreshBtn').classList.toggle('spinning', on);
+  setVisible($('refreshIcon'), true); $('refreshIcon').classList.toggle('spinning', on); $('refreshBtn').classList.toggle('spinning', on);
 }
 
 
@@ -960,7 +976,7 @@ document.addEventListener('visibilitychange', function () {
 var cascLevel = 'province', cascProv = null;
 function openCascade() {
   if (state.source !== 'nmc') { showNotice('省市级联需使用「中国气象局」数据源，请先在上方切换'); return; }
-  setVisible($('cascadeModal'), true, 'flex');
+  openOverlay($('cascadeModal'));
   cascLevel = 'province'; cascProv = null;
   $('cascTitle').textContent = '选择省份';
   $('cascList').innerHTML = '<li class="empty-tip">加载中…</li>';
@@ -1125,8 +1141,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   $('refreshBtn').addEventListener('click', fullRefresh);
   $('settingsBtn').addEventListener('click', function () {
-    console.log('[CWJS] settingsBtn handler fired');
-    setVisible($('settingsModal'), true, 'flex');
+    openOverlay($('settingsModal'));
     syncSettingsUI();
     console.log('[CWJS] settings modal shown, hidden=' + $('settingsModal').className);
   });
@@ -1189,7 +1204,7 @@ document.addEventListener('DOMContentLoaded', function () {
   cityEntry.className = 'city-entry';
   cityEntry.innerHTML = '<span>当前城市：<b id="cityEntryName">' + state.city + '</b></span><span class="go">搜索更改 ›</span>';
   cityEntry.addEventListener('click', function () {
-    setVisible($('searchModal'), true, 'flex');
+    openOverlay($('searchModal'));
     $('searchResults').innerHTML = '<li class="empty-tip">输入城市名搜索</li>';
     setTimeout(function () { $('searchInput').focus(); }, 50);
   });
