@@ -66,5 +66,6 @@ keystore_base64.txt
 _backup_full.bundle
 dsh-usage/
 flutter347/
-.dsh-vision-router/.opencode/
+.dsh-vision-router/
+.opencode/
 .tools/
