@@ -1,5 +1,5 @@
 /* CyanWeather WebF — 数据源：Open-Meteo / 中央气象台（对齐 native app/ 版） */
-var APP_VERSION = '1.5.0';
+var APP_VERSION = '1.5.3';
 
 /* JS 运行时错误可见化（WebF 无控制台，落到提示卡） */
 window.onerror = function (msg) {
@@ -64,9 +64,9 @@ function paintIcon(cv, kind) {
   function C(v){ return v; }             /* 占位保持可读 */
   function cloudBody(ccx, ccy, cs) {
     ctx.fillStyle = IC.cloud;
-    ctx.beginPath(); ctx.arc(ccx - .30*cs, ccy - .15*cs, .27*cs, 0, 6.284); ctx.fill();
-    ctx.beginPath(); ctx.arc(ccx,            ccy - .30*cs, .34*cs, 0, 6.284); ctx.fill();
-    ctx.beginPath(); ctx.arc(ccx + .32*cs, ccy - .13*cs, .27*cs, 0, 6.284); ctx.fill();
+    ctx.beginPath(); ctx.arc(ccx - .30*cs, ccy - .15*cs, .27*cs, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ccx,            ccy - .30*cs, .34*cs, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ccx + .32*cs, ccy - .13*cs, .27*cs, 0, Math.PI * 2); ctx.fill();
     ctx.fillRect(ccx - .50*cs, ccy - .08*cs, cs, .40*cs);
   }
   function line(x1,y1,x2,y2,color,w) {
@@ -84,19 +84,19 @@ function paintIcon(cv, kind) {
       var a = i * Math.PI / 3;
       line(fx + Math.cos(a)*fr, fy + Math.sin(a)*fr, fx - Math.cos(a)*fr, fy - Math.sin(a)*fr, IC.snow, fw);
     }
-    ctx.fillStyle = IC.snow; ctx.beginPath(); ctx.arc(fx, fy, fr*.22, 0, 6.284); ctx.fill();
+    ctx.fillStyle = IC.snow; ctx.beginPath(); ctx.arc(fx, fy, fr*.22, 0, Math.PI * 2); ctx.fill();
   }
   switch (kind) {
     case 'SUN':
-      ctx.fillStyle = IC.sun; ctx.beginPath(); ctx.arc(cx, cy, .30*s, 0, 6.284); ctx.fill();
+      ctx.fillStyle = IC.sun; ctx.beginPath(); ctx.arc(cx, cy, .30*s, 0, Math.PI * 2); ctx.fill();
       rays(cx, cy, .42*s, .60*s, .09*s); break;
     case 'MOON':
-      ctx.fillStyle = IC.sun; ctx.beginPath(); ctx.arc(cx - .08*s, cy, .36*s, 0, 6.284); ctx.fill();
-      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(cx + .12*s, cy - .12*s, .30*s, 0, 6.284); ctx.fill();
+      ctx.fillStyle = IC.sun; ctx.beginPath(); ctx.arc(cx - .08*s, cy, .36*s, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(cx + .12*s, cy - .12*s, .30*s, 0, Math.PI * 2); ctx.fill();
       break;
     case 'CLOUD': cloudBody(cx, cy + .08*s, .72*s); break;
     case 'PARTLY':
-      ctx.fillStyle = IC.sun; ctx.beginPath(); ctx.arc(cx - .30*s, cy - .30*s, .20*s, 0, 6.284); ctx.fill();
+      ctx.fillStyle = IC.sun; ctx.beginPath(); ctx.arc(cx - .30*s, cy - .30*s, .20*s, 0, Math.PI * 2); ctx.fill();
       rays(cx - .30*s, cy - .30*s, .27*s, .40*s, .07*s);
       cloudBody(cx + .16*s, cy + .22*s, .58*s); break;
     case 'RAIN':
@@ -883,8 +883,6 @@ function ensureGpsFix() {
 function fullRefresh() {
   dtrace('fullRefresh src=' + state.source + ' gps=' + state.useGps + ' manual=' + state.manualCity + ' lat=' + state.lat);
   if (refreshing) { dtrace('fullRefresh skipped: refreshing'); return; }
-  refreshing = true;
-  if (refreshing) return;
   refreshing = true;
   clearErrors();
   setRefreshing(true);

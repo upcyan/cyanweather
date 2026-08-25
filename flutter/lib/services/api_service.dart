@@ -51,20 +51,47 @@ class ApiService {
 
   // 完整反向地理编码：返回省/市/县
   static Future<Map<String, String>> reverseGeocodeFull(double lat, double lng) async {
-    try {
-      final g = await http.get(Uri.parse(
-          '$_reverseGeoBase?latitude=$lat&longitude=$lng&localityLanguage=zh'))
-          .timeout(const Duration(seconds: 10));
-      if (g.statusCode != 200) return {};
-      final gj = jsonDecode(g.body);
-      return {
-        'prov': (gj['principalSubdivision'] ?? '').toString().trim(),
-        'city': (gj['city'] ?? '').toString().trim(),
-        'local': (gj['locality'] ?? '').toString().trim(),
-      };
-    } catch (_) {
-      return {};
+    for (int attempt = 0; attempt < 2; attempt++) {
+      try {
+        final g = await http.get(Uri.parse(
+            '$_reverseGeoBase?latitude=$lat&longitude=$lng&localityLanguage=zh'))
+            .timeout(const Duration(seconds: 8));
+        if (g.statusCode == 200) {
+          final gj = jsonDecode(g.body);
+          return {
+            'prov': (gj['principalSubdivision'] ?? '').toString().trim(),
+            'city': (gj['city'] ?? '').toString().trim(),
+            'local': (gj['locality'] ?? '').toString().trim(),
+          };
+        }
+      } catch (_) {}
+      await Future.delayed(const Duration(milliseconds: 400));
     }
+    // 备用源：OSM Nominatim（不同域名，可绕过个别域名的 DNS 过滤）
+    try {
+      final n = await http.get(Uri.parse(
+          'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lng&format=jsonv2&accept-language=zh'),
+          headers: {'User-Agent': 'cyanweather-app'})
+          .timeout(const Duration(seconds: 8));
+      if (n.statusCode == 200) {
+        final nj = jsonDecode(n.body);
+        final addr = nj['address'] as Map<String, dynamic>? ?? {};
+        String pick(List<String> keys) {
+          for (final k in keys) {
+            final v = (addr[k] ?? '').toString().trim();
+            if (v.isNotEmpty) return v;
+          }
+          return '';
+        }
+        final prov = pick(['state', 'province']);
+        final city = pick(['city']);
+        final local = pick(['county', 'suburb', 'town', 'village', 'district']);
+        if (prov.isNotEmpty || city.isNotEmpty || local.isNotEmpty) {
+          return {'prov': prov, 'city': city, 'local': local};
+        }
+      }
+    } catch (_) {}
+    return {};
   }
 
   // ... existing methods ...
@@ -205,8 +232,16 @@ class ApiService {
             sunsets.isNotEmpty ? sunsets[0].toString().substring(11, 16) : '',
         uvIndex: uvText,
         sourceTag: '数据来源：Open-Meteo',
+        updatedAt: _nowStamp(),
+        hourlyLabel: '未来48小时逐时预报',
         hourly: hourly,
         daily: daily);
+  }
+
+  static String _nowStamp() {
+    final n = DateTime.now();
+    return '${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')} '
+        '${n.hour.toString().padLeft(2, '0')}:${n.minute.toString().padLeft(2, '0')}';
   }
 
   static String _wmoToText(int c) =>
