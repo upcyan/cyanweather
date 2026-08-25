@@ -215,6 +215,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (mounted) await _loadWeather();
   }
 
+  /// 供 Open-Meteo AQI 兜底使用：确保有气象站编码，返回编码（失败返回 null）
+  Future<String?> _stationResolver() async {
+    if (_cityCode.isNotEmpty) return _cityCode;
+    await _resolveNmcCity(_lat, _lng);
+    return _cityCode.isEmpty ? null : _cityCode;
+  }
+
   Future<void> _resolveNmcCity(double lat, double lng) async {
     try {
       var geo = await ApiService.reverseGeocodeFull(lat, lng);
@@ -318,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       } else {
         w = await ApiService.fetchWeather(_lat, _lng,
-            nmcStationId: _cityCode);
+            nmcStationId: _cityCode, resolveStation: _stationResolver);
         try {
           final g = await ApiService.reverseGeocode(_lat, _lng);
           if (g.isNotEmpty)

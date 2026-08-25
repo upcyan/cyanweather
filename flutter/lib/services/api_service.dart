@@ -110,7 +110,7 @@ class ApiService {
 
   // Open-Meteo
   static Future<WeatherData> fetchWeather(double lat, double lng,
-      {String? nmcStationId}) async {
+      {String? nmcStationId, Future<String?> Function()? resolveStation}) async {
     final url = '$_openMeteoBase/forecast?latitude=$lat&longitude=$lng'
         '&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m'
         '&hourly=temperature_2m,weather_code,precipitation_probability,uv_index'
@@ -153,10 +153,15 @@ class ApiService {
     }
 
     // Open-Meteo 空气质量兜底：air-quality 子域名被网络过滤时，用气象台站点数据补 AQI
-    if (aqi == null && nmcStationId != null && nmcStationId.isNotEmpty) {
+    if (aqi == null) {
+      var sid = nmcStationId ?? '';
+      if (sid.isEmpty && resolveStation != null) {
+        try { sid = await resolveStation() ?? ''; } catch (_) {}
+      }
+      if (sid.isEmpty) return _parseOpenMeteo(json, aqi: null, aqiText: '');
       try {
         final nresp = await http
-            .get(Uri.parse('$_nmcBase/weather?stationid=$nmcStationId'))
+            .get(Uri.parse('$_nmcBase/weather?stationid=$sid'))
             .timeout(const Duration(seconds: 10));
         if (nresp.statusCode == 200) {
           final nj = jsonDecode(nresp.body);

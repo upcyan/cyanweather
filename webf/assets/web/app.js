@@ -1,5 +1,7 @@
 /* CyanWeather WebF — 数据源：Open-Meteo / 中央气象台（对齐 native app/ 版） */
 var APP_VERSION = '1.5.5';
+window.addEventListener('error', function (ev) { console.log('[CWJS] ERR ' + ev.message + ' @line ' + ev.lineno); });
+window.addEventListener('unhandledrejection', function (ev) { console.log('[CWJS] REJ ' + (ev.reason && ev.reason.message ? ev.reason.message : ev.reason)); });
 
 /* JS 运行时错误可见化（WebF 无控制台，落到提示卡） */
 window.onerror = function (msg) {
@@ -7,9 +9,19 @@ window.onerror = function (msg) {
   try { console.log('[CWJS] onerror: ' + msg); } catch (e) { }
 };
 /* 显隐助手：classList + 内联 style 双保险，规避 WebF class 变更不重排的怪癖 */
-function openOverlay(el, disp) {
+/* webf 0.24 对 display:none→可见 的状态切换不重绘；
+   改用 DOM 摘除=隐藏、重新挂载=显示（新挂载子树必然完整布局绘制） */
+function showEl(el, disp) {
+  if (!el) return;
   try { window.scrollTo(0, 0); } catch (e) { }
-  setVisible(el, true, disp || 'flex');
+  if (!el.parentNode) document.body.appendChild(el);
+  el.style.display = disp || 'block';
+}
+function hideEl(el) {
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+function openOverlay(el, disp) {
+  showEl(el, disp || 'flex');
 }
 function setVisible(el, on, disp) {
   if (!el) return;
@@ -597,6 +609,7 @@ function paintGlyph(el, kind, px) {
 }
 /* ================= 渲染（统一模型） ================= */
 function renderWeather(w) {
+  console.log('[CWJS] renderWeather enter src=' + w.sourceTag);
   $('cityName').textContent = w.cityName || state.city;
   $('updatedAt').textContent = w.updatedAt || '';
   $('curTemp').textContent = tempStr(w.temperature);
@@ -618,17 +631,17 @@ function renderWeather(w) {
   /* 预警横幅 */
   if (w.warning) {
     $('warnCard').innerHTML = '<div class="warn-title">⚠️ 气象预警</div><div class="warn-body">' + w.warning + '</div>';
-    setVisible($('warnCard'), true);
+    showEl($('warnCard'), 'block');
   } else {
-    setVisible($('warnCard'), false);
+    hideEl($('warnCard'));
   }
 
   /* 分钟级降水描述（彩云） */
   if (w.minutelyText) {
     $('minutelyCard').textContent = '⏱ ' + w.minutelyText;
-    setVisible($('minutelyCard'), true);
+    showEl($('minutelyCard'), 'block');
   } else {
-    setVisible($('minutelyCard'), false);
+    hideEl($('minutelyCard'));
   }
 
   /* 逐小时 */
@@ -670,9 +683,9 @@ function renderWeather(w) {
     }
     $('yestHourly').innerHTML = yh;
     $('yestHourly').style.display = yh ? 'flex' : 'none';
-    setVisible($('yesterdayCard'), true);
+    showEl($('yesterdayCard'), 'block');
   } else {
-    setVisible($('yesterdayCard'), false);
+    hideEl($('yesterdayCard'));
   }
 
   /* 降雨提醒 + 趋势（仅预报类源；NMC 无逐时预报） */
@@ -680,8 +693,8 @@ function renderWeather(w) {
     renderRainTip(w);
     renderRainTrend(w);
   } else {
-    setVisible($('rainTipCard'), false);
-    setVisible($('rainBlock'), false);
+    hideEl($('rainTipCard'));
+    hideEl($('rainBlock'));
   }
 
   $('sourceFooter').textContent = w.sourceTag;
@@ -715,8 +728,8 @@ function renderRainTip(w) {
     }
   }
   console.log('[CWJS] raintip=' + tip);
-  if (tip) { $('rainTipText').textContent = tip; setVisible($('rainTipCard'), true); }
-  else setVisible($('rainTipCard'), false);
+  if (tip) { $('rainTipText').textContent = tip; showEl($('rainTipCard'), 'block'); }
+  else hideEl($('rainTipCard'));
 }
 
 function renderRainTrend(w) {
@@ -727,8 +740,8 @@ function renderRainTrend(w) {
     cols.push({ label: it.time.substring(5, 10).replace('-', '/') + ' ' + parseInt(it.time.substring(11, 13), 10) + '时',
       pct: it.rainProb == null ? 0 : it.rainProb });
   }
-  if (!cols.length) { setVisible($('rainBlock'), false); return; }
-  setVisible($('rainBlock'), true);
+  if (!cols.length) { hideEl($('rainBlock')); return; }
+  showEl($('rainBlock'), 'block');
   var html = '';
   for (var j = 0; j < cols.length; j++) {
     var cc = cols[j];
@@ -746,8 +759,8 @@ function showNotice(msg) {
   var box = $('noticeBox');
   box.innerHTML = msg ? '<div class="notice-card">⚠ ' + msg + '</div>' : '';
 }
-function showErrorBanner(msg) { $('errorBox').textContent = msg; setVisible($('errorBox'), true); }
-function clearErrors() { setVisible($('errorBox'), false); showNotice(null); }
+function showErrorBanner(msg) { $('errorBox').textContent = msg; showEl($('errorBox'), true); }
+function clearErrors() { hideEl($('errorBox')); showNotice(null); }
 function showErrorFull(msg) {
   $('content').classList.add('error-mode');
   var old = $('errorFull');
@@ -760,7 +773,7 @@ function showErrorFull(msg) {
   div.querySelector('#retryBtn').addEventListener('click', function () { fullRefresh(); });
 }
 function setRefreshing(on) {
-  setVisible($('refreshOverlay'), on, 'flex');
+  if (on) showEl($('refreshOverlay'), 'flex'); else hideEl($('refreshOverlay'));
   $('refreshIcon').classList.toggle('spinning', on);
 }
 
@@ -916,6 +929,7 @@ function loadCaiyun(lat, lng) {
 /* ================= 刷新主流程 ================= */
 /* 统一定位前置：useGps 且非手动城市时先取真实坐标 */
 function ensureGpsFix() {
+  console.log('[CWJS] gpsfix enter useGps=' + state.useGps + ' manual=' + state.manualCity);
   if (!(state.useGps && !state.manualCity)) return Promise.resolve();
   return locateViaBridge().then(function (pos) {
     state.lat = pos.lat;
@@ -935,18 +949,18 @@ function fullRefresh() {
   clearErrors();
   setRefreshing(true);
 
-  var p;
-  if (state.source === 'nmc') {
-    p = ensureGpsFix().then(loadNmcWeather);
-  } else if (state.source === 'caiyun') {
-    p = ensureGpsFix().then(function () {
-      var ok = state.cyMode === 'v3' ? (state.cyKey.trim() && state.cySecret.trim()) : state.cyToken.trim();
-      if (!ok) throw new Error('请先在设置中填写彩云天气凭据');
-      return loadCaiyun(state.lat, state.lon);
-    });
-    p = ensureGpsFix().then(loadNmcWeather);
-  } else {
-    p = ensureGpsFix().then(function () {
+  function startFetch() {
+    if (state.source === 'nmc') {
+      return ensureGpsFix().then(loadNmcWeather);
+    }
+    if (state.source === 'caiyun') {
+      return ensureGpsFix().then(function () {
+        var ok = state.cyMode === 'v3' ? (state.cyKey.trim() && state.cySecret.trim()) : state.cyToken.trim();
+        if (!ok) throw new Error('请先在设置中填写彩云天气凭据');
+        return loadCaiyun(state.lat, state.lon);
+      });
+    }
+    return ensureGpsFix().then(function () {
       return Promise.all([
         fetchForecast(state.lat, state.lon),
         fetchAqi(state.lat, state.lon).catch(function () { return null; })
@@ -962,6 +976,19 @@ function fullRefresh() {
       });
     });
   }
+
+  /* 整链路重试（最多3次，退避800ms*次数）：该机型网络偶发 DNS 抖动 */
+  var attempt = 0;
+  console.log('[CWJS] fullRefresh chain start');
+  var p = (function again() {
+    attempt++;
+    console.log('[CWJS] fetch attempt ' + attempt);
+    return startFetch().catch(function (e) {
+      if (attempt >= 3) throw e;
+      dtrace('fetch retry ' + attempt + ': ' + e.message);
+      return new Promise(function (res) { setTimeout(res, 800 * attempt); }).then(again);
+    });
+  })();
 
   p.then(function (w) {
     renderWeather(w);
@@ -1022,7 +1049,7 @@ function cascPickCity(code, name) {
   state.cityCode = code;
   state.manualCity = true;
   saveState();
-  setVisible($('cascadeModal'), false);
+  hideEl($('cascadeModal'));
   fullRefresh();
 }
 function doSearch(q) {
@@ -1149,19 +1176,14 @@ function showUpdateDialog(version, notes, url, apkUrl) {
 }
 
 function toggleCyConfig() {
-  setVisible($('cyConfig'), state.source === 'caiyun', 'block');
+  if (state.source === 'caiyun') showEl($('cyConfig'), 'block');
+  else hideEl($('cyConfig'));
 }
 
 /* ================= 初始化 ================= */
 document.addEventListener('DOMContentLoaded', function () {
   loadState();
   applyFontSize();
-
-  /* 启动即用内联样式隐藏全部浮层（防引擎差异导致透明遮罩吃触摸） */
-  ['refreshOverlay', 'warnCard', 'settingsModal', 'cascadeModal', 'searchModal'].forEach(function (id) {
-    var el = document.getElementById(id);
-    if (el) setVisible(el, false);
-  });
 
   /* 全局输入探针：任何触摸/点击都留痕到 logcat */
   ['touchstart', 'pointerdown', 'click'].forEach(function (t) {
@@ -1191,9 +1213,9 @@ document.addEventListener('DOMContentLoaded', function () {
     syncSettingsUI();
     console.log('[CWJS] settings modal shown, hidden=' + $('settingsModal').className);
   });
-  onTap($('settingsClose'), function () { setVisible($('settingsModal'), false); });
-  onTap($('searchClose'), function () { setVisible($('searchModal'), false); });
-  onTap($('cascClose'), function () { setVisible($('cascadeModal'), false); });
+  onTap($('settingsClose'), function () { hideEl($('settingsModal')); });
+  onTap($('searchClose'), function () { hideEl($('searchModal')); });
+  onTap($('cascClose'), function () { hideEl($('cascadeModal')); });
   $('cascBack').addEventListener('click', function () { if (cascLevel === 'city') openCascade(); });
   $('cascList').addEventListener('click', function (ev) {
     var node = ev.target;
@@ -1258,7 +1280,9 @@ document.addEventListener('DOMContentLoaded', function () {
   cascEntry.className = 'city-entry';
   cascEntry.innerHTML = '<span>省市级联选择（中国气象局）</span><span class="go">选择 ›</span>';
   cascEntry.addEventListener('click', function () { openCascade(); });
-  var body = document.querySelector('.settings-body');
+  var smEl = $('settingsModal');
+  if (smEl && !smEl.parentNode) document.body.appendChild(smEl);
+  var body = document.querySelector('.settings-body') || (smEl && smEl.querySelector('.settings-body'));
   body.insertBefore(cascEntry, body.firstChild);
   body.insertBefore(cityEntry, cascEntry);
 
@@ -1266,4 +1290,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
   dtrace('init: calling fullRefresh src=' + state.source);
   fullRefresh();
+
+  /* 全部绑定完成后，最后再摘除浮层与条件卡（监听器随节点保留，showEl 挂载时恢复） */
+  ['refreshOverlay', 'warnCard', 'settingsModal', 'cascadeModal', 'searchModal', 'yesterdayCard', 'rainTipCard'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el && el.parentNode) hideEl(el);
+  });
 });
