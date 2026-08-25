@@ -113,7 +113,7 @@ class ApiService {
         '&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m'
         '&hourly=temperature_2m,weather_code,precipitation_probability,uv_index'
         '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max'
-        '&timezone=auto&forecast_days=15';
+        '&timezone=auto&forecast_days=15&past_days=1';
     final response =
         await http.get(Uri.parse(url)).timeout(const Duration(seconds: 15));
     if (response.statusCode != 200)
@@ -185,34 +185,64 @@ class ApiService {
   static WeatherData _parseOpenMeteo(Map<String, dynamic> json,
       {int? aqi, String aqiText = ''}) {
     final c = json['current'], h = json['hourly'], d = json['daily'];
-    final hourly = <HourlyItem>[];
+    final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+    final nowHour = DateTime.now().toIso8601String().substring(0, 13);
+    // 全部小时序列（含 past_days 的昨日小时）
+    final allHours = <HourlyItem>[];
     final hTimes = h['time'] as List;
-    final now = DateTime.now().toIso8601String().substring(0, 13);
-    for (var i = 0; i < hTimes.length && hourly.length < 48; i++) {
+    for (var i = 0; i < hTimes.length; i++) {
       final t = hTimes[i].toString();
-      if (t.compareTo(now) >= 0) {
-        hourly.add(HourlyItem(
-            time: t,
-            temperature: (h['temperature_2m'][i] as num?)?.toDouble(),
-            condition: _wmoToText(h['weather_code'][i] as int? ?? 0),
-            rainProb: (h['precipitation_probability'][i] as num?)?.toDouble()));
-      }
+      final isPast = t.substring(0, 10).compareTo(todayStr) < 0;
+      allHours.add(HourlyItem(
+          time: t,
+          temperature: (h['temperature_2m'][i] as num?)?.toDouble(),
+          condition: _wmoToText(h['weather_code'][i] as int? ?? 0),
+          rainProb: (h['precipitation_probability'][i] as num?)?.toDouble(),
+          isForecast: !isPast));
+    }
+    // 展示用：从当前小时起最多48条
+    final hourly = <HourlyItem>[];
+    for (var i = 0; i < allHours.length && hourly.length < 48; i++) {
+      if (allHours[i].time.compareTo(nowHour) >= 0) hourly.add(allHours[i]);
     }
     final daily = <DailyItem>[];
     final dTimes = d['time'] as List;
+    var todayIdx = -1;
     for (var i = 0; i < dTimes.length; i++) {
+      if (todayIdx < 0 && dTimes[i].toString().compareTo(todayStr) >= 0) todayIdx = i;
+    }
+    for (var i = todayIdx < 0 ? 0 : todayIdx; i < dTimes.length; i++) {
       daily.add(DailyItem(
           date: dTimes[i].toString(),
           dayText: _wmoToText(d['weather_code'][i] as int? ?? 0),
           high: (d['temperature_2m_max'][i] as num?)?.toDouble(),
           low: (d['temperature_2m_min'][i] as num?)?.toDouble()));
     }
+    // 昨日（past_days=1 时 daily[0]/hourly 前段为昨天）
+    YesterdayData? yesterday;
+    if (todayIdx > 0) {
+      final yh = allHours
+          .where((x) => x.time.substring(0, 10).compareTo(todayStr) < 0)
+          .toList();
+      final yHours = yh.length > 24
+          ? yh.sublist(yh.length - 24)
+          : yh;
+      yesterday = YesterdayData(
+          high: (d['temperature_2m_max'][todayIdx - 1] as num?)?.toDouble(),
+          low: (d['temperature_2m_min'][todayIdx - 1] as num?)?.toDouble(),
+          hourly: yHours);
+    }
     final sunrises = d['sunrise'] as List? ?? [],
         sunsets = d['sunset'] as List? ?? [];
-    final uvMax = (d['uv_index_max'] as List?)
-        ?.firstWhere((_) => true, orElse: () => null);
-    final uvText =
-        uvMax != null ? _uvLevel((uvMax as num?)?.toDouble() ?? 0) : '';
+    String atIdx(List? l) {
+      if (l == null || todayIdx < 0 || todayIdx >= l.length) return '';
+      return l[todayIdx].toString();
+    }
+    final sunrise = atIdx(sunrises), sunset = atIdx(sunsets);
+    final uvStr = atIdx(d['uv_index_max'] as List?);
+    final uvText = uvStr.isNotEmpty
+        ? _uvLevel(double.tryParse(uvStr) ?? 0)
+        : '';
     return WeatherData(
         cityName: '未识别位置',
         condition: _wmoToText(c['weather_code'] as int? ?? 0),
@@ -220,6 +250,7 @@ class ApiService {
         feelsLike: (c['apparent_temperature'] as num?)?.toDouble(),
         todayHigh: daily.isNotEmpty ? daily[0].high : null,
         todayLow: daily.isNotEmpty ? daily[0].low : null,
+        yesterday: yesterday,
         humidity: c['relative_humidity_2m'] as int?,
         windDirect:
             _windDir((c['wind_direction_10m'] as num?)?.toDouble() ?? 0),
@@ -227,9 +258,9 @@ class ApiService {
         aqi: aqi,
         aqiText: aqiText,
         sunrise:
-            sunrises.isNotEmpty ? sunrises[0].toString().substring(11, 16) : '',
+            sunrise.length >= 16 ? sunrise.substring(11, 16) : '',
         sunset:
-            sunsets.isNotEmpty ? sunsets[0].toString().substring(11, 16) : '',
+            sunset.length >= 16 ? sunset.substring(11, 16) : '',
         uvIndex: uvText,
         sourceTag: '数据来源：Open-Meteo',
         updatedAt: _nowStamp(),

@@ -24,6 +24,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _loading = true;
   bool _refreshing = false;
   bool _fetching = false;
+  Timer? _autoTimer;
+  DateTime? _pausedAt;
   String? _error;
   String _source = 'nmc';
   String _cityName = '';
@@ -71,6 +73,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _loadPrefs();
     _hydrateLastWeather();
+    _armAutoRefresh();
     unawaited(_initialize());
   }
 
@@ -90,15 +93,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _autoTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _useGps) {
-      unawaited(_reloadLocation(requestPermission: false));
+    if (state == AppLifecycleState.resumed) {
+      final interval = widget.prefs.getString('refreshInterval') ?? '30';
+      // native 行为：on_resume 档，离开超过30秒后回到前台即刷新
+      if (interval == 'on_resume') {
+        final elapsed = _pausedAt == null
+            ? const Duration(days: 1)
+            : DateTime.now().difference(_pausedAt!);
+        if (elapsed > const Duration(seconds: 30)) {
+          unawaited(_loadWeather());
+        }
+      }
+      if (_useGps) unawaited(_reloadLocation(requestPermission: false));
+    } else if (state == AppLifecycleState.paused) {
+      _pausedAt = DateTime.now();
     }
+  }
+
+  /// 按 refreshInterval 设置武装周期刷新定时器（对齐 native 挡位）
+  void _armAutoRefresh() {
+    _autoTimer?.cancel();
+    final minutes =
+        int.tryParse(widget.prefs.getString('refreshInterval') ?? '30');
+    if (minutes == null || minutes <= 0) return;
+    _autoTimer = Timer.periodic(Duration(minutes: minutes), (_) {
+      unawaited(_loadWeather());
+    });
   }
 
   Future<void> _initialize() async {
@@ -295,7 +322,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           final g = await ApiService.reverseGeocode(_lat, _lng);
           if (g.isNotEmpty)
             w = WeatherData(
-                cityName: g,
+                cityName: _simp(g),
                 condition: w.condition,
                 temperature: w.temperature,
                 feelsLike: w.feelsLike,
@@ -616,6 +643,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await Navigator.push(context,
         MaterialPageRoute(builder: (_) => SettingsScreen(prefs: widget.prefs)));
     _loadPrefs();
+    _armAutoRefresh();
     await _reloadLocation(requestPermission: true);
   }
 

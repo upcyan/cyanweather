@@ -9,7 +9,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  String _source = 'openmeteo';
+  String _source = 'nmc';
   String _fontSize = 'large';
   String _refreshInterval = '30';
   bool _autoCheckUpdate = true;
@@ -52,9 +52,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  double get _fontScale =>
+      {'standard': 1.0, 'large': 1.3, 'xlarge': 1.6}[_fontSize] ?? 1.3;
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // 设置页自身也随字体大小挡位缩放（对齐 native）
+    return MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(_fontScale)),
+        child: Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         _sectionTitle('天气数据源'),
@@ -99,6 +106,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _sectionTitle('自动刷新'),
         _radioTile('关闭', '', _refreshInterval == 'off',
             () => _save('refreshInterval', 'off')),
+        _radioTile('每次进入App', '', _refreshInterval == 'on_resume',
+            () => _save('refreshInterval', 'on_resume')),
         _radioTile('每 10 分钟', '', _refreshInterval == '10',
             () => _save('refreshInterval', '10')),
         _radioTile('每 30 分钟', '', _refreshInterval == '30',
@@ -106,6 +115,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             badge: '推荐'),
         _radioTile('每 60 分钟', '', _refreshInterval == '60',
             () => _save('refreshInterval', '60')),
+        _radioTile('每 6 小时', '', _refreshInterval == '360',
+            () => _save('refreshInterval', '360')),
+        _radioTile('每 12 小时', '', _refreshInterval == '720',
+            () => _save('refreshInterval', '720')),
+        _radioTile('每 24 小时', '', _refreshInterval == '1440',
+            () => _save('refreshInterval', '1440')),
         const SizedBox(height: 16),
         SwitchListTile(
           title: const Text('使用当前位置'),
@@ -124,7 +139,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Column(children: [
-              Text('晴暖天气 v1.1',
+              Text('晴暖天气 v1.2',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               SizedBox(height: 8),
               Text('为长辈设计的简洁大字天气应用',
@@ -133,6 +148,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: TextStyle(fontSize: 14, color: Colors.grey)),
             ])),
       ]),
+        ),
     );
   }
 
