@@ -1,10 +1,22 @@
 /* CyanWeather WebF — 数据源：Open-Meteo / 中央气象台（对齐 native app/ 版） */
-var APP_VERSION = '1.5.3';
+var APP_VERSION = '1.5.4';
 
 /* JS 运行时错误可见化（WebF 无控制台，落到提示卡） */
 window.onerror = function (msg) {
   try { showNotice('脚本异常：' + msg); } catch (e) { }
+  try { console.log('[CWJS] onerror: ' + msg); } catch (e) { }
 };
+/* 显隐助手：classList + 内联 style 双保险，规避 WebF class 变更不重排的怪癖 */
+function setVisible(el, on, disp) {
+  if (!el) return;
+  try { if (on) el.classList.remove('hidden'); else el.classList.add('hidden'); } catch (e) { }
+  try { el.style.display = on ? (disp || 'block') : 'none'; } catch (e) { }
+}
+/* TEMP-DIAG */
+console.log('[CWJS] app.js top-level executing, version=' + APP_VERSION);
+document.addEventListener('DOMContentLoaded', function () {
+  console.log('[CWJS] DOMContentLoaded fired');
+});
 
 var GEO_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 var FC_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -481,6 +493,8 @@ function parseNmc(data, cityName) { /* native parseNmc 完整移植 */
     hourly: passedItems, hourlyLabel: '过去24小时逐时实况',
     daily: daily, yesterday: yesterday
   };
+  /* TEMP-DIAG */
+  console.log('[CWJS] nmc parse: passed=' + passedItems.length + ' today=' + today + ' yItems=' + yItems.length + ' yHigh=' + (yesterday && yesterday.high));
 }
 
 function resolveNmcStation() {
@@ -580,17 +594,17 @@ function renderWeather(w) {
   /* 预警横幅 */
   if (w.warning) {
     $('warnCard').innerHTML = '<div class="warn-title">⚠️ 气象预警</div><div class="warn-body">' + w.warning + '</div>';
-    $('warnCard').classList.remove('hidden');
+    setVisible($('warnCard'), true);
   } else {
-    $('warnCard').classList.add('hidden');
+    setVisible($('warnCard'), false);
   }
 
   /* 分钟级降水描述（彩云） */
   if (w.minutelyText) {
     $('minutelyCard').textContent = '⏱ ' + w.minutelyText;
-    $('minutelyCard').classList.remove('hidden');
+    setVisible($('minutelyCard'), true);
   } else {
-    $('minutelyCard').classList.add('hidden');
+    setVisible($('minutelyCard'), false);
   }
 
   /* 逐小时 */
@@ -631,9 +645,9 @@ function renderWeather(w) {
     }
     $('yestHourly').innerHTML = yh;
     $('yestHourly').style.display = yh ? 'flex' : 'none';
-    $('yesterdayCard').classList.remove('hidden');
+    setVisible($('yesterdayCard'), true);
   } else {
-    $('yesterdayCard').classList.add('hidden');
+    setVisible($('yesterdayCard'), false);
   }
 
   /* 降雨提醒 + 趋势（仅预报类源；NMC 无逐时预报） */
@@ -641,8 +655,8 @@ function renderWeather(w) {
     renderRainTip(w);
     renderRainTrend(w);
   } else {
-    $('rainTipCard').classList.add('hidden');
-    $('rainBlock').classList.add('hidden');
+    setVisible($('rainTipCard'), false);
+    setVisible($('rainBlock'), false);
   }
 
   $('sourceFooter').textContent = w.sourceTag;
@@ -667,8 +681,8 @@ function renderRainTip(w) {
       if (txt.indexOf('雨') >= 0 || txt.indexOf('雷') >= 0) { tip = '近期可能有雨，请留意天气变化'; break; }
     }
   }
-  if (tip) { $('rainTipText').textContent = tip; $('rainTipCard').classList.remove('hidden'); }
-  else $('rainTipCard').classList.add('hidden');
+  if (tip) { $('rainTipText').textContent = tip; setVisible($('rainTipCard'), true); }
+  else setVisible($('rainTipCard'), false);
 }
 
 function renderRainTrend(w) {
@@ -679,8 +693,8 @@ function renderRainTrend(w) {
     cols.push({ label: it.time.substring(5, 10).replace('-', '/') + ' ' + parseInt(it.time.substring(11, 13), 10) + '时',
       pct: it.rainProb == null ? 0 : it.rainProb });
   }
-  if (!cols.length) { $('rainBlock').classList.add('hidden'); return; }
-  $('rainBlock').classList.remove('hidden');
+  if (!cols.length) { setVisible($('rainBlock'), false); return; }
+  setVisible($('rainBlock'), true);
   var html = '';
   for (var j = 0; j < cols.length; j++) {
     var cc = cols[j];
@@ -698,8 +712,8 @@ function showNotice(msg) {
   var box = $('noticeBox');
   box.innerHTML = msg ? '<div class="notice-card">⚠ ' + msg + '</div>' : '';
 }
-function showErrorBanner(msg) { $('errorBox').textContent = msg; $('errorBox').classList.remove('hidden'); }
-function clearErrors() { $('errorBox').classList.add('hidden'); showNotice(null); }
+function showErrorBanner(msg) { $('errorBox').textContent = msg; setVisible($('errorBox'), true); }
+function clearErrors() { setVisible($('errorBox'), false); showNotice(null); }
 function showErrorFull(msg) {
   $('content').classList.add('error-mode');
   var old = $('errorFull');
@@ -712,7 +726,7 @@ function showErrorFull(msg) {
   div.querySelector('#retryBtn').addEventListener('click', function () { fullRefresh(); });
 }
 function setRefreshing(on) {
-  $('refreshOverlay').classList.toggle('hidden', !on);
+  setVisible($('refreshOverlay'), on, 'flex');
   $('refreshBtn').classList.toggle('spinning', on);
 }
 
@@ -946,7 +960,7 @@ document.addEventListener('visibilitychange', function () {
 var cascLevel = 'province', cascProv = null;
 function openCascade() {
   if (state.source !== 'nmc') { showNotice('省市级联需使用「中国气象局」数据源，请先在上方切换'); return; }
-  $('cascadeModal').classList.remove('hidden');
+  setVisible($('cascadeModal'), true, 'flex');
   cascLevel = 'province'; cascProv = null;
   $('cascTitle').textContent = '选择省份';
   $('cascList').innerHTML = '<li class="empty-tip">加载中…</li>';
@@ -974,7 +988,7 @@ function cascPickCity(code, name) {
   state.cityCode = code;
   state.manualCity = true;
   saveState();
-  $('cascadeModal').classList.add('hidden');
+  setVisible($('cascadeModal'), false);
   fullRefresh();
 }
 function doSearch(q) {
@@ -1101,7 +1115,7 @@ function showUpdateDialog(version, notes, url, apkUrl) {
 }
 
 function toggleCyConfig() {
-  $('cyConfig').classList.toggle('hidden', state.source !== 'caiyun');
+  setVisible($('cyConfig'), state.source === 'caiyun', 'block');
 }
 
 /* ================= 初始化 ================= */
@@ -1111,12 +1125,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
   $('refreshBtn').addEventListener('click', fullRefresh);
   $('settingsBtn').addEventListener('click', function () {
-    $('settingsModal').classList.remove('hidden');
+    console.log('[CWJS] settingsBtn handler fired');
+    setVisible($('settingsModal'), true, 'flex');
     syncSettingsUI();
+    console.log('[CWJS] settings modal shown, hidden=' + $('settingsModal').className);
   });
-  $('settingsClose').addEventListener('click', function () { $('settingsModal').classList.add('hidden'); });
-  $('searchClose').addEventListener('click', function () { $('searchModal').classList.add('hidden'); });
-  $('cascClose').addEventListener('click', function () { $('cascadeModal').classList.add('hidden'); });
+  $('settingsClose').addEventListener('click', function () { setVisible($('settingsModal'), false); });
+  $('searchClose').addEventListener('click', function () { setVisible($('searchModal'), false); });
+  $('cascClose').addEventListener('click', function () { setVisible($('cascadeModal'), false); });
   $('cascBack').addEventListener('click', function () { if (cascLevel === 'city') openCascade(); });
   $('cascList').addEventListener('click', function (ev) {
     var node = ev.target;
@@ -1173,7 +1189,7 @@ document.addEventListener('DOMContentLoaded', function () {
   cityEntry.className = 'city-entry';
   cityEntry.innerHTML = '<span>当前城市：<b id="cityEntryName">' + state.city + '</b></span><span class="go">搜索更改 ›</span>';
   cityEntry.addEventListener('click', function () {
-    $('searchModal').classList.remove('hidden');
+    setVisible($('searchModal'), true, 'flex');
     $('searchResults').innerHTML = '<li class="empty-tip">输入城市名搜索</li>';
     setTimeout(function () { $('searchInput').focus(); }, 50);
   });
