@@ -120,21 +120,26 @@ class ApiService {
       throw Exception('API请求失败: ${response.statusCode}');
     final json = jsonDecode(response.body);
 
-    // Fetch AQI separately
+    // Fetch AQI separately（该子域名在部分网络下会被间歇性过滤，加重试）
     String aqiText = '';
     int? aqi;
-    try {
-      final airUrl =
-          'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=$lat&longitude=$lng&current=us_aqi';
-      final airResp = await http
-          .get(Uri.parse(airUrl))
-          .timeout(const Duration(seconds: 10));
-      if (airResp.statusCode == 200) {
-        final airJson = jsonDecode(airResp.body);
-        aqi = airJson['current']?['us_aqi']?.round();
-        aqiText = _aqiText(aqi);
+    final airUrl =
+        'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=$lat&longitude=$lng&current=us_aqi';
+    for (var attempt = 0; attempt < 3 && aqi == null; attempt++) {
+      try {
+        final airResp = await http
+            .get(Uri.parse(airUrl))
+            .timeout(const Duration(seconds: 10));
+        if (airResp.statusCode == 200) {
+          final airJson = jsonDecode(airResp.body);
+          aqi = airJson['current']?['us_aqi']?.round();
+          aqiText = _aqiText(aqi);
+        }
+      } catch (_) {}
+      if (aqi == null && attempt < 2) {
+        await Future.delayed(const Duration(milliseconds: 500));
       }
-    } catch (_) {}
+    }
 
     return _parseOpenMeteo(json, aqi: aqi, aqiText: aqiText);
   }

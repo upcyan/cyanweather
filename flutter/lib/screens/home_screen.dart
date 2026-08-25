@@ -27,7 +27,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Timer? _autoTimer;
   DateTime? _pausedAt;
   String? _error;
-  String _source = 'nmc';
+  String _source = 'openmeteo';
   String _cityName = '';
   String _cityCode = '';
   double _lat = 39.9042, _lng = 116.4074;
@@ -138,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _loadPrefs() {
-    _source = widget.prefs.getString('source') ?? 'nmc';
+    _source = widget.prefs.getString('source') ?? 'openmeteo';
     _cityName = widget.prefs.getString('cityName') ?? '';
     _cityCode = widget.prefs.getString('cityCode') ?? '';
     _lat = widget.prefs.getDouble('lat') ?? 39.9042;

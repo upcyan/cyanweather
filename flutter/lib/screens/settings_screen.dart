@@ -9,7 +9,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  String _source = 'nmc';
+  String _source = 'openmeteo';
   String _fontSize = 'large';
   String _refreshInterval = '30';
   bool _autoCheckUpdate = true;
@@ -65,10 +65,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(title: const Text('设置')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         _sectionTitle('天气数据源'),
+        _radioTile('中国气象局', '中央气象台，免费无需密钥，支持县区级与昨日天气',
+            _source == 'nmc', () => _save('source', 'nmc')),
         _radioTile('Open-Meteo', '免费开放源，无需密钥', _source == 'openmeteo',
             () => _save('source', 'openmeteo')),
-        _radioTile('中国气象局', '中央气象台，免费无需密钥', _source == 'nmc',
-            () => _save('source', 'nmc')),
         _radioTile('彩云天气', '实时精准，分钟级预报，需凭证', _source == 'caiyun',
             () => _save('source', 'caiyun')),
         if (_source == 'caiyun') ...[
