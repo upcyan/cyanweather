@@ -1,5 +1,5 @@
 /* CyanWeather WebF — 数据源：Open-Meteo / 中央气象台（对齐 native app/ 版） */
-var APP_VERSION = '1.5.4';
+var APP_VERSION = '1.5.5';
 
 /* JS 运行时错误可见化（WebF 无控制台，落到提示卡） */
 window.onerror = function (msg) {
@@ -1151,15 +1151,6 @@ function showUpdateDialog(version, notes, url, apkUrl) {
 function toggleCyConfig() {
   setVisible($('cyConfig'), state.source === 'caiyun', 'block');
 }
-
-/* TEMP-DEBUG: 昨日卡可视性证明（下版本移除） */
-setTimeout(function () {
-  var c = $('yesterdayCard');
-  if (!c) { console.log('[CWJS] yestcard NULL'); return; }
-  c.style.border = '4px solid #ff0000';
-  window.scrollTo(0, Math.max(0, c.offsetTop - 30));
-  console.log('[CWJS] yestcard outlined offsetTop=' + c.offsetTop);
-}, 8000);
 
 /* ================= 初始化 ================= */
 document.addEventListener('DOMContentLoaded', function () {
