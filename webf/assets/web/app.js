@@ -80,10 +80,14 @@ function paintIcon(cv, kind) {
   function C(v){ return v; }             /* 占位保持可读 */
   function cloudBody(ccx, ccy, cs) {
     ctx.fillStyle = IC.cloud;
-    ctx.beginPath(); ctx.arc(ccx - .30*cs, ccy - .15*cs, .27*cs, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(ccx,            ccy - .30*cs, .34*cs, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(ccx + .32*cs, ccy - .13*cs, .27*cs, 0, Math.PI * 2); ctx.fill();
-    ctx.fillRect(ccx - .50*cs, ccy - .08*cs, cs, .40*cs);
+    /* 三朵云峰 */
+    ctx.beginPath(); ctx.arc(ccx - .33*cs, ccy + .00*cs, .26*cs, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ccx - .02*cs, ccy - .24*cs, .33*cs, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ccx + .31*cs, ccy - .04*cs, .27*cs, 0, Math.PI * 2); ctx.fill();
+    /* 底座带圆角，避免面包块观感 */
+    ctx.fillRect(ccx - .46*cs, ccy - .06*cs, .92*cs, .30*cs);
+    ctx.beginPath(); ctx.arc(ccx - .32*cs, ccy + .24*cs, .14*cs, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ccx + .32*cs, ccy + .24*cs, .14*cs, 0, Math.PI * 2); ctx.fill();
   }
   function line(x1,y1,x2,y2,color,w) {
     ctx.strokeStyle = color; ctx.lineWidth = w;
@@ -683,15 +687,23 @@ function renderWeather(w) {
 function renderRainTip(w) {
   var upcoming = [], i;
   for (i = 0; i < w.hourly.length && upcoming.length < 12; i++) {
-    if (w.hourly[i].isForecast) upcoming.push(w.hourly[i].condition || '');
+    if (w.hourly[i].isForecast) upcoming.push({ cond: w.hourly[i].condition || '', prob: w.hourly[i].rainProb });
   }
-  var tip = null, idx = -1;
+  var tip = null;
   for (i = 0; i < upcoming.length; i++) {
-    if (upcoming[i].indexOf('雨') >= 0 || upcoming[i].indexOf('雷') >= 0) { idx = i; break; }
+    if (upcoming[i].cond.indexOf('雨') >= 0 || upcoming[i].cond.indexOf('雷') >= 0) {
+      tip = i <= 1 ? '现在或很快有降雨，出门请带伞' : '预计约 ' + i + ' 小时后可能有降雨，出门请带伞';
+      break;
+    }
   }
-  if (idx >= 0) {
-    tip = idx <= 1 ? '现在或很快有降雨，出门请带伞' : '预计约 ' + idx + ' 小时后可能有降雨，出门请带伞';
-  } else {
+  if (!tip) { /* 概率档：现象未报雨但概率显著时兜底 */
+    var maxProb = 0;
+    for (i = 0; i < upcoming.length; i++) {
+      if (upcoming[i].prob != null && upcoming[i].prob > maxProb) maxProb = upcoming[i].prob;
+    }
+    if (maxProb >= 60) tip = '未来12小时降水概率最高达 ' + maxProb + '%，出门建议带伞';
+  }
+  if (!tip) {
     for (i = 0; i < w.daily.length && i < 3; i++) {
       var txt = combineDayNight(w.daily[i].dayText, w.daily[i].nightText);
       if (txt.indexOf('雨') >= 0 || txt.indexOf('雷') >= 0) { tip = '近期可能有雨，请留意天气变化'; break; }
