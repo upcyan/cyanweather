@@ -66,6 +66,9 @@ keystore_base64.txt
 .appdata/
 .build_*.log
 .fv*.txt
+*fv.txt
 .shot_*.png
 _backup_full.bundle
 dsh-usage/
+flutter347/
+.dsh-vision-router/
