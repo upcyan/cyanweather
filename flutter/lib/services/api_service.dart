@@ -1,6 +1,10 @@
-import 'dart:convert';
+﻿import 'dart:convert';
+import 'dart:developer' as dev;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
+
+/// 发布版可靠的日志通道（developer.log 不会被剥除）
+void _log(String s) => dev.log(s, name: 'CW');
 import '../models/weather_model.dart';
 
 class ApiService {
@@ -111,6 +115,7 @@ class ApiService {
   // Open-Meteo
   static Future<WeatherData> fetchWeather(double lat, double lng,
       {String? nmcStationId, Future<String?> Function()? resolveStation}) async {
+    _log('fetchWeather ENTER lat=$lat lng=$lng nmcStationId=$nmcStationId');
     final url = '$_openMeteoBase/forecast?latitude=$lat&longitude=$lng'
         '&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m'
         '&hourly=temperature_2m,weather_code,precipitation_probability,uv_index'
@@ -125,6 +130,7 @@ class ApiService {
     // Fetch AQI separately（该子域名在部分网络下会被间歇性过滤，加重试）
     String aqiText = '';
     int? aqi;
+    _log('start lat=$lat lng=$lng nmcStationId=$nmcStationId');
     final airUrl =
         'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=$lat&longitude=$lng&current=us_aqi';
     for (var attempt = 0; attempt < 3 && aqi == null; attempt++) {
@@ -132,32 +138,32 @@ class ApiService {
         final airResp = await http
             .get(Uri.parse(airUrl))
             .timeout(const Duration(seconds: 10));
-        assert(() {
-          debugPrint('[CW] aqi try$attempt http ${airResp.statusCode}');
-          return true;
-        }());
+        debugPrint('[CW] aqi try$attempt http ${airResp.statusCode}');
+        _log('try$attempt http ${airResp.statusCode}');
         if (airResp.statusCode == 200) {
           final airJson = jsonDecode(airResp.body);
           aqi = airJson['current']?['us_aqi']?.round();
+          _log('try$attempt us_aqi raw=${airJson['current']?['us_aqi']} -> aqi=$aqi');
           aqiText = _aqiText(aqi);
         }
       } catch (e) {
-        assert(() {
-          debugPrint('[CW] aqi try$attempt ERR ${e.runtimeType}: $e');
-          return true;
-        }());
+        debugPrint('[CW] aqi try$attempt ERR ${e.runtimeType}: $e');
       }
       if (aqi == null && attempt < 2) {
         await Future.delayed(const Duration(milliseconds: 500));
       }
     }
 
+    debugPrint('[CW] aqi openmeteo done aqi=$aqi');
+    _log('openmeteo done aqi=$aqi');
     // Open-Meteo 空气质量兜底：air-quality 子域名被网络过滤时，用气象台站点数据补 AQI
     if (aqi == null) {
       var sid = nmcStationId ?? '';
       if (sid.isEmpty && resolveStation != null) {
         try { sid = await resolveStation() ?? ''; } catch (_) {}
       }
+      debugPrint('[CW] aqi fallback sid=[$sid]');
+      _log('fallback sid=[$sid]');
       if (sid.isEmpty) return _parseOpenMeteo(json, aqi: null, aqiText: '');
       try {
         final nresp = await http
@@ -166,9 +172,12 @@ class ApiService {
         if (nresp.statusCode == 200) {
           final nj = jsonDecode(nresp.body);
           final air = nj is Map && nj['data'] is Map ? nj['data']['air'] : null;
+          debugPrint('[CW] aqi nmc air=$air');
+          _log('nmc air=$air');
           if (air is Map) {
             final raw = air['aqi'];
             final av = raw is num ? raw.round() : int.tryParse('$raw');
+            _log('nmc raw=$raw av=$av');
             if (av != null) {
               aqi = av;
               final t = '${air['text'] ?? ''}'.trim();

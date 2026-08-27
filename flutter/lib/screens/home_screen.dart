@@ -204,8 +204,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _locationNotice = null;
         _locationServiceDisabled = false;
       });
-    // NMC 源且使用 GPS：自动解析城市代码
-    if (_source == 'nmc' && _useGps) {
+    // GPS：自动解析气象站代码（open-meteo 空气质量兜底也需要）
+    if (_useGps) {
       await _resolveNmcCity(pos.latitude, pos.longitude);
     }
   }

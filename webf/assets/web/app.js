@@ -14,16 +14,24 @@ window.onerror = function (msg) {
 function showEl(el, disp) {
   if (!el) return;
   try { window.scrollTo(0, 0); } catch (e) { }
-  if (!el.parentNode) document.body.appendChild(el);
-  if (el.id) delete DETACHED[el.id];
+  if (!el.parentNode) {
+    var p = (el.id && DETACHED_PARENT[el.id]) ? DETACHED_PARENT[el.id] : document.body;
+    p.appendChild(el);
+  }
+  if (el.id) { delete DETACHED[el.id]; delete DETACHED_PARENT[el.id]; }
+  /* 必须移除 hidden 类：其 display:none/visibility:hidden/pointer-events:none 均带 !important，会压过 inline 样式 */
+  el.classList.remove('hidden');
   el.style.display = disp || 'block';
 }
 var DETACHED = {};
+var DETACHED_PARENT = {};
 function hideEl(el) {
-  if (el && el.parentNode) { if (el.id) DETACHED[el.id] = el; el.parentNode.removeChild(el); }
+  if (el && el.parentNode) { if (el.id) { DETACHED[el.id] = el; DETACHED_PARENT[el.id] = el.parentNode; } el.classList.add('hidden'); el.parentNode.removeChild(el); }
 }
 function openOverlay(el, disp) {
+  console.log('[CWJS] openOverlay id=' + (el && el.id) + ' hiddenBefore=' + (el && el.classList.contains('hidden')));
   showEl(el, disp || 'flex');
+  console.log('[CWJS] openOverlay after display=' + (el && window.getComputedStyle ? getComputedStyle(el).display : '?') + ' hidden=' + (el && el.classList.contains('hidden')));
 }
 function setVisible(el, on, disp) {
   if (!el) return;
@@ -322,7 +330,22 @@ function fetchForecast(lat, lon) {
 }
 function fetchAqi(lat, lon) {
   var url = AQI_URL + '?latitude=' + lat + '&longitude=' + lon + '&current=us_aqi&timezone=auto';
-  return fetch(url).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  function tryOpen() {
+    return fetch(url).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) { var v = j && j.current ? cleanInt(j.current.us_aqi) : null; if (v == null) throw new Error('no us_aqi'); return j; });
+  }
+  function fallbackNmc() {
+    return resolveNmcStation().then(function (cn) {
+      if (!cn || !cn.code) return null;
+      return nmcGet('/rest/weather?stationid=' + cn.code).then(function (resp) {
+        var air = resp && resp.data ? resp.data.air : null;
+        var aq = air ? cleanInt(air.aqi) : null;
+        if (aq == null) return null;
+        return { current: { us_aqi: aq }, _nmcText: air.text || '' };
+      });
+    }).catch(function () { return null; });
+  }
+  return tryOpen().catch(function () { return fallbackNmc(); });
 }
 function searchCity(q) {
   var url = GEO_URL + '?name=' + encodeURIComponent(q) + '&count=10&language=zh&format=json';
@@ -698,6 +721,7 @@ function renderWeather(w) {
         '<div class="yh-temp">' + tempStr(yy.temperature) + '°</div></div>';
     }
     showEl($('yesterdayCard'), 'block');
+    try { var _yc = $('yesterdayCard'); console.log('[CWJS] yestAfterShow display=' + (window.getComputedStyle ? getComputedStyle(_yc).display : '?') + ' hidden=' + _yc.classList.contains('hidden')); } catch (e) { console.log('[CWJS] yestProbeErr ' + e); }
     $('yestHigh').textContent = tempStr(w.yesterday.high) + '°';
     $('yestLow').textContent = tempStr(w.yesterday.low) + '°';
     $('yestHourly').innerHTML = yh;
