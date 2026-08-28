@@ -21,6 +21,16 @@ class SystemLocation {
     return r ?? 'ok';
   }
 
+  /** 定位权限被拒时跳转本应用详情页授权 */
+  static Future<void> openAppSettings() async {
+    try { await _channel.invokeMethod<String>('openAppSettings'); } catch (_) {}
+  }
+
+  /** 定位服务开关页 */
+  static Future<void> openLocationSettings() async {
+    try { await _channel.invokeMethod<String>('openLocationSettings'); } catch (_) {}
+  }
+
   static void init() {
     // 周期读取原生落盘的定位结果（最多 60 秒）
     var n = 0;
@@ -68,6 +78,23 @@ class GpsModule extends WebFBaseModule {
       } catch (_) {}
       return '';
     }
+    if (method == 'openAppSettings') {
+      SystemLocation.openAppSettings();
+      return 'ok';
+    }
+    if (method == 'openLocationSettings') {
+      SystemLocation.openLocationSettings();
+      return 'ok';
+    }
+    if (method == 'installApk') {
+      // JS 端同步调用，下载为异步执行；参数形如 [url, title]
+      if (params.isNotEmpty && params[0] is String) {
+        SystemLocation.installApk(params[0] as String,
+            title: params.length > 1 && params[1] is String ? params[1] as String : '晴暖天气更新');
+        return 'ok';
+      }
+      return 'bad-args';
+    }
     return null;
   }
 
@@ -77,6 +104,16 @@ class GpsModule extends WebFBaseModule {
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarDividerColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarIconBrightness: Brightness.dark,
+    systemStatusBarContrastEnforced: false,
+    systemNavigationBarContrastEnforced: false,
+  ));
 
   SystemLocation.init();
   ModuleManager.defineModule((moduleManager) => GpsModule(moduleManager));
@@ -93,6 +130,9 @@ class CyanWeatherWebfApp extends StatelessWidget {
       title: '青色天气',
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.cyan),
       home: Scaffold(
+        extendBody: true,
+        extendBodyBehindAppBar: true,
+        backgroundColor: const Color(0xFFF5F9FF),
         body: SafeArea(
           child: WebF.fromControllerName(
             controllerName: 'home',

@@ -8,35 +8,24 @@ window.onerror = function (msg) {
   try { showNotice('脚本异常：' + msg); } catch (e) { }
   try { console.log('[CWJS] onerror: ' + msg); } catch (e) { }
 };
-/* 显隐助手：classList + 内联 style 双保险，规避 WebF class 变更不重排的怪癖 */
-/* webf 0.24 对 display:none→可见 的状态切换不重绘；
-   改用 DOM 摘除=隐藏、重新挂载=显示（新挂载子树必然完整布局绘制） */
-function showEl(el, disp) {
-  if (!el) return;
-  try { window.scrollTo(0, 0); } catch (e) { }
-  if (!el.parentNode) {
-    var p = (el.id && DETACHED_PARENT[el.id]) ? DETACHED_PARENT[el.id] : document.body;
-    p.appendChild(el);
+/* WebF 0.24 的可靠动态渲染通道：只向常驻挂载点写 innerHTML。 */
+function mountHTML(id, html) {
+  var mount = document.getElementById(id);
+  if (mount) mount.innerHTML = html || '';
+  if (/^(settings|search|cascade|update)Mount$/.test(id)) {
+    var modalOpen = ['settingsMount', 'searchMount', 'cascadeMount', 'updateMount'].some(function (mountId) {
+      var node = document.getElementById(mountId);
+      return node && node.innerHTML;
+    });
+    document.body.style.overflow = modalOpen ? 'hidden' : '';
+    document.documentElement.style.overflow = modalOpen ? 'hidden' : '';
   }
-  if (el.id) { delete DETACHED[el.id]; delete DETACHED_PARENT[el.id]; }
-  /* 必须移除 hidden 类：其 display:none/visibility:hidden/pointer-events:none 均带 !important，会压过 inline 样式 */
-  el.classList.remove('hidden');
-  el.style.display = disp || 'block';
+  return mount;
 }
-var DETACHED = {};
-var DETACHED_PARENT = {};
-function hideEl(el) {
-  if (el && el.parentNode) { if (el.id) { DETACHED[el.id] = el; DETACHED_PARENT[el.id] = el.parentNode; } el.classList.add('hidden'); el.parentNode.removeChild(el); }
-}
-function openOverlay(el, disp) {
-  console.log('[CWJS] openOverlay id=' + (el && el.id) + ' hiddenBefore=' + (el && el.classList.contains('hidden')));
-  showEl(el, disp || 'flex');
-  console.log('[CWJS] openOverlay after display=' + (el && window.getComputedStyle ? getComputedStyle(el).display : '?') + ' hidden=' + (el && el.classList.contains('hidden')));
-}
-function setVisible(el, on, disp) {
-  if (!el) return;
-  try { if (on) el.classList.remove('hidden'); else el.classList.add('hidden'); } catch (e) { }
-  try { el.style.display = on ? (disp || 'block') : 'none'; } catch (e) { }
+function escapeHTML(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 /* TEMP-DIAG */
 console.log('[CWJS] app.js top-level executing, version=' + APP_VERSION);
@@ -270,20 +259,7 @@ function loadState() {
 /* ================= 工具 ================= */
 function $(id) {
   var key = id.charAt(0) === '#' ? id.substring(1) : id;
-  var n = document.querySelector('#' + key);
-  if (n) return n;
-  /* webf 选择器索引不含运行时挂载/摘除的节点；* 通配符亦不可用，children 逐层遍历兜底（含摘除子树） */
-  if (DETACHED[key]) return DETACHED[key];
-  var root = document.body || document.documentElement;
-  if (!root) return null;
-  var stack = [root];
-  while (stack.length) {
-    var cur = stack.pop();
-    if (cur.id === key) return cur;
-    var ch = cur.children || [];
-    for (var i = 0; i < ch.length; i++) stack.push(ch[i]);
-  }
-  return null;
+  return document.getElementById(key);
 }
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 function ymd(x) { var d = new Date(x); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -295,7 +271,7 @@ function hourCardHTML(timeStr, temperature, cond, icon, rainProb) {
   var h = '<div class="hour-item">' +
     '<div class="hour-date">' + timeStr.substring(5, 10).replace('-', '/') + '</div>' +
     '<div class="hour-time">' + parseInt(timeStr.substring(11, 13), 10) + '时</div>';
-  if (icon) h += '<div class="hour-icon"><canvas width="34" height="34" data-kind="' + icon + '"></canvas></div>';
+  if (icon) h += '<div class="hour-icon"><img class="meteocon" src="icons/' + iconSlug(icon) + '.svg" alt=""></div>';
   if (cond) h += '<div class="hour-cond">' + cond + '</div>';
   h += '<div class="hour-temp">' + tempStr(temperature) + '°</div>';
   if (rainProb !== undefined && rainProb !== null && rainProb > 0) {
@@ -645,12 +621,16 @@ function locateViaBridge() {
 }
 
 function paintGlyph(el, kind, px) {
-  el.innerHTML = '<canvas width="' + px + '" height="' + px + '"></canvas>';
-  var c = el.firstChild; paintIcon(c, kind);
+  el.innerHTML = '<img class="meteocon" src="icons/' + iconSlug(kind) + '.svg" width="' + px + '" height="' + px + '" alt="">';
+}
+function iconSlug(kind) {
+  var map = { sun:'clear-day', partly:'partly-cloudy-day', cloud:'overcast', rain:'rain', thunder:'thunderstorms', snow:'snow', fog:'fog', haze:'fog', sleet:'sleet', wind:'overcast', moon:'clear-day' };
+  return map[kind] || 'overcast';
 }
 /* ================= 渲染（统一模型） ================= */
 function renderWeather(w) {
   console.log('[CWJS] renderWeather enter src=' + w.sourceTag);
+  if (w.cityName) state.city = w.cityName;
   $('cityName').textContent = w.cityName || state.city;
   $('updatedAt').textContent = w.updatedAt || '';
   $('curTemp').textContent = tempStr(w.temperature);
@@ -671,18 +651,16 @@ function renderWeather(w) {
 
   /* 预警横幅 */
   if (w.warning) {
-    showEl($('warnCard'), 'block');
-    $('warnCard').innerHTML = '<div class="warn-title">⚠️ 气象预警</div><div class="warn-body">' + w.warning + '</div>';
+    mountHTML('warnMount', '<section class="warn-card card"><div class="warn-title">⚠️ 气象预警</div><div class="warn-body">' + escapeHTML(w.warning) + '</div></section>');
   } else {
-    hideEl($('warnCard'));
+    mountHTML('warnMount', '');
   }
 
   /* 分钟级降水描述（彩云） */
   if (w.minutelyText) {
-    showEl($('minutelyCard'), 'block');
-    $('minutelyCard').textContent = '⏱ ' + w.minutelyText;
+    mountHTML('minutelyMount', '<section class="minutely-card card">⏱ ' + escapeHTML(w.minutelyText) + '</section>');
   } else {
-    hideEl($('minutelyCard'));
+    mountHTML('minutelyMount', '');
   }
 
   /* 逐小时 */
@@ -701,7 +679,7 @@ function renderWeather(w) {
     dh += '<div class="day-row">' +
       '<span class="day-name">' + dayLabelCN(dd.date) + '</span>' +
       '<div class="day-main">' +
-      (dd.icon ? '<span class="day-icon"><canvas width="30" height="30" data-kind="' + dd.icon + '"></canvas></span>' : '') +
+      (dd.icon ? '<span class="day-icon"><img class="meteocon" src="icons/' + iconSlug(dd.icon) + '.svg" width="34" height="34" alt=""></span>' : '') +
       '<span class="day-cond">' + combineDayNight(dd.dayText, dd.nightText) + '</span>' +
       '<span class="day-temp"><span class="day-high">' + tempStr(dd.high) + '°</span>' +
       '<span class="day-slash">/</span>' +
@@ -720,14 +698,9 @@ function renderWeather(w) {
       yh += '<div class="yh-item"><div class="yh-time">' + parseInt(yy.time.substring(11, 13), 10) + '时</div>' +
         '<div class="yh-temp">' + tempStr(yy.temperature) + '°</div></div>';
     }
-    showEl($('yesterdayCard'), 'block');
-    try { var _yc = $('yesterdayCard'); console.log('[CWJS] yestAfterShow display=' + (window.getComputedStyle ? getComputedStyle(_yc).display : '?') + ' hidden=' + _yc.classList.contains('hidden')); } catch (e) { console.log('[CWJS] yestProbeErr ' + e); }
-    $('yestHigh').textContent = tempStr(w.yesterday.high) + '°';
-    $('yestLow').textContent = tempStr(w.yesterday.low) + '°';
-    $('yestHourly').innerHTML = yh;
-    $('yestHourly').style.display = yh ? 'flex' : 'none';
+    mountHTML('yesterdayMount', '<div class="yesterday card"><div class="yesterday-row"><span class="yesterday-label">昨日最高</span><span class="yesterday-value yesterday-high">' + tempStr(w.yesterday.high) + '°</span></div><div class="yesterday-row"><span class="yesterday-label">昨日最低</span><span class="yesterday-value yesterday-low">' + tempStr(w.yesterday.low) + '°</span></div>' + (yh ? '<div class="yest-hourly scroll-x">' + yh + '</div>' : '') + '</div>');
   } else {
-    hideEl($('yesterdayCard'));
+    mountHTML('yesterdayMount', '<div class="empty-tip">暂无昨日数据</div>');
   }
 
   /* 降雨提醒 + 趋势（仅预报类源；NMC 无逐时预报） */
@@ -735,20 +708,12 @@ function renderWeather(w) {
     renderRainTip(w);
     renderRainTrend(w);
   } else {
-    hideEl($('rainTipCard'));
-    hideEl($('rainBlock'));
+    mountHTML('rainTipMount', '');
+    mountHTML('rainBlockMount', '');
   }
 
   $('sourceFooter').textContent = w.sourceTag;
-  paintAllIcons($('content'));
-  $('content').classList.remove('error-mode');
-  /* webf 对 class 变更同样不重绘：仅错误恢复时重挂 content 强制刷新；正常启动不动 content */
-  var ef = $('errorFull');
-  if (ef && ef.parentNode) {
-    ef.parentNode.removeChild(ef);
-    var ct = $('content');
-    if (ct && ct.parentNode) { ct.parentNode.removeChild(ct); document.body.appendChild(ct); }
-  }
+  mountHTML('errorBox', '');
 }
 
 function renderRainTip(w) {
@@ -777,10 +742,15 @@ function renderRainTip(w) {
     }
   }
   console.log('[CWJS] raintip=' + tip);
-  if (tip) { showEl($('rainTipCard'), 'block'); $('rainTipText').textContent = tip; }
-  else hideEl($('rainTipCard'));
+  if (tip) {
+    mountHTML('rainTipMount', '<section class="rain-tip-card card" id="rainTipCard"><span class="rain-tip-icon">🌂</span><span class="rain-tip-text">' + escapeHTML(tip) + '</span><span class="rain-tip-action">查看降雨趋势 ›</span></section>');
+    $('rainTipCard').addEventListener('click', function () {
+      mountHTML('rainBlockMount', rainTrendMarkup);
+    });
+  } else mountHTML('rainTipMount', '');
 }
 
+var rainTrendMarkup = '';
 function renderRainTrend(w) {
   var cols = [], i;
   for (i = 0; i < w.hourly.length && cols.length < 24; i++) {
@@ -789,8 +759,7 @@ function renderRainTrend(w) {
     cols.push({ label: it.time.substring(5, 10).replace('-', '/') + ' ' + parseInt(it.time.substring(11, 13), 10) + '时',
       pct: it.rainProb == null ? 0 : it.rainProb });
   }
-  if (!cols.length) { hideEl($('rainBlock')); return; }
-  showEl($('rainBlock'), 'block');
+  if (!cols.length) { rainTrendMarkup = ''; mountHTML('rainBlockMount', ''); return; }
   var html = '';
   for (var j = 0; j < cols.length; j++) {
     var cc = cols[j];
@@ -800,7 +769,8 @@ function renderRainTrend(w) {
       '<div class="rain-bar-wrap"><div class="rain-bar" style="height:' + barH + '%"></div></div>' +
       '<div class="rain-label">' + cc.label + '</div></div>';
   }
-  $('rain').innerHTML = html;
+  rainTrendMarkup = '<section class="block rain-trend" id="rainBlock"><h3>未来24小时降雨趋势</h3><div class="rain scroll-x">' + html + '</div></section>';
+  mountHTML('rainBlockMount', '');
 }
 
 /* ================= 提示 / 错误 / 遮罩 ================= */
@@ -808,22 +778,28 @@ function showNotice(msg) {
   var box = $('noticeBox');
   box.innerHTML = msg ? '<div class="notice-card">⚠ ' + msg + '</div>' : '';
 }
-function showErrorBanner(msg) { $('errorBox').textContent = msg; showEl($('errorBox'), true); }
-function clearErrors() { hideEl($('errorBox')); showNotice(null); }
+/* 带操作链接的提示卡（如「去授权定位」） */
+function showNoticeAction(msg, actionText, cb) {
+  var box = $('noticeBox');
+  box.innerHTML = '<div class="notice-card">⚠ ' + msg +
+    '　<span id="noticeAction" style="color:#0B6BCB;font-weight:bold;cursor:pointer">' + actionText + '</span></div>';
+  var a = $('noticeAction');
+  if (a && a.addEventListener) a.addEventListener('click', function () { try { cb(); } catch (e) { } });
+}
+function nativeOpenAppSettings() {
+  var b = getNativeBridge();
+  try { if (b) return b.invokeModule('GPS', 'openAppSettings', [], function () { }) === 'ok'; } catch (e) { }
+  return false;
+}
+function showErrorBanner(msg) { mountHTML('errorBox', '<div class="error-card">' + escapeHTML(msg) + '</div>'); }
+function clearErrors() { mountHTML('errorBox', ''); showNotice(null); }
 function showErrorFull(msg) {
   console.log('[CWJS] SHOWERROR >>> ' + msg);
-  $('content').classList.add('error-mode');
-  var old = $('errorFull');
-  if (old) old.remove();
-  var div = document.createElement('div');
-  div.className = 'error-full';
-  div.id = 'errorFull';
-  div.innerHTML = '<div class="error-msg">' + msg + '</div><button class="big-btn" id="retryBtn">重新获取</button>';
-  $('content').appendChild(div);
-  div.querySelector('#retryBtn').addEventListener('click', function () { fullRefresh(); });
+  mountHTML('errorBox', '<div class="error-full"><div class="error-msg">' + escapeHTML(msg) + '</div><button class="big-btn" id="retryBtn">重新获取</button></div>');
+  $('retryBtn').addEventListener('click', fullRefresh);
 }
 function setRefreshing(on) {
-  if (on) showEl($('refreshOverlay'), 'flex'); else hideEl($('refreshOverlay'));
+  mountHTML('refreshMount', on ? '<div class="refresh-overlay"><div class="overlay-box"><div class="spinner"></div><div class="overlay-text">正在刷新天气…</div></div></div>' : '');
   $('refreshIcon').classList.toggle('spinning', on);
 }
 
@@ -987,7 +963,12 @@ function ensureGpsFix() {
     saveState();
     return null;
   }).catch(function (e) {
-    showNotice('定位失败：' + e.message + '，当前使用上次位置');
+    var m = (e && e.message) || '';
+    if (m.indexOf('权限') >= 0 || m.indexOf('暂不可用') >= 0) {
+      showNoticeAction('定位不可用，当前使用上次位置', '去授权定位 ›', nativeOpenAppSettings);
+    } else {
+      showNotice('定位失败：' + m + '，当前使用上次位置');
+    }
     return null;
   });
 }
@@ -1071,12 +1052,18 @@ document.addEventListener('visibilitychange', function () {
 /* ================= 省市级联选择（中国气象局） ================= */
 var cascLevel = 'province', cascProv = null;
 function openCascade() {
-  if (state.source !== 'nmc') { showNotice('省市级联需使用「中国气象局」数据源，请先在上方切换'); return; }
-  openOverlay($('cascadeModal'));
+  mountHTML('cascadeMount', '<div class="modal"><div class="modal-box"><div class="setting-card" style="margin:14px"><b id="cascTitle">选择省份</b><div id="cascList" class="casc-list"></div><div id="cascBackMount"></div><button class="check-update-btn" id="cascClose"><span style="text-align:center;width:100%">关闭</span></button></div></div></div>');
+  $('cascClose').addEventListener('click', function () { mountHTML('cascadeMount', ''); });
+  $('cascList').addEventListener('click', function (ev) {
+    var node = ev.target;
+    while (node && node !== this && !(node.tagName === 'LI' && node.getAttribute('data-code'))) node = node.parentNode;
+    if (!node || node === this) return;
+    if (cascLevel === 'province') cascPickProvince(node.getAttribute('data-code'), node.getAttribute('data-name'));
+    else cascPickCity(node.getAttribute('data-code'), node.getAttribute('data-name'));
+  });
   cascLevel = 'province'; cascProv = null;
   $('cascTitle').textContent = '选择省份';
   $('cascList').innerHTML = '<li class="empty-tip">加载中…</li>';
-  $('cascBack').style.display = 'none';
   nmcLoadProvinces().then(function (ps) {
     var html = '';
     for (var i = 0; i < ps.length; i++) html += '<li data-code="' + ps[i].code + '" data-name="' + ps[i].name + '">' + ps[i].name + '</li>';
@@ -1088,7 +1075,8 @@ function cascPickProvince(code, name) {
   cascLevel = 'city';
   $('cascTitle').textContent = name + ' · 选择城市/区县';
   $('cascList').innerHTML = '<li class="empty-tip">加载中…</li>';
-  $('cascBack').style.display = 'block';
+  mountHTML('cascBackMount', '<button class="check-update-btn" id="cascBack"><span style="text-align:center;width:100%">返回上级</span></button>');
+  $('cascBack').addEventListener('click', openCascade);
   nmcLoadCities(code).then(function (cs) {
     var html = '';
     for (var i = 0; i < cs.length; i++) html += '<li data-code="' + cs[i].code + '" data-name="' + cs[i].city + '">' + cs[i].city + '</li>';
@@ -1099,9 +1087,34 @@ function cascPickCity(code, name) {
   state.city = stripAdmin(name);
   state.cityCode = code;
   state.manualCity = true;
-  saveState();
-  hideEl($('cascadeModal'));
-  fullRefresh();
+  mountHTML('cascadeMount', '');
+  searchCity(name).then(function (results) {
+    if (results.length) {
+      state.lat = parseFloat(results[0].latitude);
+      state.lon = parseFloat(results[0].longitude);
+    }
+  }).catch(function () { }).then(function () { saveState(); fullRefresh(); });
+}
+function openSearch() {
+  mountHTML('searchMount', '<div class="modal"><div class="modal-box"><div class="modal-head"><input id="searchInput" placeholder="输入城市名，如：北京 / 上海 / 杭州" autocomplete="off" /><button id="searchClose" class="icon-btn">✕</button></div><ul id="searchResults" class="results"><li class="empty-tip">输入城市名搜索</li></ul></div></div>');
+  $('searchClose').addEventListener('click', function () { mountHTML('searchMount', ''); });
+  $('searchInput').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') doSearch(this.value.trim()); });
+  $('searchResults').addEventListener('click', function (ev) {
+    var li = ev.target.closest('li[data-lat]');
+    if (!li) return;
+    state.city = li.getAttribute('data-name');
+    state.lat = parseFloat(li.getAttribute('data-lat'));
+    state.lon = parseFloat(li.getAttribute('data-lon'));
+    state.manualCity = true;
+    saveState();
+    mountHTML('searchMount', '');
+    if (state.source === 'nmc') {
+      resolveNmcByLocation(state.lat, state.lon).then(function (rc) {
+        state.city = rc.name; state.cityCode = rc.code; saveState(); fullRefresh();
+      }).catch(function () { fullRefresh(); });
+    } else fullRefresh();
+  });
+  setTimeout(function () { try { $('searchInput').focus(); } catch (e) { } }, 50);
 }
 function doSearch(q) {
   if (!q) return;
@@ -1120,48 +1133,43 @@ function doSearch(q) {
     $('searchResults').innerHTML = '<li class="empty-tip">搜索失败：' + e.message + '</li>';
   });
 }
-$('searchResults').addEventListener('click', function (ev) {
-  var li = ev.target.closest('li[data-lat]');
-  if (!li) return;
-  state.city = li.getAttribute('data-name');
-  state.lat = parseFloat(li.getAttribute('data-lat'));
-  state.lon = parseFloat(li.getAttribute('data-lon'));
-  state.manualCity = true;
-  saveState();
-  closeSearch();
-  if (state.source === 'nmc') {
-    /* NMC：按所选坐标匹配气象站 */
-    resolveNmcByLocation(state.lat, state.lon).then(function (rc) {
-      state.city = rc.name; state.cityCode = rc.code;
-      saveState();
-  dtrace('init: calling fullRefresh');
-  fullRefresh();
-    }).catch(function () { fullRefresh(); });
-  } else {
-    fullRefresh();
-  }
-});
-
-/* ================= 设置 ================= */
-function syncSettingsUI() {
-  document.getElementById('src' + (state.source === 'nmc' ? 'Nmc' : 'OpenMeteo')).checked = true;
-  document.getElementById('font' + ({ standard: 'Standard', large: 'Large', xlarge: 'XLarge' }[state.fontSize] || 'Large')).checked = true;
-  var refMap = { off: 'refOff', on_resume: 'refResume', '10': 'ref10', '30': 'ref30', '60': 'ref60', '360': 'ref360', '720': 'ref720', '1440': 'ref1440' };
-  var refEl = document.getElementById(refMap[state.refreshInterval] || 'ref30');
-  if (refEl) refEl.checked = true;
-  $('useGps').checked = state.useGps;
-  $('autoCheckUpdate').checked = state.autoCheckUpdate;
-  document.getElementById('cym' + (state.cyMode === 'v3' ? 'V3' : 'V1')).checked = true;
-  $('cyToken').value = state.cyToken; $('cyKey').value = state.cyKey; $('cySecret').value = state.cySecret;
-  $('cyExt').checked = state.cyExt; $('cyDays').value = state.cyDays;
-  toggleCyConfig();
-  $('cityEntryName').textContent = state.city;
+/* ================= 设置：每次打开都向常驻挂载点重建整棵子树 ================= */
+function checked(actual, expected) { return actual === expected ? ' checked' : ''; }
+function settingsHTML() {
+  var cy = state.source === 'caiyun' ? '<div style="margin-top:8px"><div class="radio-row"><input type="radio" name="cymode" value="v1"' + checked(state.cyMode, 'v1') + '><label>个人版 Token (v1)</label></div><div class="radio-row"><input type="radio" name="cymode" value="v3"' + checked(state.cyMode, 'v3') + '><label>专业版 Key/Secret (v3)</label></div><input type="text" id="cyToken" placeholder="彩云 Token (v1)" class="text-input" value="' + escapeHTML(state.cyToken) + '"><input type="text" id="cyKey" placeholder="AppKey (v3)" class="text-input" value="' + escapeHTML(state.cyKey) + '"><input type="password" id="cySecret" placeholder="AppSecret (v3)" class="text-input" value="' + escapeHTML(state.cySecret) + '"><div class="switch-row"><span>扩展多日预报（含昨日）</span><input type="checkbox" id="cyExt"' + (state.cyExt ? ' checked' : '') + '></div><select id="cyDays" class="text-input"><option value="7"' + (state.cyDays === '7' ? ' selected' : '') + '>扩展 7 天</option><option value="15"' + (state.cyDays === '15' ? ' selected' : '') + '>扩展 15 天</option><option value="30"' + (state.cyDays === '30' ? ' selected' : '') + '>扩展 30 天</option></select></div>' : '';
+  function radio(name, value, label, current) { return '<div class="radio-row"><input type="radio" name="' + name + '" value="' + value + '"' + checked(current, value) + '><label>' + label + '</label></div>'; }
+  return '<div class="modal"><div class="modal-box"><div class="modal-head"><b>设置</b><button id="settingsClose" class="icon-btn">✕</button></div><div class="settings-body">' +
+    '<div class="city-entry" id="cityEntry"><span>当前城市：<b>' + escapeHTML(state.city) + '</b></span><span class="go">搜索更改 ›</span></div><div class="city-entry" id="cascEntry"><span>按省市选择城市</span><span class="go">选择 ›</span></div>' +
+    '<div class="setting-card"><b>天气数据源</b>' + radio('src','openmeteo','Open-Meteo',state.source) + radio('src','nmc','中国气象局',state.source) + radio('src','caiyun','彩云天气',state.source) + cy + '</div>' +
+    '<div class="setting-card"><b>字体大小</b>' + radio('font','standard','标准',state.fontSize) + radio('font','large','大 <span class="badge">推荐</span>',state.fontSize) + radio('font','xlarge','特大',state.fontSize) + '</div>' +
+    '<div class="setting-card"><label class="switch-row"><span class="switch-label"><b>使用自动定位</b><span class="switch-hint">需要定位权限</span></span><input type="checkbox" id="useGps"' + (state.useGps ? ' checked' : '') + '></label></div>' +
+    '<div class="setting-card"><b>自动刷新</b>' + radio('refresh','off','关闭',state.refreshInterval) + radio('refresh','on_resume','每次进入App',state.refreshInterval) + radio('refresh','10','每 10 分钟',state.refreshInterval) + radio('refresh','30','每 30 分钟 <span class="badge">推荐</span>',state.refreshInterval) + radio('refresh','60','每 60 分钟',state.refreshInterval) + radio('refresh','360','每 6 小时',state.refreshInterval) + radio('refresh','720','每 12 小时',state.refreshInterval) + radio('refresh','1440','每 24 小时',state.refreshInterval) + '</div>' +
+    '<div class="setting-card"><label class="switch-row"><span><b>自动检查更新</b></span><input type="checkbox" id="autoCheckUpdate"' + (state.autoCheckUpdate ? ' checked' : '') + '></label></div><div class="setting-card"><button id="manualCheckUpdate" class="check-update-btn"><span>手动检查更新</span><span>检查 ›</span></button></div>' +
+    '<div class="setting-card about-card"><div class="about-title"><b>关于</b><span class="version">v' + APP_VERSION + '</span></div><div class="about-text">晴暖天气：为长辈设计的简洁大字天气应用。</div><div class="about-text">数据来源：中央气象台 / 彩云天气 / Open-Meteo</div></div></div></div></div>';
 }
 function bindRadioGroup(name, handler) {
   var radios = document.querySelectorAll('input[name="' + name + '"]');
   for (var i = 0; i < radios.length; i++) {
     radios[i].addEventListener('change', function () { if (this.checked) handler(this.value); });
   }
+}
+function openSettings() {
+  mountHTML('settingsMount', settingsHTML());
+  $('settingsClose').addEventListener('click', function () { mountHTML('settingsMount', ''); });
+  $('cityEntry').addEventListener('click', function () { mountHTML('settingsMount', ''); openSearch(); });
+  $('cascEntry').addEventListener('click', function () { mountHTML('settingsMount', ''); openCascade(); });
+  bindRadioGroup('src', function (v) { state.source = v; saveState(); openSettings(); fullRefresh(); });
+  bindRadioGroup('cymode', function (v) { state.cyMode = v; saveState(); openSettings(); });
+  bindRadioGroup('font', function (v) { state.fontSize = v; applyFontSize(); saveState(); });
+  bindRadioGroup('refresh', function (v) { state.refreshInterval = v; saveState(); armAutoRefresh(); });
+  if ($('cyToken')) $('cyToken').addEventListener('input', function () { state.cyToken = this.value.trim(); saveState(); });
+  if ($('cyKey')) $('cyKey').addEventListener('input', function () { state.cyKey = this.value.trim(); saveState(); });
+  if ($('cySecret')) $('cySecret').addEventListener('input', function () { state.cySecret = this.value.trim(); saveState(); });
+  if ($('cyExt')) $('cyExt').addEventListener('change', function () { state.cyExt = this.checked; saveState(); });
+  if ($('cyDays')) $('cyDays').addEventListener('change', function () { state.cyDays = this.value; saveState(); });
+  $('useGps').addEventListener('change', function () { state.useGps = this.checked; saveState(); });
+  $('autoCheckUpdate').addEventListener('change', function () { state.autoCheckUpdate = this.checked; saveState(); });
+  $('manualCheckUpdate').addEventListener('click', function () { checkUpdate(true); });
 }
 
 /* ================= 检查更新 ================= */
@@ -1192,28 +1200,21 @@ function checkUpdate(manual) {
   } catch (e) { }
 }
 function showUpdateDialog(version, notes, url, apkUrl) {
-  var old = $('updateModal');
-  if (old) old.remove();
-  var modal = document.createElement('div');
-  modal.className = 'modal';
-  modal.id = 'updateModal';
-  modal.innerHTML =
-    '<div class="modal-box" style="max-height:none">' +
+  mountHTML('updateMount', '<div class="modal"><div class="modal-box" style="max-height:none">' +
     '<div class="setting-card" style="margin:14px">' +
-    '<b>发现新版本 v' + version + '</b>' +
-    '<div class="about-text" style="margin-bottom:12px">' + String(notes || '').split('\n').slice(0, 6).join('<br/>') + '</div>' +
+    '<b>发现新版本 v' + escapeHTML(version) + '</b>' +
+    '<div class="about-text" style="margin-bottom:12px">' + escapeHTML(String(notes || '')).split('\n').slice(0, 6).join('<br>') + '</div>' +
     '<button class="big-btn" id="updateGo" style="width:100%;font-size:1rem;padding:10px 0;margin-bottom:8px">立即更新</button>' +
     '<button class="check-update-btn" id="updateLater"><span style="text-align:center;width:100%">以后再说</span></button>' +
-    '</div></div>';
-  document.body.appendChild(modal);
-  modal.querySelector('#updateGo').addEventListener('click', function () {
+    '</div></div></div>');
+  $('updateGo').addEventListener('click', function () {
     var started = false;
     if (apkUrl) {
       try {
         var b = getNativeBridge();
         if (b && b.invokeModule('GPS', 'installApk', [apkUrl, '晴暖天气 v' + version], function () { }) === 'ok') {
           started = true;
-          modal.remove();
+          mountHTML('updateMount', '');
           showNotice('已开始下载 v' + version + ' 更新包，完成后请在通知栏点击安装');
         }
       } catch (e) { }
@@ -1223,65 +1224,27 @@ function showUpdateDialog(version, notes, url, apkUrl) {
       try { window.location.href = url; } catch (e2) { }
     }
   });
-  modal.querySelector('#updateLater').addEventListener('click', function () { modal.remove(); });
-}
-
-function toggleCyConfig() {
-  if (state.source === 'caiyun') showEl($('cyConfig'), 'block');
-  else hideEl($('cyConfig'));
+  $('updateLater').addEventListener('click', function () { mountHTML('updateMount', ''); });
 }
 
 /* ================= 初始化 ================= */
 document.addEventListener('DOMContentLoaded', function () {
   loadState();
   applyFontSize();
-
-  /* 全局输入探针：任何触摸/点击都留痕到 logcat */
-  ['touchstart', 'pointerdown', 'click'].forEach(function (t) {
-    document.addEventListener(t, function (e) {
-      var tg = e.target && e.target.id ? e.target.id : ((e.target && e.target.tagName) || '?');
-      console.log('[CWJS] doc-' + t + ' -> ' + tg);
-    }, true);
-  });
-
-  /* 双事件去重绑定（click + touchend，400ms 窗口内只触发一次） */
   var lastFire = 0;
   function onTap(el, fn) {
-    if (!el) { console.log('[CWJS] onTap bind NULL'); return; }
+    if (!el) return;
     ['click', 'touchend'].forEach(function (t) {
       el.addEventListener(t, function (e) {
-        console.log('[CWJS] onTap ' + el.id + ' ' + t);
         if (t === 'touchend' && e.cancelable) e.preventDefault();
         var now = Date.now(); if (now - lastFire < 400) return; lastFire = now;
         fn();
       });
     });
   }
-
   onTap($('refreshBtn'), fullRefresh);
-  onTap($('settingsBtn'), function () {
-    openOverlay($('settingsModal'));
-    syncSettingsUI();
-    console.log('[CWJS] settings modal shown, hidden=' + $('settingsModal').className);
-  });
-  onTap($('settingsClose'), function () { hideEl($('settingsModal')); });
-  onTap($('searchClose'), function () { hideEl($('searchModal')); });
-  onTap($('cascClose'), function () { hideEl($('cascadeModal')); });
-  $('cascBack').addEventListener('click', function () { if (cascLevel === 'city') openCascade(); });
-  $('cascList').addEventListener('click', function (ev) {
-    var node = ev.target;
-    while (node && node !== this && !(node.tagName === 'LI' && node.getAttribute('data-code'))) node = node.parentNode;
-    if (!node || node === this) return;
-    var code = node.getAttribute('data-code'), name = node.getAttribute('data-name');
-    if (cascLevel === 'province') cascPickProvince(code, name); else cascPickCity(code, name);
-  });
-  $('rainTipCard').addEventListener('click', function () {
-    try { $('rainBlock').scrollIntoView({ behavior: 'smooth' }); } catch (e) { }
-  });
-  $('searchInput').addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') doSearch(this.value.trim());
-  });
-
+  onTap($('settingsBtn'), openSettings);
+  /* WebF 部分版本不会替 radio 的 label 转发点击。 */
   document.body.addEventListener('click', function (ev) {
     var node = ev.target, row = null;
     while (node && node !== document.body) {
@@ -1296,7 +1259,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var nm = inp.name, val = inp.value;
         var rs = document.querySelectorAll('input[name="' + nm + '"]');
         for (var i = 0; i < rs.length; i++) rs[i].checked = (rs[i] === inp);
-        if (nm === 'src') { state.source = val; saveState(); toggleCyConfig(); fullRefresh(); }
+        if (nm === 'src') { state.source = val; saveState(); openSettings(); fullRefresh(); }
         else if (nm === 'cymode') { state.cyMode = val; saveState(); }
         else if (nm === 'font') { state.fontSize = val; applyFontSize(); saveState(); }
         else if (nm === 'refresh') { state.refreshInterval = val; saveState(); armAutoRefresh(); }
@@ -1304,47 +1267,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  bindRadioGroup('src', function (v) { state.source = v; saveState(); toggleCyConfig(); fullRefresh(); });
-  bindRadioGroup('cymode', function (v) { state.cyMode = v; saveState(); });
-  bindRadioGroup('font', function (v) { state.fontSize = v; applyFontSize(); saveState(); });
-  bindRadioGroup('refresh', function (v) { state.refreshInterval = v; saveState(); armAutoRefresh(); });
-  $('cyToken').addEventListener('input', function () { state.cyToken = this.value.trim(); saveState(); });
-  $('cyKey').addEventListener('input', function () { state.cyKey = this.value.trim(); saveState(); });
-  $('cySecret').addEventListener('input', function () { state.cySecret = this.value.trim(); saveState(); });
-  $('cyExt').addEventListener('change', function () { state.cyExt = this.checked; saveState(); });
-  $('cyDays').addEventListener('change', function () { state.cyDays = this.value; saveState(); });
-  $('useGps').addEventListener('change', function () { state.useGps = this.checked; saveState(); });
-  $('autoCheckUpdate').addEventListener('change', function () { state.autoCheckUpdate = this.checked; saveState(); });
-  $('manualCheckUpdate').addEventListener('click', function () { checkUpdate(true); });
-
-  $('appVersion').textContent = 'v' + APP_VERSION;
-
-  var cityEntry = document.createElement('div');
-  cityEntry.className = 'city-entry';
-  cityEntry.innerHTML = '<span>当前城市：<b id="cityEntryName">' + state.city + '</b></span><span class="go">搜索更改 ›</span>';
-  cityEntry.addEventListener('click', function () {
-    openOverlay($('searchModal'));
-    $('searchResults').innerHTML = '<li class="empty-tip">输入城市名搜索</li>';
-    setTimeout(function () { $('searchInput').focus(); }, 50);
-  });
-  var cascEntry = document.createElement('div');
-  cascEntry.className = 'city-entry';
-  cascEntry.innerHTML = '<span>省市级联选择（中国气象局）</span><span class="go">选择 ›</span>';
-  cascEntry.addEventListener('click', function () { openCascade(); });
-  var smEl = $('settingsModal');
-  if (smEl && !smEl.parentNode) document.body.appendChild(smEl);
-  var body = document.querySelector('.settings-body') || (smEl && smEl.querySelector('.settings-body'));
-  body.insertBefore(cascEntry, body.firstChild);
-  body.insertBefore(cityEntry, cascEntry);
-
   if (state.autoCheckUpdate) checkUpdate(false);
-
   dtrace('init: calling fullRefresh src=' + state.source);
   fullRefresh();
-
-  /* 全部绑定完成后，最后再摘除浮层与条件卡（监听器随节点保留，showEl 挂载时恢复） */
-  ['refreshOverlay', 'warnCard', 'settingsModal', 'cascadeModal', 'searchModal', 'yesterdayCard', 'rainTipCard'].forEach(function (id) {
-    var el = document.getElementById(id);
-    if (el && el.parentNode) hideEl(el);
-  });
 });

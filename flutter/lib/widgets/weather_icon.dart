@@ -18,15 +18,15 @@ class WeatherIcon extends StatelessWidget {
   }
 
   String _getIconPath(String c) {
-    if (c.contains('雷')) return 'assets/icons/thunder.svg';
-    if (c.contains('阵雨')) return 'assets/icons/rain.svg';
-    if (c.contains('雨')) return 'assets/icons/rain.svg';
-    if (c.contains('雪')) return 'assets/icons/snow.svg';
-    if (c.contains('雾')) return 'assets/icons/fog.svg';
-    if (c.contains('阴')) return 'assets/icons/cloud.svg';
-    if (c.contains('多云') || c.contains('晴朗')) return 'assets/icons/partly_cloudy.svg';
-    if (c.contains('晴')) return 'assets/icons/sun.svg';
-    return 'assets/icons/cloud.svg';
+    if (c.contains('雷')) return 'assets/meteocons/thunderstorms.svg';
+    if (c.contains('雨夹雪')) return 'assets/meteocons/sleet.svg';
+    if (c.contains('雨')) return 'assets/meteocons/rain.svg';
+    if (c.contains('雪')) return 'assets/meteocons/snow.svg';
+    if (c.contains('雾') || c.contains('霾')) return 'assets/meteocons/fog.svg';
+    if (c.contains('阴')) return 'assets/meteocons/overcast.svg';
+    if (c.contains('多云') || c.contains('晴朗')) return 'assets/meteocons/partly-cloudy-day.svg';
+    if (c.contains('晴')) return 'assets/meteocons/clear-day.svg';
+    return 'assets/meteocons/overcast.svg';
   }
 
   String _getEmoji(String c) {

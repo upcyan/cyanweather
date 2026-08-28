@@ -7,9 +7,13 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Looper
+import android.graphics.Color
+import android.os.Build
 import android.util.JsonWriter
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -44,6 +48,14 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         trace(this, "onCreate")
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.isNavigationBarContrastEnforced = false
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         // 全新安装时权限被清空：主动弹授权
         if (!hasLocationPermission()) {
             ActivityCompat.requestPermissions(this,
@@ -82,6 +94,27 @@ class MainActivity : FlutterActivity() {
                 Thread { resolveLocation(result) }.start()
             } else if (call.method == "cached") {
                 result.success(latestFix)
+            } else if (call.method == "openAppSettings") {
+                // 跳转本应用系统设置页（用于「永久拒绝」后的授权引导）
+                try {
+                    val i = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        android.net.Uri.fromParts("package", packageName, null))
+                    i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(i)
+                    result.success("ok")
+                } catch (e: Exception) {
+                    result.error("error", e.message ?: "无法打开设置", null)
+                }
+            } else if (call.method == "openLocationSettings") {
+                // 跳转系统位置信息开关页
+                try {
+                    val i = android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                    i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(i)
+                    result.success("ok")
+                } catch (e: Exception) {
+                    result.error("error", e.message ?: "无法打开设置", null)
+                }
             } else if (call.method == "installApk") {
                 // 应用内更新：交给系统 DownloadManager 下载，完成后通知栏点击安装
                 val url = call.argument<String>("url")

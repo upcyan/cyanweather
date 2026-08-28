@@ -2,10 +2,10 @@
 import 'dart:developer' as dev;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
+import '../models/weather_model.dart';
 
 /// 发布版可靠的日志通道（developer.log 不会被剥除）
 void _log(String s) => dev.log(s, name: 'CW');
-import '../models/weather_model.dart';
 
 class ApiService {
   static const _openMeteoBase = 'https://api.open-meteo.com/v1';

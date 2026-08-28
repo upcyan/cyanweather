@@ -18,18 +18,11 @@
     </header>
 
     <main id="content" class="error-mode-hidden-by-default">
-      <div id="errorBox" class="error-box hidden"></div>
+      <div id="errorBox"></div>
       <div id="noticeBox"></div>
-      <div class="warn-card hidden" id="warnCard"></div>
-      <div class="notice-card hidden" id="minutelyCard"></div>
-
-      <!-- 刷新遮罩 -->
-      <div class="refresh-overlay hidden" id="refreshOverlay">
-        <div class="overlay-box">
-          <div class="spinner"></div>
-          <div class="overlay-text">正在刷新天气…</div>
-        </div>
-      </div>
+      <!-- 以下均为常驻挂载点：内容由 JS 以 innerHTML 注入/清空（webf 渲染可靠通道） -->
+      <div id="warnMount"></div>
+      <div id="minutelyMount"></div>
 
       <!-- 主天气卡片 -->
       <section class="main-card card" id="mainCard">
@@ -57,6 +50,10 @@
           </div>
         </div>
       </section>
+
+      <!-- 降雨提醒与趋势：紧随当前天气卡，点击后原位展开 -->
+      <div id="rainTipMount"></div>
+      <div id="rainBlockMount"></div>
 
       <!-- 日出日落 -->
       <section class="sun-card card" id="sunCard">
@@ -90,13 +87,6 @@
         </div>
       </section>
 
-      <!-- 降雨提醒卡 -->
-      <section class="rain-tip-card card hidden" id="rainTipCard">
-        <span class="rain-tip-icon">🌂</span>
-        <span class="rain-tip-text" id="rainTipText"></span>
-        <span class="rain-tip-action">查看降雨趋势 ›</span>
-      </section>
-
       <!-- 逐小时预报 -->
       <section class="block">
         <h3 id="hourlyLabel">未来48小时逐时预报</h3>
@@ -109,26 +99,10 @@
         <div class="daily" id="daily"></div>
       </section>
 
-      <!-- 昨日天气 -->
+      <!-- 昨日天气（挂载点） -->
       <section class="block">
         <h3>昨日天气</h3>
-        <div class="yesterday card hidden" id="yesterdayCard">
-          <div class="yesterday-row">
-            <span class="yesterday-label">昨日最高</span>
-            <span class="yesterday-value yesterday-high" id="yestHigh">--</span>
-          </div>
-          <div class="yesterday-row">
-            <span class="yesterday-label">昨日最低</span>
-            <span class="yesterday-value yesterday-low" id="yestLow">--</span>
-          </div>
-          <div class="yest-hourly scroll-x" id="yestHourly"></div>
-        </div>
-      </section>
-
-      <!-- 降雨趋势 -->
-      <section class="block hidden" id="rainBlock">
-        <h3>降雨趋势（未来24小时）</h3>
-        <div class="rain scroll-x" id="rain"></div>
+        <div id="yesterdayMount"></div>
       </section>
 
       <!-- 数据来源底部 -->
@@ -136,160 +110,14 @@
     </main>
   </div>
 
-  <!-- 省市级联弹层（中国气象局） -->
-  <div class="modal hidden" id="cascadeModal">
-    <div class="modal-box">
-      <div class="setting-card" style="margin:14px">
-        <b id="cascTitle">选择省份</b>
-        <div id="cascList" class="casc-list"></div>
-        <button class="check-update-btn" id="cascBack"><span style="text-align:center;width:100%">返回上级</span></button>
-        <button class="check-update-btn" id="cascClose"><span style="text-align:center;width:100%">关闭</span></button>
-      </div>
-    </div>
-  </div>
+  <!-- 弹层挂载点：内容（含 .modal 结构）由 JS 注入 -->
+  <div id="cascadeMount"></div>
+  <div id="searchMount"></div>
+  <div id="settingsMount"></div>
+  <div id="updateMount"></div>
 
-  <!-- 城市搜索弹层 -->
-  <div class="modal hidden" id="searchModal">
-    <div class="modal-box">
-      <div class="modal-head">
-        <input id="searchInput" placeholder="输入城市名，如：北京 / 上海 / 杭州" autocomplete="off" />
-        <button id="searchClose" class="icon-btn">✕</button>
-      </div>
-      <ul id="searchResults" class="results"></ul>
-    </div>
-  </div>
-
-  <!-- 设置弹层 -->
-  <div class="modal hidden" id="settingsModal">
-    <div class="modal-box">
-      <div class="modal-head">
-        <b>设置</b>
-        <button id="settingsClose" class="icon-btn">✕</button>
-      </div>
-      <div class="settings-body">
-        <!-- 数据源 -->
-        <div class="setting-card">
-          <b>天气数据源</b>
-          <div class="radio-row">
-            <input type="radio" name="src" id="srcOpenMeteo" value="openmeteo" checked />
-            <label for="srcOpenMeteo">Open-Meteo</label>
-            <span class="radio-hint">免费开放源，最长15天预报+紫外线+降水概率，按定位获取</span>
-          </div>
-          <div class="radio-row">
-            <input type="radio" name="src" id="srcNmc" value="nmc" />
-            <label for="srcNmc">中国气象局</label>
-            <span class="radio-hint">中央气象台，免费无需密钥，支持县区级，含昨日天气与预警</span>
-          </div>
-          <div class="radio-row">
-            <input type="radio" name="src" id="srcCaiyun" value="caiyun" />
-            <label for="srcCaiyun">彩云天气</label>
-            <span class="radio-hint">分钟级降水/实时空气质量，需在下方填写凭据</span>
-          </div>
-          <div id="cyConfig" class="hidden" style="margin-top:8px">
-            <div class="radio-row"><input type="radio" name="cymode" id="cymV1" value="v1" checked /><label for="cymV1">个人版 Token (v1)</label></div>
-            <div class="radio-row"><input type="radio" name="cymode" id="cymV3" value="v3" /><label for="cymV3">专业版 Key/Secret (v3)</label></div>
-            <input type="text" id="cyToken" placeholder="彩云 Token (v1)" class="text-input" />
-            <input type="text" id="cyKey" placeholder="AppKey (v3)" class="text-input" />
-            <input type="password" id="cySecret" placeholder="AppSecret (v3)" class="text-input" />
-            <div class="switch-row"><span>扩展多日预报（含昨日）</span><input type="checkbox" id="cyExt" /></div>
-            <select id="cyDays" class="text-input"><option value="7">扩展 7 天</option><option value="15" selected>扩展 15 天</option><option value="30">扩展 30 天</option></select>
-          </div>
-        </div>
-
-        <!-- 字号 -->
-        <div class="setting-card">
-          <b>字体大小</b>
-          <div class="radio-row">
-            <input type="radio" name="font" id="fontStandard" value="standard" />
-            <label for="fontStandard">标准</label>
-          </div>
-          <div class="radio-row">
-            <input type="radio" name="font" id="fontLarge" value="large" checked />
-            <label for="fontLarge">大 <span class="badge">推荐</span></label>
-          </div>
-          <div class="radio-row">
-            <input type="radio" name="font" id="fontXLarge" value="xlarge" />
-            <label for="fontXLarge">特大</label>
-          </div>
-        </div>
-
-        <!-- 自动定位 -->
-        <div class="setting-card">
-          <label class="switch-row">
-            <span class="switch-label">
-              <b>使用自动定位</b>
-              <span class="switch-hint">Open-Meteo 按定位获取；需要定位权限</span>
-            </span>
-            <input type="checkbox" id="useGps" checked />
-          </label>
-        </div>
-
-        <!-- 自动刷新 -->
-        <div class="setting-card">
-          <b>自动刷新</b>
-          <div class="radio-row">
-            <input type="radio" name="refresh" id="refOff" value="off" />
-            <label for="refOff">关闭</label>
-          </div>
-          <div class="radio-row">
-            <input type="radio" name="refresh" id="refResume" value="on_resume" />
-            <label for="refResume">每次进入App</label>
-          </div>
-          <div class="radio-row">
-            <input type="radio" name="refresh" id="ref10" value="10" />
-            <label for="ref10">每 10 分钟</label>
-          </div>
-          <div class="radio-row">
-            <input type="radio" name="refresh" id="ref30" value="30" checked />
-            <label for="ref30">每 30 分钟 <span class="badge">推荐</span></label>
-          </div>
-          <div class="radio-row">
-            <input type="radio" name="refresh" id="ref60" value="60" />
-            <label for="ref60">每 60 分钟</label>
-          </div>
-          <div class="radio-row">
-            <input type="radio" name="refresh" id="ref360" value="360" />
-            <label for="ref360">每 6 小时</label>
-          </div>
-          <div class="radio-row">
-            <input type="radio" name="refresh" id="ref720" value="720" />
-            <label for="ref720">每 12 小时</label>
-          </div>
-          <div class="radio-row">
-            <input type="radio" name="refresh" id="ref1440" value="1440" />
-            <label for="ref1440">每 24 小时</label>
-          </div>
-        </div>
-
-        <!-- 检查更新 -->
-        <div class="setting-card">
-          <label class="switch-row">
-            <span class="switch-label">
-              <b>自动检查更新</b>
-              <span class="switch-hint">进入App时检查GitHub是否有新版本</span>
-            </span>
-            <input type="checkbox" id="autoCheckUpdate" checked />
-          </label>
-        </div>
-        <div class="setting-card">
-          <button id="manualCheckUpdate" class="check-update-btn">
-            <span>手动检查更新</span>
-            <span class="check-update-action">检查 ›</span>
-          </button>
-        </div>
-
-        <!-- 关于 -->
-        <div class="setting-card about-card">
-          <div class="about-title">
-            <b>关于</b>
-            <span class="version" id="appVersion"></span>
-          </div>
-          <div class="about-text">晴暖天气：为长辈设计的简洁大字天气应用。</div>
-          <div class="about-text">数据来源：中央气象台 / 彩云天气 / Open-Meteo</div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- 全局刷新遮罩（body 级，覆盖含顶栏的整屏；内容由 JS 注入） -->
+  <div id="refreshMount"></div>
 
   <script src="app.js"></script>
 </body>

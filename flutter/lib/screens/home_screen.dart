@@ -36,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _useGps = true;
   String? _locationNotice;
   bool _locationServiceDisabled = false;
+  bool _permissionDenied = false;
   double get _fs =>
       {'standard': 1.0, 'large': 1.3, 'xlarge': 1.6}[_fontSize] ?? 1.3;
 
@@ -155,6 +156,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         setState(() {
           _locationNotice = '定位服务未开启，当前显示默认城市北京';
           _locationServiceDisabled = true;
+          _permissionDenied = false;
         });
       return;
     }
@@ -168,6 +170,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         setState(() {
           _locationNotice = '未获取定位权限，请手动选择城市；当前默认显示北京天气';
           _locationServiceDisabled = false;
+          _permissionDenied = true;
         });
       return;
     }
@@ -203,6 +206,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _cityCode = '';
         _locationNotice = null;
         _locationServiceDisabled = false;
+        _permissionDenied = false;
       });
     // GPS：自动解析气象站代码（open-meteo 空气质量兜底也需要）
     if (_useGps) {
@@ -328,28 +332,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             nmcStationId: _cityCode, resolveStation: _stationResolver);
         try {
           final g = await ApiService.reverseGeocode(_lat, _lng);
-          if (g.isNotEmpty)
-            w = WeatherData(
-                cityName: _simp(g),
-                condition: w.condition,
-                temperature: w.temperature,
-                feelsLike: w.feelsLike,
-                todayHigh: w.todayHigh,
-                todayLow: w.todayLow,
-                humidity: w.humidity,
-                windDirect: w.windDirect,
-                windPower: w.windPower,
-                sunrise: w.sunrise,
-                sunset: w.sunset,
-                uvIndex: w.uvIndex,
-                minutelyText: w.minutelyText,
-                sourceTag: w.sourceTag,
-                warning: w.warning,
-                updatedAt: w.updatedAt,
-                hourlyLabel: w.hourlyLabel,
-                yesterday: w.yesterday,
-                hourly: w.hourly,
-                daily: w.daily);
+          if (g.isNotEmpty) {
+            // 只改城市名；此前手工重建 WeatherData 曾漏掉 aqi/aqiText 导致界面显示「-」
+            w = w.copyWith(cityName: _simp(g));
+          }
         } catch (_) {}
       }
       _fetching = false;
@@ -802,6 +788,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               await Geolocator.openLocationSettings();
                             },
                             child: Text('去开启定位 ›',
+                                style: TextStyle(
+                                    fontSize: 15 * _fs,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF0B6BCB))))),
+                  if (_permissionDenied)
+                    Padding(
+                        padding: EdgeInsets.only(top: 6 * _fs),
+                        child: GestureDetector(
+                            onTap: () async {
+                              await Geolocator.openAppSettings();
+                            },
+                            child: Text('去授权定位 ›',
                                 style: TextStyle(
                                     fontSize: 15 * _fs,
                                     fontWeight: FontWeight.bold,

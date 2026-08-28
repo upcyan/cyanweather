@@ -207,6 +207,22 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
                             context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                         }
                     )
+                } else if (locationNotice.startsWith("未获取定位权限")) {
+                    // 权限被拒（含永久拒绝）：引导到应用详情页手动授权
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "去授权定位 ›",
+                        style = fst(18, FontWeight.Bold),
+                        color = Color(0xFF0B6BCB),
+                        modifier = Modifier.clickable {
+                            try {
+                                val i = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                i.data = android.net.Uri.fromParts("package", context.packageName, null)
+                                context.startActivity(i)
+                            } catch (_: Exception) {
+                            }
+                        }
+                    )
                 }
             }
         }

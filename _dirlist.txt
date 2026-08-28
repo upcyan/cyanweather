@@ -1,0 +1,55 @@
+﻿
+
+    目录: E:\project\cyanweather
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+d-----         2026/8/25     10:39                .appdata                                                             
+d-----         2026/8/25     13:18                .dsh-vision-router                                                   
+d-----         2026/8/18     19:33                .github                                                              
+d-----         2026/8/18     12:40                .gradle                                                              
+d-----         2026/8/21     16:01                .gradle-agent                                                        
+d-----         2026/8/19     10:15                .hvigor                                                              
+d-----         2026/8/19     10:14                .idea                                                                
+d-----         2026/8/18     12:47                .kotlin                                                              
+d-----         2026/8/19      8:17                .opencode                                                            
+d-----         2026/8/24     18:16                .tools                                                               
+d-----         2026/8/25     17:12                app                                                                  
+d-----         2026/8/25     19:30                capacitor                                                            
+d-----         2026/8/22     11:38                dist                                                                 
+d-----         2026/8/27     12:23                dsh-usage                                                            
+d-----         2026/8/25     17:31                flutter                                                              
+d-----         2026/8/24     10:09                flutter347                                                           
+d-----         2026/8/18     12:40                gradle                                                               
+d-----         2026/8/22     13:45                harmony                                                              
+d-----         2026/8/22     14:04                keystore                                                             
+d-----         2026/8/22     12:39                shared                                                               
+d-----         2026/8/25     17:12                webf                                                                 
+d-----         2026/8/27     10:15                _screenshots                                                         
+-a----         2026/8/25     16:58           6948 .build_flutter.log                                                   
+-a----         2026/8/27     10:04           1696 .build_flutter_rel.log                                               
+-a----         2026/8/25     16:58          10416 .build_native.log                                                    
+-a----         2026/8/25     17:13          15420 .build_native_rel.log                                                
+-a----         2026/8/25     16:58           7436 .build_webf.log                                                      
+-a----         2026/8/27     10:11           1696 .build_webf_rel.log                                                  
+-a----         2026/8/25     10:33              0 .fv2.txt                                                             
+-a----         2026/8/25     10:38           4052 .fv3.txt                                                             
+-a----         2026/8/25     10:39           1664 .fv4.txt                                                             
+-a----         2026/8/25     19:36           1078 .gitignore                                                           
+-a----         2026/8/18     10:13            297 build.gradle.kts                                                     
+-a----         2026/8/19     14:53           5298 build.log                                                            
+-a----         2026/8/19      8:17            224 gradle.properties                                                    
+-a----         2026/8/18     12:40           8762 gradlew                                                              
+-a----         2026/8/18     12:40           2966 gradlew.bat                                                          
+-a----         2026/8/21     22:06            131 keystore.properties                                                  
+-a----         2026/8/22     14:07           3696 keystore_base64.txt                                                  
+-a----         2026/8/18     12:39             63 local.properties                                                     
+-a----         2026/8/25     10:29            100 projectcyanweather.fv.txt                                            
+-a----         2026/8/25     19:33           7396 README.md                                                            
+-a----         2026/8/19      8:17           1132 settings.gradle.kts                                                  
+-a----         2026/8/18     12:44            372 wrapper.log                                                          
+-a----         2026/8/22     14:29       10636121 _backup_full.bundle                                                  
+-a----         2026/8/27     12:23              0 _dirlist.txt                                                         
+
+

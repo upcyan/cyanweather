@@ -1,7 +1,7 @@
 name: cyanweather_flutter
 description: "晴暖天气 Flutter版"
 publish_to: 'none'
-version: 1.2.1+4
+version: 1.2.0+3
 
 environment:
   sdk: ^3.5.4
@@ -25,3 +25,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icons/
+    - assets/meteocons/
