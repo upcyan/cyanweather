@@ -16,11 +16,14 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 data class AppSettings(
-    val source: String = "openmeteo",
+    val source: String = "nmc",
+    val weatherSources: List<String> = listOf("nmc", "openmeteo"),
     val caiyunMode: String = "v1",
     val caiyunToken: String = "",
     val caiyunV3Key: String = "",
     val caiyunV3Secret: String = "",
+    val qweatherHost: String = "",
+    val qweatherKey: String = "",
     val cityName: String = "北京",
     val cityCode: String = "",
     val manualCity: Boolean = false,
@@ -39,11 +42,14 @@ private val Context.dataStore by preferencesDataStore(name = "settings")
 
 object SettingsStore {
     private val KEY_SOURCE = stringPreferencesKey("source")
+    private val KEY_WEATHER_SOURCES = stringPreferencesKey("weather_sources")
     private val KEY_CAIYUN_MODE = stringPreferencesKey("caiyun_mode")
     private val KEY_CAIYUN_ENABLED = booleanPreferencesKey("caiyun_enabled")
     private val KEY_TOKEN = stringPreferencesKey("caiyun_token")
     private val KEY_CAIYUN_V3_KEY = stringPreferencesKey("caiyun_v3_key")
     private val KEY_CAIYUN_V3_SECRET = stringPreferencesKey("caiyun_v3_secret")
+    private val KEY_QWEATHER_HOST = stringPreferencesKey("qweather_host")
+    private val KEY_QWEATHER_KEY = stringPreferencesKey("qweather_key")
     private val KEY_CITY_NAME = stringPreferencesKey("city_name")
     private val KEY_CITY_CODE = stringPreferencesKey("city_code")
     private val KEY_MANUAL_CITY = booleanPreferencesKey("manual_city")
@@ -63,12 +69,19 @@ object SettingsStore {
     private val json = Json { ignoreUnknownKeys = true }
 
     fun flow(context: Context): Flow<AppSettings> = context.dataStore.data.map { p ->
+        val legacySource = p[KEY_SOURCE] ?: "nmc"
+        val sources = p[KEY_WEATHER_SOURCES]?.split(',')?.filter { it.isNotBlank() }?.distinct().orEmpty()
         AppSettings(
-            source = p[KEY_SOURCE] ?: "openmeteo",
+            source = legacySource,
+            weatherSources = sources.ifEmpty {
+                if (p[KEY_SOURCE] == null) listOf("nmc", "openmeteo") else listOf(legacySource)
+            },
             caiyunMode = p[KEY_CAIYUN_MODE] ?: if (p[KEY_CAIYUN_ENABLED] == true) "v1" else "v1",
             caiyunToken = p[KEY_TOKEN] ?: "",
             caiyunV3Key = p[KEY_CAIYUN_V3_KEY] ?: "",
             caiyunV3Secret = p[KEY_CAIYUN_V3_SECRET] ?: "",
+            qweatherHost = p[KEY_QWEATHER_HOST] ?: "",
+            qweatherKey = p[KEY_QWEATHER_KEY] ?: "",
             cityName = p[KEY_CITY_NAME] ?: "北京",
             cityCode = p[KEY_CITY_CODE] ?: "",
             manualCity = p[KEY_MANUAL_CITY] ?: false,
@@ -86,6 +99,12 @@ object SettingsStore {
 
     suspend fun setSource(context: Context, v: String) = context.dataStore.edit { it[KEY_SOURCE] = v }
 
+    suspend fun setWeatherSources(context: Context, values: List<String>) = context.dataStore.edit {
+        val normalized = values.filter { it.isNotBlank() }.distinct()
+        it[KEY_WEATHER_SOURCES] = normalized.joinToString(",")
+        if (normalized.isNotEmpty()) it[KEY_SOURCE] = normalized.first()
+    }
+
     suspend fun setCaiyunMode(context: Context, v: String) =
         context.dataStore.edit { it[KEY_CAIYUN_MODE] = v }
 
@@ -96,6 +115,12 @@ object SettingsStore {
 
     suspend fun setCaiyunV3Secret(context: Context, v: String) =
         context.dataStore.edit { it[KEY_CAIYUN_V3_SECRET] = v }
+
+    suspend fun setQWeatherHost(context: Context, v: String) =
+        context.dataStore.edit { it[KEY_QWEATHER_HOST] = v }
+
+    suspend fun setQWeatherKey(context: Context, v: String) =
+        context.dataStore.edit { it[KEY_QWEATHER_KEY] = v }
 
     suspend fun setCity(context: Context, name: String, code: String, manual: Boolean) =
         context.dataStore.edit { it[KEY_CITY_NAME] = name; it[KEY_CITY_CODE] = code; it[KEY_MANUAL_CITY] = manual }

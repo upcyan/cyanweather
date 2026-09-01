@@ -19,8 +19,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -50,10 +54,13 @@ fun SettingsScreen(
     settings: AppSettings,
     onBack: () -> Unit,
     onSource: (String) -> Unit,
+    onWeatherSources: (List<String>) -> Unit,
     onCaiyunMode: (String) -> Unit,
     onToken: (String) -> Unit,
     onCaiyunV3Key: (String) -> Unit,
     onCaiyunV3Secret: (String) -> Unit,
+    onQWeatherHost: (String) -> Unit,
+    onQWeatherKey: (String) -> Unit,
     onFont: (String) -> Unit,
     onRefreshInterval: (String) -> Unit,
     onExtendedForecast: (Boolean) -> Unit,
@@ -82,64 +89,106 @@ fun SettingsScreen(
 
         // 数据源
         SettingCard {
-            Text("天气数据源", style = fst(24), fontWeight = FontWeight.Bold)
+            Text("天气数据源与优先级", style = fst(24), fontWeight = FontWeight.Bold)
+            Text("勾选多个来源；越靠上优先级越高，后续来源负责补全与回退。", style = fst(16), color = Color(0xFF666666))
             Spacer(Modifier.height(6.dp))
-            RadioRow("中国气象局", "中央气象台，免费无需密钥，支持县区级，含昨日天气", settings.source == "nmc", onSource, "nmc")
-            RadioRow("Open-Meteo", "免费开放源，最长15天预报+紫外线+降水概率，按定位获取", settings.source == "openmeteo", onSource, "openmeteo")
-            RadioRow("彩云天气", "实时精准，分钟级预报，按定位获取，需凭证", settings.source == "caiyun", onSource, "caiyun")
-            if (settings.source == "caiyun") {
-                Spacer(Modifier.height(8.dp))
-                Text("接入方式", style = fst(18), fontWeight = FontWeight.Bold, color = Color(0xFF666666))
-                RadioRow("V1：Token 接入", "免费版，3天预报，Token 在 URL 中", settings.caiyunMode == "v1", onCaiyunMode, "v1")
-                RadioRow("V3：AppKey + AppSecret 接入", "开放平台凭证，签名鉴权", settings.caiyunMode == "v3", onCaiyunMode, "v3")
-                if (settings.caiyunMode == "v1") {
+            val labels = mapOf(
+                "nmc" to ("中国气象局" to "官方国内数据，默认第一优先级"),
+                "openmeteo" to ("Open-Meteo" to "免费无密钥，15天预报与全球覆盖"),
+                "caiyun" to ("彩云天气" to "分钟级降水，需凭证"),
+                "qweather" to ("和风天气" to "预警与丰富预报，需凭证"),
+                "xiaomi" to ("小米天气" to "设备本地优先，网络接口为实验性")
+            )
+            val selected = settings.weatherSources.distinct()
+            val display = selected + labels.keys.filterNot(selected::contains)
+            display.forEach { id ->
+                val info = labels.getValue(id)
+                val index = selected.indexOf(id)
+                SourcePriorityRow(id, info.first, info.second, index >= 0, index, selected.size,
+                    onToggle = { checked ->
+                        val next = if (checked) selected + id else selected - id
+                        if (next.isNotEmpty()) onWeatherSources(next)
+                    },
+                    onMove = { delta ->
+                        val target = index + delta
+                        if (index >= 0 && target in selected.indices) {
+                            val next = selected.toMutableList()
+                            val item = next.removeAt(index)
+                            next.add(target, item)
+                            onWeatherSources(next)
+                        }
+                    })
+                if (id == "qweather" && index >= 0) {
+                    Spacer(Modifier.height(4.dp))
+                    var qHost by remember(settings.qweatherHost) { mutableStateOf(settings.qweatherHost) }
+                    var qKey by remember(settings.qweatherKey) { mutableStateOf(settings.qweatherKey) }
+                    Text("和风天气凭证（紧随选项配置）", style = fst(17), fontWeight = FontWeight.Bold, color = Color(0xFF555555))
+                    OutlinedTextField(value = qHost, onValueChange = { qHost = it.trim(); onQWeatherHost(qHost) },
+                        placeholder = { Text("API Host，例如 abcxyz.qweatherapi.com", style = fst(16)) },
+                        textStyle = MaterialTheme.typography.bodyLarge, modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(6.dp))
-                    var token by remember { mutableStateOf(settings.caiyunToken) }
-                    OutlinedTextField(
-                        value = token,
-                        onValueChange = { token = it.replace(Regex("\\s"), ""); onToken(token) },
-                        placeholder = { Text("填写 V1 Token", style = fst(18)) },
-                        textStyle = MaterialTheme.typography.bodyLarge,
-                        visualTransformation = PasswordVisualTransformation(),
+                    OutlinedTextField(value = qKey, onValueChange = { qKey = it.replace(Regex("\\s"), ""); onQWeatherKey(qKey) },
+                        placeholder = { Text("API Key", style = fst(17)) }, visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text("在 dashboard.caiyunapp.com 注册获取；免费版仅 3 天预报与 48 小时逐时。", style = fst(16), color = Color(0xFF666666))
+                        textStyle = MaterialTheme.typography.bodyLarge, modifier = Modifier.fillMaxWidth())
                 }
-                if (settings.caiyunMode == "v3") {
-                    Spacer(Modifier.height(6.dp))
-                    var key by remember { mutableStateOf(settings.caiyunV3Key) }
-                    var secret by remember { mutableStateOf(settings.caiyunV3Secret) }
-                    OutlinedTextField(
-                        value = key,
-                        onValueChange = { key = it.replace(Regex("\\s"), ""); onCaiyunV3Key(key) },
-                        placeholder = { Text("填写 AppKey", style = fst(18)) },
-                        textStyle = MaterialTheme.typography.bodyLarge,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = secret,
-                        onValueChange = { secret = it.replace(Regex("\\s"), ""); onCaiyunV3Secret(secret) },
-                        placeholder = { Text("填写 AppSecret", style = fst(18)) },
-                        textStyle = MaterialTheme.typography.bodyLarge,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text("在彩云开放平台获取；使用 AppKey 与 AppSecret 生成签名访问接口。", style = fst(16), color = Color(0xFF666666))
+                if (id == "xiaomi" && index >= 0) {
+                    Text("提示：优先读取小米系统天气；其他设备使用实验性网络接口，失败后自动进入下一优先级。", style = fst(15), color = Color(0xFF8A5A00))
                 }
-                Text("凭证未填写完整时，自动使用中国气象局数据。", style = fst(16), color = Color(0xFF666666))
+                if (id == "caiyun" && index >= 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Text("接入方式", style = fst(17), fontWeight = FontWeight.Bold, color = Color(0xFF555555))
+                    RadioRow("V1：Token 接入", "免费版，3天预报，Token 在 URL 中", settings.caiyunMode == "v1", onCaiyunMode, "v1")
+                    RadioRow("V3：AppKey + AppSecret 接入", "开放平台凭证，签名鉴权", settings.caiyunMode == "v3", onCaiyunMode, "v3")
+                    if (settings.caiyunMode == "v1") {
+                        Spacer(Modifier.height(6.dp))
+                        var token by remember { mutableStateOf(settings.caiyunToken) }
+                        OutlinedTextField(
+                            value = token,
+                            onValueChange = { token = it.replace(Regex("\\s"), ""); onToken(token) },
+                            placeholder = { Text("填写 V1 Token", style = fst(18)) },
+                            textStyle = MaterialTheme.typography.bodyLarge,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text("在 dashboard.caiyunapp.com 注册获取；免费版仅 3 天预报与 48 小时逐时。", style = fst(16), color = Color(0xFF666666))
+                    }
+                    if (settings.caiyunMode == "v3") {
+                        Spacer(Modifier.height(6.dp))
+                        var key by remember { mutableStateOf(settings.caiyunV3Key) }
+                        var secret by remember { mutableStateOf(settings.caiyunV3Secret) }
+                        OutlinedTextField(
+                            value = key,
+                            onValueChange = { key = it.replace(Regex("\\s"), ""); onCaiyunV3Key(key) },
+                            placeholder = { Text("填写 AppKey", style = fst(18)) },
+                            textStyle = MaterialTheme.typography.bodyLarge,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = secret,
+                            onValueChange = { secret = it.replace(Regex("\\s"), ""); onCaiyunV3Secret(secret) },
+                            placeholder = { Text("填写 AppSecret", style = fst(18)) },
+                            textStyle = MaterialTheme.typography.bodyLarge,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text("在彩云开放平台获取；使用 AppKey 与 AppSecret 生成签名访问接口。", style = fst(16), color = Color(0xFF666666))
+                    }
+                    Text("凭证未填写完整时，自动使用中国气象局数据。", style = fst(16), color = Color(0xFF666666))
+                }
             }
         }
 
         // 扩展多日预报（仅彩云天气凭证已填写时）
-        if (settings.source == "caiyun" && settings.caiyunMode == "v1" && settings.caiyunToken.isNotBlank() ||
-            settings.source == "caiyun" && settings.caiyunMode == "v3" && settings.caiyunV3Key.isNotBlank()) {
+        if ("caiyun" in settings.weatherSources && settings.caiyunMode == "v1" && settings.caiyunToken.isNotBlank() ||
+            "caiyun" in settings.weatherSources && settings.caiyunMode == "v3" && settings.caiyunV3Key.isNotBlank()) {
             SettingCard {
                 SwitchRow(
                     "扩展多日预报",
@@ -183,7 +232,7 @@ fun SettingsScreen(
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                if (settings.source == "openmeteo" || settings.source == "caiyun") "该数据源使用定位获取，无需选择城市。"
+                if (settings.source in listOf("openmeteo", "caiyun", "qweather", "smart")) "该数据源使用定位获取，无需选择城市。"
                 else "支持省份 → 城市 / 区县 两级选择。",
                 style = fst(16),
                 color = Color(0xFF666666)
@@ -201,7 +250,7 @@ fun SettingsScreen(
 
         // 自动定位
         SettingCard {
-            SwitchRow("使用自动定位", "彩云与 Open-Meteo 按定位获取；需要定位权限", settings.useGps, onUseGps)
+            SwitchRow("使用自动定位", "智能组合、彩云、和风与 Open-Meteo 按定位获取；需要定位权限", settings.useGps, onUseGps)
         }
 
         // 自动刷新
@@ -253,7 +302,7 @@ fun SettingsScreen(
             }
             Spacer(Modifier.height(8.dp))
             Text("晴暖天气：为长辈设计的简洁大字天气应用。", style = fst(18), color = Color(0xFF666666))
-            Text("数据来源：中央气象台 / 彩云天气 / Open-Meteo", style = fst(18), color = Color(0xFF666666))
+            Text("数据来源：中央气象台 / 彩云天气 / 和风天气 / Open-Meteo / 小米天气", style = fst(18), color = Color(0xFF666666))
         }
         Spacer(Modifier.height(24.dp))
     }
@@ -266,6 +315,44 @@ private fun SettingCard(content: @Composable () -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp)
     ) {
         Column(Modifier.padding(16.dp)) { content() }
+    }
+}
+
+@Composable
+private fun SourcePriorityRow(
+    id: String,
+    label: String,
+    hint: String,
+    checked: Boolean,
+    index: Int,
+    selectedCount: Int,
+    onToggle: (Boolean) -> Unit,
+    onMove: (Int) -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(checked = checked, onCheckedChange = onToggle)
+        Column(Modifier.weight(1f)) {
+            Text(label, style = fst(21))
+            Text(hint, style = fst(15), color = Color(0xFF666666))
+        }
+        if (checked) {
+            Text("优先级 ${index + 1}", style = fst(14), color = Color(0xFF0B6BCB))
+            IconButton(
+                onClick = { onMove(-1) }, enabled = index > 0,
+                modifier = Modifier.size(38.dp)
+            ) {
+                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "上移", tint = if (index > 0) Color(0xFF0B6BCB) else Color(0xFFBDBDBD))
+            }
+            IconButton(
+                onClick = { onMove(1) }, enabled = index < selectedCount - 1,
+                modifier = Modifier.size(38.dp)
+            ) {
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "下移", tint = if (index < selectedCount - 1) Color(0xFF0B6BCB) else Color(0xFFBDBDBD))
+            }
+        }
     }
 }
 

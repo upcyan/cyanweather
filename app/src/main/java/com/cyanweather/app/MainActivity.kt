@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.graphics.Color
 import android.os.Build
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -45,7 +46,11 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = true
         }
 
-        ensureLocationPermission()
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (!vm.handleBack()) finish()
+            }
+        })
 
         setContent {
             val state by vm::ui
@@ -58,10 +63,13 @@ class MainActivity : ComponentActivity() {
                         onOpenCityPicker = vm::openCityPicker,
                         onBackFromSettings = vm::closeSettings,
                         onSource = vm::setSource,
+                        onWeatherSources = vm::setWeatherSources,
                         onCaiyunMode = vm::setCaiyunMode,
                         onToken = vm::setToken,
                         onCaiyunV3Key = vm::setCaiyunV3Key,
                         onCaiyunV3Secret = vm::setCaiyunV3Secret,
+                        onQWeatherHost = vm::setQWeatherHost,
+                        onQWeatherKey = vm::setQWeatherKey,
                         onFont = vm::setFont,
                         onRefreshInterval = vm::setRefreshInterval,
                         onExtendedForecast = vm::setExtendedForecast,
@@ -88,7 +96,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (hasLocationPermission()) vm.refresh()
+        if (vm.ui.settings.useGps) {
+            if (hasLocationPermission()) vm.refresh()
+            else ensureLocationPermission()
+        } else {
+            vm.refresh()
+        }
     }
 
     private fun ensureLocationPermission() {
@@ -115,10 +128,13 @@ private fun AppScreen(
     onOpenCityPicker: () -> Unit,
     onBackFromSettings: () -> Unit,
     onSource: (String) -> Unit,
+    onWeatherSources: (List<String>) -> Unit,
     onCaiyunMode: (String) -> Unit,
     onToken: (String) -> Unit,
     onCaiyunV3Key: (String) -> Unit,
     onCaiyunV3Secret: (String) -> Unit,
+    onQWeatherHost: (String) -> Unit,
+    onQWeatherKey: (String) -> Unit,
     onFont: (String) -> Unit,
     onRefreshInterval: (String) -> Unit,
     onExtendedForecast: (Boolean) -> Unit,
@@ -152,10 +168,13 @@ private fun AppScreen(
             settings = state.settings,
             onBack = onBackFromSettings,
             onSource = onSource,
+            onWeatherSources = onWeatherSources,
             onCaiyunMode = onCaiyunMode,
             onToken = onToken,
             onCaiyunV3Key = onCaiyunV3Key,
             onCaiyunV3Secret = onCaiyunV3Secret,
+            onQWeatherHost = onQWeatherHost,
+            onQWeatherKey = onQWeatherKey,
             onFont = onFont,
             onRefreshInterval = onRefreshInterval,
             onExtendedForecast = onExtendedForecast,

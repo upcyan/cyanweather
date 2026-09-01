@@ -62,8 +62,12 @@ object UpdateChecker {
     }
 
     private fun compareVersions(v1: String, v2: String): Int {
-        val parts1 = v1.split(".").map { it.toIntOrNull() ?: 0 }
-        val parts2 = v2.split(".").map { it.toIntOrNull() ?: 0 }
+        fun parse(v: String): List<Int> = v
+            .split("+").first()
+            .split(".")
+            .map { it.toIntOrNull() ?: 0 }
+        val parts1 = parse(v1)
+        val parts2 = parse(v2)
         val maxLen = maxOf(parts1.size, parts2.size)
         for (i in 0 until maxLen) {
             val p1 = parts1.getOrElse(i) { 0 }

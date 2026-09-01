@@ -1,5 +1,5 @@
 /* CyanWeather WebF — 数据源：Open-Meteo / 中央气象台（对齐 native app/ 版） */
-var APP_VERSION = '1.5.5';
+var APP_VERSION = '1.5.6';
 window.addEventListener('error', function (ev) { console.log('[CWJS] ERR ' + ev.message + ' @line ' + ev.lineno); });
 window.addEventListener('unhandledrejection', function (ev) { console.log('[CWJS] REJ ' + (ev.reason && ev.reason.message ? ev.reason.message : ev.reason)); });
 
@@ -271,7 +271,7 @@ function hourCardHTML(timeStr, temperature, cond, icon, rainProb) {
   var h = '<div class="hour-item">' +
     '<div class="hour-date">' + timeStr.substring(5, 10).replace('-', '/') + '</div>' +
     '<div class="hour-time">' + parseInt(timeStr.substring(11, 13), 10) + '时</div>';
-  if (icon) h += '<div class="hour-icon"><img class="meteocon" src="icons/' + iconSlug(icon) + '.svg" alt=""></div>';
+  if (icon) h += '<div class="hour-icon"><img class="meteocon" src="assets:///assets/web/icons/' + iconSlug(icon) + '.png" alt=""></div>';
   if (cond) h += '<div class="hour-cond">' + cond + '</div>';
   h += '<div class="hour-temp">' + tempStr(temperature) + '°</div>';
   if (rainProb !== undefined && rainProb !== null && rainProb > 0) {
@@ -621,7 +621,7 @@ function locateViaBridge() {
 }
 
 function paintGlyph(el, kind, px) {
-  el.innerHTML = '<img class="meteocon" src="icons/' + iconSlug(kind) + '.svg" width="' + px + '" height="' + px + '" alt="">';
+  el.innerHTML = '<img class="meteocon" src="assets:///assets/web/icons/' + iconSlug(kind) + '.png" width="' + px + '" height="' + px + '" alt="">';
 }
 function iconSlug(kind) {
   var map = { sun:'clear-day', partly:'partly-cloudy-day', cloud:'overcast', rain:'rain', thunder:'thunderstorms', snow:'snow', fog:'fog', haze:'fog', sleet:'sleet', wind:'overcast', moon:'clear-day' };
@@ -679,7 +679,7 @@ function renderWeather(w) {
     dh += '<div class="day-row">' +
       '<span class="day-name">' + dayLabelCN(dd.date) + '</span>' +
       '<div class="day-main">' +
-      (dd.icon ? '<span class="day-icon"><img class="meteocon" src="icons/' + iconSlug(dd.icon) + '.svg" width="34" height="34" alt=""></span>' : '') +
+      (dd.icon ? '<span class="day-icon"><img class="meteocon" src="assets:///assets/web/icons/' + iconSlug(dd.icon) + '.png" width="34" height="34" alt=""></span>' : '') +
       '<span class="day-cond">' + combineDayNight(dd.dayText, dd.nightText) + '</span>' +
       '<span class="day-temp"><span class="day-high">' + tempStr(dd.high) + '°</span>' +
       '<span class="day-slash">/</span>' +
@@ -800,7 +800,8 @@ function showErrorFull(msg) {
 }
 function setRefreshing(on) {
   mountHTML('refreshMount', on ? '<div class="refresh-overlay"><div class="overlay-box"><div class="spinner"></div><div class="overlay-text">正在刷新天气…</div></div></div>' : '');
-  $('refreshIcon').classList.toggle('spinning', on);
+  var refreshIcon = $('refreshIcon');
+  if (refreshIcon) refreshIcon.classList.toggle('spinning', on);
 }
 
 
@@ -1231,6 +1232,15 @@ function showUpdateDialog(version, notes, url, apkUrl) {
 document.addEventListener('DOMContentLoaded', function () {
   loadState();
   applyFontSize();
+  /* WebF 首屏静态图片偶发不绘制；重建子树但保留原有 PNG 图形。 */
+  var settingsButton = $('settingsBtn');
+  var refreshButton = $('refreshBtn');
+  var settingsImage = settingsButton && (settingsButton.querySelector ? settingsButton.querySelector('img') : settingsButton.firstChild);
+  var refreshImage = refreshButton && (refreshButton.querySelector ? refreshButton.querySelector('img') : refreshButton.firstChild);
+  var settingsSrc = settingsImage && settingsImage.getAttribute ? settingsImage.getAttribute('src') : '';
+  var refreshSrc = refreshImage && refreshImage.getAttribute ? refreshImage.getAttribute('src') : '';
+  mountHTML('settingsBtn', '<img class="icon-img" width="26" height="26" alt="" src="' + (settingsSrc || 'assets:///assets/web/icons/settings.png') + '">');
+  mountHTML('refreshBtn', '<img class="icon-img" id="refreshIcon" width="26" height="26" alt="" src="' + (refreshSrc || 'assets:///assets/web/icons/refresh.png') + '">');
   var lastFire = 0;
   function onTap(el, fn) {
     if (!el) return;

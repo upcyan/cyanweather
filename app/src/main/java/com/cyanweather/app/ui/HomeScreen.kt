@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -44,6 +45,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -154,7 +156,10 @@ private fun TopBar(
             Icon(Icons.Default.Settings, contentDescription = "设置", tint = Color(0xFF333333), modifier = Modifier.size(36.dp))
         }
         Column(
-            Modifier.weight(1f).padding(horizontal = 4.dp),
+            Modifier
+                .weight(1f)
+                .padding(horizontal = 4.dp)
+                .clickable { onOpenCityPicker() },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -310,10 +315,39 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
     // 湿度 / 风力 / 空气质量 / 紫外线强度（整行卡片，标题与数值分行，避免换行重叠）
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         InfoCard("湿度", "${weather.humidity ?: "-"}%")
-        InfoCard("风力", "${weather.windDirect} ${weather.windPower}".trim())
-        InfoCard("空气质量", if (weather.aqi != null) "${weather.aqiText} ${weather.aqi}" else "-")
+        val windText = buildString {
+            append(weather.windDirect)
+            if (weather.windPower.isNotBlank()) append(" ${weather.windPower}")
+            weather.windSpeed?.let { append("（${String.format(Locale.US, "%.1f", it)}m/s）") }
+        }.trim()
+        InfoCard("风力", windText.ifBlank { "-" })
+        val aqiDetail = buildString {
+            if (weather.aqi != null) append("${weather.aqiText} ${weather.aqi}")
+            weather.pm25?.let { append("\nPM2.5: ${String.format(Locale.US, "%.0f", it)}μg/m³") }
+            weather.pm10?.let { append("\nPM10: ${String.format(Locale.US, "%.0f", it)}μg/m³") }
+        }.ifBlank { "-" }
+        InfoCard("空气质量", aqiDetail)
         if (weather.uvIndex.isNotBlank()) {
             InfoCard("紫外线强度", weather.uvIndex)
+        }
+    }
+
+    // 生活指数
+    val nextRainProb = weather.hourly.filter { it.isForecast }.take(12).mapNotNull { it.rainProb }.maxOrNull()
+    SectionTitle("生活指数")
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                LifestyleTile("👔", "穿衣", clothingIndex(weather.temperature, weather.condition), Modifier.weight(1f))
+                LifestyleTile("🏃", "运动", exerciseIndex(weather.temperature, weather.condition, weather.aqi), Modifier.weight(1f))
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                LifestyleTile("🚗", "洗车", carwashIndex(weather.condition, nextRainProb), Modifier.weight(1f))
+                LifestyleTile("🤧", "感冒", coldIndex(weather.todayHigh, weather.todayLow), Modifier.weight(1f))
+            }
         }
     }
 
@@ -367,13 +401,37 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
     }
 
     Spacer(Modifier.height(20.dp))
-    Text(
-        weather.sourceTag,
-        style = fst(16),
-        color = Color(0xFF888888),
+    Column(
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        textAlign = TextAlign.Center
-    )
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            weather.sourceTag,
+            style = fst(16),
+            color = Color(0xFF888888),
+            textAlign = TextAlign.Center
+        )
+        if (weather.sourceContributions.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            val contribText = weather.sourceContributions.entries.joinToString(" | ") { (name, fields) ->
+                "$name($fields)"
+            }
+            Text(
+                contribText,
+                style = fst(13),
+                color = Color(0xFFAAAAAA),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "置信度：${(weather.confidence * 100).toInt()}%",
+                style = fst(13),
+                color = if (weather.confidence >= 0.8f) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
 }
 
 private fun mainKind(w: WeatherData): SkyKind {
@@ -445,7 +503,45 @@ private fun InfoCard(title: String, value: String) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
             Text(title, style = fst(20), color = Color(0xFF666666))
             Spacer(Modifier.height(4.dp))
-            Text(value, style = fst(28, FontWeight.Medium), maxLines = 2)
+            Text(value, style = fst(28, FontWeight.Medium), maxLines = 3)
+        }
+    }
+}
+
+@Composable
+private fun LifestyleRow(icon: String, text: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(icon, style = fst(20), modifier = Modifier.width(36.dp))
+        val parts = text.split("\n")
+        Column {
+            Text(parts.getOrElse(0) { "-" }, style = fst(22), fontWeight = FontWeight.Medium)
+            if (parts.size > 1) {
+                Text(parts[1], style = fst(16), color = Color(0xFF666666))
+            }
+        }
+    }
+}
+
+@Composable
+private fun LifestyleTile(icon: String, title: String, text: String, modifier: Modifier = Modifier) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(icon, style = fst(22))
+                Spacer(Modifier.width(6.dp))
+                Text(title, style = fst(19, FontWeight.Medium), color = Color(0xFF555555))
+            }
+            Spacer(Modifier.height(5.dp))
+            val parts = text.split("\n")
+            Text(parts.firstOrNull().orEmpty().ifBlank { "-" }, style = fst(21, FontWeight.Medium), maxLines = 1)
+            if (parts.size > 1) Text(parts[1], style = fst(15), color = Color(0xFF666666), maxLines = 1)
         }
     }
 }
@@ -474,6 +570,7 @@ private fun HourlyRow(items: List<HourlyItem>) {
         }
     }
     Box(Modifier.fillMaxWidth()) {
+        val edge = MaterialTheme.colorScheme.background
         LazyRow(
             state = listState,
             contentPadding = PaddingValues(horizontal = 4.dp),
@@ -483,13 +580,53 @@ private fun HourlyRow(items: List<HourlyItem>) {
             items(items) { item -> HourCard(item) }
         }
         if (canPrev) {
-            HourArrowOverlay("‹", Modifier.align(Alignment.CenterStart)) {
-                scope.launch { listState.scrollToItem(maxOf(0, listState.firstVisibleItemIndex - 3)) }
+            Box(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .width(64.dp)
+                    .fillMaxHeight()
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(edge.copy(alpha = 0.98f), edge.copy(alpha = 0.78f), edge.copy(alpha = 0f))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f))
+                        .clickable { scope.launch { listState.scrollToItem(maxOf(0, listState.firstVisibleItemIndex - 3)) } },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("‹", style = fst(22, FontWeight.Bold), color = Color(0xFF0B6BCB))
+                }
             }
         }
         if (canNext) {
-            HourArrowOverlay("›", Modifier.align(Alignment.CenterEnd)) {
-                scope.launch { listState.scrollToItem(listState.firstVisibleItemIndex + 3) }
+            Box(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .width(64.dp)
+                    .fillMaxHeight()
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(edge.copy(alpha = 0f), edge.copy(alpha = 0.78f), edge.copy(alpha = 0.98f))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f))
+                        .clickable { scope.launch { listState.scrollToItem(listState.firstVisibleItemIndex + 3) } },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("›", style = fst(22, FontWeight.Bold), color = Color(0xFF0B6BCB))
+                }
             }
         }
     }
@@ -542,6 +679,15 @@ private fun HourCard(item: HourlyItem) {
             }
             Spacer(Modifier.height(4.dp))
             Text("${temp(item.temperature)}°", style = fst(22, FontWeight.Bold))
+            val rp = item.rainProb
+            if (rp != null && rp > 0) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "💧${rp.toInt()}%",
+                    style = fst(14),
+                    color = Color(0xFF1976D2)
+                )
+            }
         }
     }
 }
@@ -682,5 +828,51 @@ fun BigButton(text: String, onClick: () -> Unit) {
             style = fst(28, FontWeight.Bold),
             modifier = Modifier.padding(horizontal = 40.dp, vertical = 16.dp)
         )
+    }
+}
+
+fun clothingIndex(temp: Double?, condition: String): String {
+    val t = temp ?: return "-"
+    return when {
+        t >= 35 -> "酷热\n穿透气薄衣"
+        t >= 30 -> "炎热\n短袖短裤"
+        t >= 25 -> "温暖\n轻薄长袖"
+        t >= 20 -> "舒适\n长袖薄外套"
+        t >= 15 -> "微凉\n夹克毛衣"
+        t >= 10 -> "凉爽\n厚外套"
+        t >= 5 -> "寒冷\n棉衣羽绒"
+        t >= 0 -> "很冷\n厚羽绒保暖"
+        else -> "极寒\n防寒服加厚"
+    }
+}
+
+fun exerciseIndex(temp: Double?, condition: String, aqi: Int?): String {
+    val t = temp ?: return "-"
+    val badWeather = condition.contains("雨") || condition.contains("雪") || condition.contains("雾") || condition.contains("霾")
+    val badAqi = aqi != null && aqi > 150
+    return when {
+        badWeather -> "不宜\n天气不佳"
+        badAqi -> "不宜\n空气质量差"
+        t >= 35 -> "不宜\n高温炎热"
+        t >= 30 && t < 35 -> "较不宜\n偏热"
+        t >= 15 && t <= 28 -> "适宜\n温度舒适"
+        t >= 10 && t < 15 -> "较适宜\n注意保暖"
+        else -> "较不宜\n温度偏低"
+    }
+}
+
+fun carwashIndex(condition: String, rainProb: Double?): String {
+    val hasRain = condition.contains("雨") || condition.contains("雪") || (rainProb != null && rainProb > 50.0)
+    return if (hasRain) "不宜\n有降水" else "适宜\n近期无雨"
+}
+
+fun coldIndex(tempHigh: Double?, tempLow: Double?): String {
+    if (tempHigh == null || tempLow == null) return "-"
+    val diff = tempHigh - tempLow
+    return when {
+        diff >= 12 -> "易发\n温差大，注意增减衣物"
+        diff >= 8 -> "较易发\n温差较大"
+        diff >= 5 -> "少发\n温差适中"
+        else -> "不易发\n温差小"
     }
 }

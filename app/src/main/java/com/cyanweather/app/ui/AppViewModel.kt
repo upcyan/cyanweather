@@ -20,6 +20,7 @@ import com.cyanweather.app.update.UpdateResult
 import com.cyanweather.shared.data.OpenMeteoApi
 import com.cyanweather.shared.model.WeatherData
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 sealed class Screen {
@@ -179,6 +180,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openSettings() { ui = ui.copy(screen = Screen.Settings) }
     fun closeSettings() { ui = ui.copy(screen = Screen.Home) }
+    /** Handles the Android system back button without exiting while a child screen is open. */
+    fun handleBack(): Boolean = when (ui.screen) {
+        is Screen.Home -> false
+        is Screen.Settings -> { closeSettings(); true }
+        is Screen.RainForecast -> { closeRainForecast(); true }
+        is Screen.CityPicker -> {
+            if (ui.selectedProvince != null) backFromCities() else closeCityPicker()
+            true
+        }
+    }
     fun openCityPicker() {
         ui = ui.copy(screen = Screen.CityPicker)
         if (ui.provinces.isEmpty()) loadProvinces()
@@ -186,6 +197,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun closeCityPicker() { ui = ui.copy(screen = Screen.Home) }
 
     fun setSource(source: String) = launchEdit { settingsStore.setSource(context, source); refresh() }
+
+    fun setWeatherSources(sources: List<String>) = launchEdit {
+        settingsStore.setWeatherSources(context, sources)
+        refresh()
+    }
 
     fun setCaiyunMode(mode: String) = launchEdit {
         settingsStore.setCaiyunMode(context, mode)
@@ -197,6 +213,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setCaiyunV3Secret(secret: String) = launchEdit { settingsStore.setCaiyunV3Secret(context, secret) }
 
     fun setToken(token: String) = launchEdit { settingsStore.setToken(context, token) }
+
+    fun setQWeatherHost(host: String) = launchEdit { settingsStore.setQWeatherHost(context, host) }
+
+    fun setQWeatherKey(key: String) = launchEdit { settingsStore.setQWeatherKey(context, key) }
 
     fun setFont(size: String) = launchEdit { settingsStore.setFont(context, size) }
 
@@ -210,7 +230,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setAutoCheckUpdate(v: Boolean) = launchEdit { settingsStore.setAutoCheckUpdate(context, v) }
 
-    fun setUseGps(v: Boolean) = launchEdit { settingsStore.setUseGps(context, v); refresh() }
+    fun setUseGps(v: Boolean) = launchEdit {
+        settingsStore.setUseGps(context, v)
+        ui = ui.copy(settings = ui.settings.copy(useGps = v), locationNotice = null)
+        refresh()
+    }
 
     fun saveLatLng(lat: Double, lng: Double) = launchEdit { settingsStore.setLatLng(context, lat, lng) }
 
@@ -221,18 +245,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun refreshLocation(): String? {
-        if (!ui.settings.useGps) return null
+        val current = settingsStore.flow(context).first()
+        if (!current.useGps) return null
         if (!locationHelper.hasPermission()) return "未获取定位权限，请手动选择城市；当前默认显示北京天气"
         if (!locationHelper.isLocationEnabled()) return "定位服务未开启，当前显示默认城市北京"
         val loc = locationHelper.requestFreshLocation()
             ?: return "定位失败，请检查网络/GPS后重试；当前显示默认城市北京"
         settingsStore.setLatLng(context, loc.latitude, loc.longitude)
-        // 反向解析城市名并保存，避免设置页仍显示北京
-        if (!ui.settings.manualCity) {
+        if (!current.manualCity) {
             try {
                 val name = OpenMeteoApi.reverseGeocode(loc.latitude, loc.longitude)
-                if (name.isNotBlank() && name != ui.settings.cityName) {
-                    settingsStore.setCity(context, name, ui.settings.cityCode, manual = false)
+                if (name.isNotBlank() && name != current.cityName) {
+                    settingsStore.setCity(context, name, current.cityCode, manual = false)
                 }
             } catch (_: Exception) { }
         }

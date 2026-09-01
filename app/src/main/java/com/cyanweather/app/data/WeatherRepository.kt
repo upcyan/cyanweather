@@ -6,6 +6,8 @@ import com.cyanweather.shared.data.AdminHierarchy
 import com.cyanweather.shared.data.CaiyunApi
 import com.cyanweather.shared.data.NmcApi
 import com.cyanweather.shared.data.OpenMeteoApi
+import com.cyanweather.shared.data.QWeatherApi
+import com.cyanweather.shared.data.XiaomiWeatherApi
 import com.cyanweather.shared.data.parseCaiyun
 import com.cyanweather.shared.data.parseNmc
 import com.cyanweather.shared.data.parseOpenMeteo
@@ -39,16 +41,98 @@ class WeatherRepository(
 
     suspend fun loadWeather(): WeatherData {
         val settings = SettingsStore.flow(context).first()
-        return when {
-            settings.source == "caiyun" && settings.caiyunMode == "v1" && settings.caiyunToken.isNotBlank() ->
-                loadCaiyunV1(settings)
-            settings.source == "caiyun" && settings.caiyunMode == "v3" &&
-                settings.caiyunV3Key.isNotBlank() && settings.caiyunV3Secret.isNotBlank() -> loadCaiyunV3(settings)
-            else -> when (settings.source) {
-                "openmeteo" -> loadOpenMeteo(settings)
-                else -> loadNmc(settings)
-            }
+        val selected = settings.weatherSources.filter { it in SUPPORTED_SOURCES }
+            .ifEmpty { listOf("nmc", "openmeteo") }
+        val results = mutableListOf<Pair<String, WeatherData>>()
+        val failures = mutableListOf<String>()
+        for (source in selected) {
+            runCatching { loadSource(source, settings) }
+                .onSuccess { data -> results += source to data }
+                .onFailure { failures += "${sourceName(source)}：${it.message ?: "不可用"}" }
         }
+        if (results.isEmpty()) {
+            throw RuntimeException(failures.joinToString("；").ifBlank { "没有启用可用的天气源" })
+        }
+        return if (results.size == 1) {
+            results.first().second.copy(
+                sourceTag = "数据来源：${sourceName(results.first().first)}"
+            )
+        } else {
+            com.cyanweather.shared.data.WeatherAggregator.aggregate(results)
+        }
+    }
+
+    private suspend fun loadSource(source: String, settings: AppSettings): WeatherData = when (source) {
+        "qweather" -> loadQWeather(settings)
+        "xiaomi" -> loadXiaomi(settings)
+        "openmeteo" -> loadOpenMeteo(settings)
+        "caiyun" -> when {
+            settings.caiyunMode == "v1" && settings.caiyunToken.isNotBlank() -> loadCaiyunV1(settings)
+            settings.caiyunMode == "v3" && settings.caiyunV3Key.isNotBlank() && settings.caiyunV3Secret.isNotBlank() -> loadCaiyunV3(settings)
+            else -> throw RuntimeException("凭证未填写完整")
+        }
+        else -> loadNmc(settings)
+    }
+
+    private suspend fun loadQWeather(settings: AppSettings): WeatherData {
+        val (lat, lng) = currentLatLng(settings)
+        val name = resolveCaiyunCityName(settings, lat, lng)
+        return QWeatherApi.weather(settings.qweatherHost, settings.qweatherKey, lat, lng, name)
+    }
+
+    private suspend fun loadXiaomi(settings: AppSettings): WeatherData {
+        XiaomiLocalWeather.read(context)?.let { return it }
+        val (lat, lng) = currentLatLng(settings)
+        var code = settings.cityCode
+        var name = settings.cityName
+        if (code.isBlank()) {
+            val resolved = resolveNmcByLocation(lat, lng)
+            name = resolved.first
+            code = resolved.second
+        }
+        return XiaomiWeatherApi.weather(lat, lng, code, name)
+    }
+
+    private fun mergePrimary(primary: WeatherData, fallback: WeatherData, tag: String): WeatherData {
+        val useFallbackHourly = primary.hourly.isEmpty() ||
+            (!primary.hourlyLabel.contains("预报") && fallback.hourlyLabel.contains("预报"))
+        return primary.copy(
+        cityName = primary.cityName.ifBlank { fallback.cityName },
+        temperature = primary.temperature ?: fallback.temperature,
+        condition = primary.condition.ifBlank { fallback.condition },
+        feelsLike = primary.feelsLike ?: fallback.feelsLike,
+        humidity = primary.humidity ?: fallback.humidity,
+        windDirect = primary.windDirect.ifBlank { fallback.windDirect },
+        windPower = primary.windPower.ifBlank { fallback.windPower },
+        todayHigh = primary.todayHigh ?: fallback.todayHigh,
+        todayLow = primary.todayLow ?: fallback.todayLow,
+        aqi = primary.aqi ?: fallback.aqi,
+        aqiText = primary.aqiText ?: fallback.aqiText,
+        warning = primary.warning ?: fallback.warning,
+        sunrise = primary.sunrise ?: fallback.sunrise,
+        sunset = primary.sunset ?: fallback.sunset,
+        minutelyText = primary.minutelyText ?: fallback.minutelyText,
+        uvIndex = primary.uvIndex.ifBlank { fallback.uvIndex },
+        sourceTag = tag,
+        hourly = if (useFallbackHourly) fallback.hourly else primary.hourly,
+        hourlyLabel = if (useFallbackHourly) fallback.hourlyLabel else primary.hourlyLabel,
+        daily = if (primary.daily.size >= fallback.daily.size) primary.daily
+            else primary.daily + fallback.daily.drop(primary.daily.size),
+        yesterday = primary.yesterday ?: fallback.yesterday
+        )
+    }
+
+    private fun sourceName(source: String): String = when (source) {
+        "nmc" -> "中国气象局"
+        "openmeteo" -> "Open-Meteo"
+        "caiyun" -> "彩云天气"
+        "qweather" -> "和风天气"
+        "xiaomi" -> "小米天气"
+        else -> source
+    }
+
+    companion object {
+        private val SUPPORTED_SOURCES = setOf("nmc", "openmeteo", "caiyun", "qweather", "xiaomi")
     }
 
     // ---------- NMC ----------

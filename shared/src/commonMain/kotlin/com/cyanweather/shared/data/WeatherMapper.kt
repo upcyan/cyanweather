@@ -258,7 +258,10 @@ fun parseOpenMeteo(w: OpenMeteoResponse, air: OpenMeteoAirQuality?, cityName: St
         hourlyLabel = "未来48小时逐时预报",
         daily = dailyList,
         yesterday = yesterday,
-        savedAt = Clock.System.now().toEpochMilliseconds()
+        savedAt = Clock.System.now().toEpochMilliseconds(),
+        pm25 = air?.current?.pm25?.clean(),
+        pm10 = air?.current?.pm10?.clean(),
+        windSpeed = windSpeedKmh
     )
 }
 

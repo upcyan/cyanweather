@@ -31,7 +31,12 @@ data class WeatherData(
     val hourlyLabel: String = "hourly forecast",
     val daily: List<DailyItem> = emptyList(),
     val yesterday: YesterdayData? = null,
-    val savedAt: Long = 0L
+    val savedAt: Long = 0L,
+    val sourceContributions: Map<String, String> = emptyMap(),
+    val confidence: Float = 1.0f,
+    val pm25: Double? = null,
+    val pm10: Double? = null,
+    val windSpeed: Double? = null
 )
 
 @Serializable
