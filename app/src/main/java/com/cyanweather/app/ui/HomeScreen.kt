@@ -2,6 +2,11 @@ package com.cyanweather.app.ui
 
 import android.content.Intent
 import android.provider.Settings
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +22,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -83,45 +90,58 @@ fun HomeScreen(
     // 宽屏（平板/横屏/桌面窗口）内容限宽居中，避免拉伸变形；窄屏不受影响
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val isWide = configuration.screenWidthDp > 600
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(Modifier.fillMaxSize().background(weatherBgBrush(weather))) {
         Column(
             modifier = Modifier
                 .then(if (isWide) Modifier.widthIn(max = 560.dp) else Modifier)
                 .align(Alignment.TopCenter)
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            TopBar(weather, state.refreshing, onSettings, onRefresh, onOpenCityPicker)
+            // 真·沉浸：顶栏自行避让状态栏，滚动内容从透明状态栏/小白条下方穿过
+            TopBar(
+                weather, state.refreshing, onSettings, onRefresh, onOpenCityPicker,
+                Modifier.windowInsetsPadding(WindowInsets.statusBars)
+            )
             Spacer(Modifier.height(8.dp))
 
-            when {
-                state.loading -> {
-                    Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(Modifier.size(64.dp))
-                            Spacer(Modifier.height(20.dp))
-                            Text("正在获取天气...", style = fst(24))
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp)
+                        // 底部小白条避让作为滚动内容的一部分：滚到底时末尾内容恰好抬出小白条
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(vertical = 8.dp)
+                ) {
+                    when {
+                        state.loading -> {
+                            Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(Modifier.size(64.dp))
+                                    Spacer(Modifier.height(20.dp))
+                                    Text("正在获取天气...", style = fst(24))
+                                }
+                            }
+                        }
+                        weather == null && state.error != null -> {
+                            Column(
+                                Modifier.fillMaxWidth().padding(top = 80.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(state.error ?: "", style = fst(22), color = MaterialTheme.colorScheme.error,
+                                    textAlign = TextAlign.Center)
+                                Spacer(Modifier.height(24.dp))
+                                BigButton("重新获取", onRefresh)
+                            }
+                        }
+                        weather != null -> {
+                            WeatherBody(weather, state.error, state.locationNotice, onRefresh, onOpenRainForecast)
                         }
                     }
-                }
-                weather == null && state.error != null -> {
-                    Column(
-                        Modifier.fillMaxWidth().padding(top = 80.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(state.error ?: "", style = fst(22), color = MaterialTheme.colorScheme.error,
-                            textAlign = TextAlign.Center)
-                        Spacer(Modifier.height(24.dp))
-                        BigButton("重新获取", onRefresh)
-                    }
-                }
-                weather != null -> {
-                    WeatherBody(weather, state.error, state.locationNotice, onRefresh, onOpenRainForecast)
+                    Spacer(Modifier.height(24.dp))
                 }
             }
-            Spacer(Modifier.height(24.dp))
         }
 
         // 全屏刷新遮罩
@@ -168,10 +188,14 @@ private fun TopBar(
     refreshing: Boolean,
     onSettings: () -> Unit,
     onRefresh: () -> Unit,
-    onOpenCityPicker: () -> Unit
+    onOpenCityPicker: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        Modifier
+            .fillMaxWidth()
+            .then(modifier)
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onSettings, modifier = Modifier.size(56.dp)) {
@@ -287,7 +311,7 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
         }
     }
 
-    // 主天气：图标与温度同一行、缩小并下移，避免遮挡顶部时间文字
+    // 主天气：图标与温度同一行（温度变化带淡入动画）
     Column(
         Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -310,11 +334,15 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
                 )
             }
             Spacer(Modifier.width(20.dp))
-            Text(
-                "${temp(weather.temperature)}°",
-                style = fst(64, FontWeight.Bold),
-                color = Color(0xFF111111)
-            )
+            AnimatedContent(
+                targetState = temp(weather.temperature),
+                transitionSpec = {
+                    (fadeIn() + slideInVertically { it / 3 }).togetherWith(fadeOut())
+                },
+                label = "temp"
+            ) { t ->
+                Text("$t°", style = fst(64, FontWeight.Bold), color = Color(0xFF111111))
+            }
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth()) {
@@ -343,15 +371,31 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
             weather.windSpeed?.let { append("（${String.format(Locale.US, "%.1f", it)}m/s）") }
         }.trim()
         InfoCard("风力", windText.ifBlank { "-" })
-        val aqiDetail = buildString {
-            if (weather.aqi != null) append("${weather.aqiText ?: aqiText(weather.aqi)} ${weather.aqi}")
-            else if (!weather.aqiText.isNullOrBlank()) append(weather.aqiText)
-            weather.pm25?.let { append("\nPM2.5: ${String.format(Locale.US, "%.0f", it)}μg/m³") }
-            weather.pm10?.let { append("\nPM10: ${String.format(Locale.US, "%.0f", it)}μg/m³") }
-        }.ifBlank { "-" }
-        InfoCard("空气质量", aqiDetail)
+        val aqiColor = weather.aqi?.let { aqiLevelColor(it) }
+        InfoCard("空气质量") {
+            if (weather.aqi != null || !weather.aqiText.isNullOrBlank()) {
+                val label = (weather.aqiText?.ifBlank { aqiText(weather.aqi) } ?: aqiText(weather.aqi)).ifBlank { "-" }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (aqiColor != null) {
+                        Pill("$label ${weather.aqi}", aqiColor)
+                    } else {
+                        Text(label, style = fst(28, FontWeight.Medium), maxLines = 3)
+                    }
+                }
+                weather.pm25?.let {
+                    Text("PM2.5: ${String.format(Locale.US, "%.0f", it)}μg/m³", style = fst(16), color = Color(0xFF888888))
+                }
+                weather.pm10?.let {
+                    Text("PM10: ${String.format(Locale.US, "%.0f", it)}μg/m³", style = fst(16), color = Color(0xFF888888))
+                }
+            } else {
+                Text("-", style = fst(28, FontWeight.Medium))
+            }
+        }
         if (weather.uvIndex.isNotBlank()) {
-            InfoCard("紫外线强度", weather.uvIndex)
+            InfoCard("紫外线强度") {
+                Pill(weather.uvIndex, uvLevelColor(weather.uvIndex))
+            }
         }
     }
 
@@ -364,12 +408,12 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                LifestyleTile("👔", "穿衣", clothingIndex(weather.temperature, weather.condition), Modifier.weight(1f))
-                LifestyleTile("🏃", "运动", exerciseIndex(weather.temperature, weather.condition, weather.aqi), Modifier.weight(1f))
+                LifestyleTile("👔", "穿衣", clothingIndex(weather.temperature, weather.condition), Color(0xFF7E57C2), Modifier.weight(1f))
+                LifestyleTile("🏃", "运动", exerciseIndex(weather.temperature, weather.condition, weather.aqi), Color(0xFF42A5F5), Modifier.weight(1f))
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                LifestyleTile("🚗", "洗车", carwashIndex(weather.condition, nextRainProb), Modifier.weight(1f))
-                LifestyleTile("🤧", "感冒", coldIndex(weather.todayHigh, weather.todayLow), Modifier.weight(1f))
+                LifestyleTile("🚗", "洗车", carwashIndex(weather.condition, nextRainProb), Color(0xFF26A69A), Modifier.weight(1f))
+                LifestyleTile("🤧", "感冒", coldIndex(weather.todayHigh, weather.todayLow), Color(0xFFEF5350), Modifier.weight(1f))
             }
         }
     }
@@ -497,8 +541,16 @@ private fun SunCol(label: String, time: String?, modifier: Modifier = Modifier) 
     }
 }
 
+
 @Composable
 private fun InfoCard(title: String, value: String) {
+    InfoCard(title) {
+        Text(value, style = fst(28, FontWeight.Medium), maxLines = 3)
+    }
+}
+
+@Composable
+private fun InfoCard(title: String, valueContent: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
@@ -506,13 +558,66 @@ private fun InfoCard(title: String, value: String) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
             Text(title, style = fst(20), color = Color(0xFF666666))
             Spacer(Modifier.height(4.dp))
-            Text(value, style = fst(28, FontWeight.Medium), maxLines = 3)
+            valueContent()
         }
     }
 }
 
+/** 彩色胶囊徽章（AQI/紫外线等级用） */
 @Composable
-private fun LifestyleTile(icon: String, title: String, text: String, modifier: Modifier = Modifier) {
+private fun Pill(text: String, color: Color, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = fst(24, FontWeight.Medium),
+        color = color,
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(color.copy(alpha = 0.14f))
+            .padding(horizontal = 14.dp, vertical = 4.dp)
+    )
+}
+
+private fun aqiLevelColor(aqi: Int): Color = when {
+    aqi <= 50 -> Color(0xFF4CAF50)
+    aqi <= 100 -> Color(0xFF9E9D24)
+    aqi <= 150 -> Color(0xFFFF9800)
+    aqi <= 200 -> Color(0xFFF4511E)
+    aqi <= 300 -> Color(0xFFE53935)
+    else -> Color(0xFFB71C1C)
+}
+
+private fun uvLevelColor(uvText: String): Color {
+    val v = Regex("\\d+").find(uvText)?.value?.toIntOrNull()
+        ?: return if (uvText.contains("弱")) Color(0xFF4CAF50) else Color(0xFFFF9800)
+    return when {
+        v <= 2 -> Color(0xFF4CAF50)
+        v <= 5 -> Color(0xFFC0CA33)
+        v <= 7 -> Color(0xFFFF9800)
+        v <= 10 -> Color(0xFFF4511E)
+        else -> Color(0xFFB71C1C)
+    }
+}
+
+/** 页面背景：按天气与昼夜取柔和浅色渐变（保持浅色确保深色文字可读） */
+private fun weatherBgBrush(w: WeatherData?): Brush {
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    val isDay = hour in 6..18
+    val kind = w?.let { mainKind(it) }
+    val (top, bottom) = when {
+        kind == SkyKind.RAIN || kind == SkyKind.THUNDER || kind == SkyKind.SLEET -> Color(0xFFE9EFF7) to Color(0xFFD8E4F1)
+        kind == SkyKind.SNOW -> Color(0xFFF2F7FC) to Color(0xFFE4EDF6)
+        kind == SkyKind.FOG || kind == SkyKind.HAZE -> Color(0xFFF0F2F5) to Color(0xFFE3E8EE)
+        kind == SkyKind.SUN && isDay -> Color(0xFFFFF6DF) to Color(0xFFE2EFFB)
+        kind == SkyKind.PARTLY -> Color(0xFFF7FAFF) to Color(0xFFE4EEF9)
+        !isDay -> Color(0xFFEEF1F7) to Color(0xFFE1E7F1)
+        else -> Color(0xFFF5F9FF) to Color(0xFFE4EEF9)
+    }
+    return Brush.verticalGradient(listOf(top, bottom))
+}
+
+
+@Composable
+private fun LifestyleTile(icon: String, title: String, text: String, color: Color, modifier: Modifier = Modifier) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(12.dp),
@@ -520,7 +625,19 @@ private fun LifestyleTile(icon: String, title: String, text: String, modifier: M
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(icon, style = fst(22))
+                Box(
+                    Modifier
+                        .size(30.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(color),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        title.take(1),
+                        style = fst(17, FontWeight.Bold),
+                        color = Color.White
+                    )
+                }
                 Spacer(Modifier.width(6.dp))
                 Text(title, style = fst(19, FontWeight.Medium), color = Color(0xFF555555))
             }
@@ -625,17 +742,16 @@ private fun HourCard(item: HourlyItem) {
             Text(hourPart, style = fst(18), color = Color(0xFF666666))
             Spacer(Modifier.height(6.dp))
             WeatherGlyph(kind, Modifier.size(36.dp))
-            if (item.condition.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
-                Text(item.condition, style = fst(18), textAlign = TextAlign.Center, maxLines = 2)
-            }
+            // 天气文字与降水概率恒定占位，保证所有卡片等高
+            Spacer(Modifier.height(4.dp))
+            Text(item.condition.ifEmpty { " " }, style = fst(18), textAlign = TextAlign.Center, maxLines = 2, minLines = 2)
             Spacer(Modifier.height(4.dp))
             Text("${temp(item.temperature)}°", style = fst(22, FontWeight.Bold))
             val rp = item.rainProb
-            if (rp != null && rp > 0) {
-                Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(2.dp))
+            run {
                 Text(
-                    "💧${rp.toInt()}%",
+                    if (rp != null && rp > 0) "💧${rp.toInt()}%" else " ",
                     style = fst(14),
                     color = Color(0xFF1976D2)
                 )

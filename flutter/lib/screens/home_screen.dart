@@ -755,19 +755,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final isWide = screenW > 600;
     final contentW = isWide ? 560.0 : double.infinity;
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F9FF),
+      backgroundColor: Colors.transparent,
       body: Stack(children: [
         Container(
             alignment: Alignment.topCenter,
-            color: const Color(0xFFF5F9FF),
+            decoration: BoxDecoration(
+                gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: _weatherGradient(_weather?.condition))),
             child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: contentW),
-                child: SafeArea(
-          child: Column(children: [
+                child: Column(children: [
             // 顶栏：设置 | 城市名 + 更新时间（点击换城市） | 刷新
+            // 真·沉浸：不用 SafeArea 包整个页面，顶栏自行避让状态栏，
+            // 滚动内容底部内置小白条避让，可从透明条下方穿过
             Padding(
-                padding:
-                    EdgeInsets.symmetric(horizontal: 4 * _fs, vertical: 4 * _fs),
+                padding: EdgeInsets.fromLTRB(4 * _fs,
+                    MediaQuery.of(context).padding.top + 4 * _fs,
+                    4 * _fs, 4 * _fs),
                 child: Row(children: [
                   IconButton(
                       onPressed: _openSettings,
@@ -835,12 +841,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             child: SingleChildScrollView(
                                 physics:
                                     const AlwaysScrollableScrollPhysics(),
-                                padding: EdgeInsets.all(16 * _fs),
+                                // 底部小白条避让内置在滚动内容中：滚到底时末尾内容抬出小白条
+                                padding: EdgeInsets.fromLTRB(
+                                    16 * _fs,
+                                    16 * _fs,
+                                    16 * _fs,
+                                    MediaQuery.of(context).padding.bottom +
+                                        16 * _fs),
                                 child: _weather == null
                                     ? const SizedBox.shrink()
                                     : _buildWeather(_weather!)))),
           ]),
-        ),
         ),
         ),
         // 全屏刷新遮罩
@@ -952,7 +963,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 color: const Color(0xFF0B6BCB))),
                       ])))));
 
-    // 主天气：图标+天气现象在左，大温度在右（同 native）
+    // 主天气：图标+天气现象在左，大温度在右（同 native，温度变化带淡入动画）
     children.add(Padding(
         padding: EdgeInsets.only(top: 14 * _fs, bottom: 10 * _fs),
         child: Column(children: [
@@ -968,11 +979,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           fontSize: 22 * _fs, fontWeight: FontWeight.w500)),
                 ]),
                 SizedBox(width: 20 * _fs),
-                Text('${w.temperature.round()}°',
-                    style: TextStyle(
-                        fontSize: 52 * _fs,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF111111))),
+                AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: Text('${w.temperature.round()}°',
+                        key: ValueKey(w.temperature),
+                        style: TextStyle(
+                            fontSize: 52 * _fs,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF111111)))),
               ]),
           SizedBox(height: 12 * _fs),
           Row(children: [
@@ -1006,19 +1020,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (w.windSpeed != null)
       windText.write('（${w.windSpeed!.toStringAsFixed(1)}m/s）');
     children.add(_infoCard('风力', windText.toString()));
-    final aqiText = StringBuffer();
+    final aqiLabel = StringBuffer();
     if (w.aqi != null) {
-      aqiText.write('${w.aqiText.isEmpty ? _aqiText(w.aqi) : w.aqiText} ${w.aqi}');
+      aqiLabel.write('${w.aqiText.isEmpty ? _aqiText(w.aqi) : w.aqiText} ${w.aqi}');
     } else if (w.aqiText.isNotEmpty) {
-      aqiText.write(w.aqiText);
+      aqiLabel.write(w.aqiText);
     }
-    if (w.pm25 != null)
-      aqiText.write('\nPM2.5: ${w.pm25!.round()}μg/m³');
-    if (w.pm10 != null)
-      aqiText.write('\nPM10: ${w.pm10!.round()}μg/m³');
-    children.add(_infoCard('空气质量',
-        aqiText.isEmpty ? '-' : aqiText.toString()));
-    if (w.uvIndex.isNotEmpty) children.add(_infoCard('紫外线强度', w.uvIndex));
+    children.add(_infoCardW(
+        '空气质量',
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (aqiLabel.isNotEmpty)
+            _pill(aqiLabel.toString(), _aqiColor(w.aqi))
+          else
+            Text('-',
+                style: TextStyle(
+                    fontSize: 26 * _fs, fontWeight: FontWeight.w500)),
+          if (w.pm25 != null)
+            Padding(
+                padding: EdgeInsets.only(top: 4 * _fs),
+                child: Text('PM2.5: ${w.pm25!.round()}μg/m³',
+                    style: TextStyle(
+                        fontSize: 15 * _fs, color: const Color(0xFF888888)))),
+          if (w.pm10 != null)
+            Padding(
+                padding: EdgeInsets.only(top: 2 * _fs),
+                child: Text('PM10: ${w.pm10!.round()}μg/m³',
+                    style: TextStyle(
+                        fontSize: 15 * _fs, color: const Color(0xFF888888)))),
+        ])));
+    if (w.uvIndex.isNotEmpty) {
+      children.add(_infoCardW(
+          '紫外线强度', _pill(w.uvIndex, _uvColor(w.uvIndex))));
+    }
 
     // 生活指数四宫格（对齐 native）
     double? nextRainProb;
@@ -1036,21 +1069,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Row(children: [
                 Expanded(
                     child: _lifeTile('👔', '穿衣',
-                        _clothingIndex(w.temperature, w.condition))),
+                        _clothingIndex(w.temperature, w.condition),
+                        const Color(0xFF7E57C2))),
                 SizedBox(width: 10 * _fs),
                 Expanded(
                     child: _lifeTile('🏃', '运动',
-                        _exerciseIndex(w.temperature, w.condition, w.aqi))),
+                        _exerciseIndex(w.temperature, w.condition, w.aqi),
+                        const Color(0xFF42A5F5))),
               ]),
               SizedBox(height: 10 * _fs),
               Row(children: [
                 Expanded(
                     child: _lifeTile('🚗', '洗车',
-                        _carwashIndex(w.condition, nextRainProb))),
+                        _carwashIndex(w.condition, nextRainProb),
+                        const Color(0xFF26A69A))),
                 SizedBox(width: 10 * _fs),
                 Expanded(
                     child: _lifeTile(
-                        '🤧', '感冒', _coldIndex(w.todayHigh, w.todayLow))),
+                        '🤧', '感冒', _coldIndex(w.todayHigh, w.todayLow),
+                        const Color(0xFFEF5350))),
               ]),
             ]))));
 
@@ -1395,7 +1432,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return '不易发\n温差小';
   }
 
-  Widget _lifeTile(String icon, String title, String text) {
+  Widget _lifeTile(String icon, String title, String text, Color color) {
     final parts = text.split('\n');
     return Container(
         padding:
@@ -1407,7 +1444,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                Text(icon, style: TextStyle(fontSize: 17 * _fs)),
+                Container(
+                    width: 26 * _fs,
+                    height: 26 * _fs,
+                    decoration: BoxDecoration(
+                        color: color, shape: BoxShape.circle),
+                    alignment: Alignment.center,
+                    child: Text(title.substring(0, 1),
+                        style: TextStyle(
+                            fontSize: 13 * _fs,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white))),
                 SizedBox(width: 6 * _fs),
                 Text(title,
                     style: TextStyle(
@@ -1521,3 +1568,71 @@ class _HourlyRowState extends State<_HourlyRow> {
     ]);
   }
 }
+
+/// 页面背景渐变：按天气与昼夜取柔和浅色（对齐 native weatherBgBrush）
+List<Color> _weatherGradient(String? condition) {
+  final c = condition ?? '';
+  final hour = DateTime.now().hour;
+  final isDay = hour >= 6 && hour <= 18;
+  if (c.contains('雨') || c.contains('雷')) {
+    return const [Color(0xFFE9EFF7), Color(0xFFD8E4F1)];
+  }
+  if (c.contains('雪')) return const [Color(0xFFF2F7FC), Color(0xFFE4EDF6)];
+  if (c.contains('雾') || c.contains('霾')) {
+    return const [Color(0xFFF0F2F5), Color(0xFFE3E8EE)];
+  }
+  if (!isDay) return const [Color(0xFFEEF1F7), Color(0xFFE1E7F1)];
+  if (c.contains('晴')) return const [Color(0xFFFFF6DF), Color(0xFFE2EFFB)];
+  if (c.contains('多云') || c.contains('阴')) {
+    return const [Color(0xFFF7FAFF), Color(0xFFE4EEF9)];
+  }
+  return const [Color(0xFFF5F9FF), Color(0xFFE4EEF9)];
+}
+
+Color _aqiColor(int? aqi) {
+  if (aqi == null) return const Color(0xFF9E9D24);
+  if (aqi <= 50) return const Color(0xFF4CAF50);
+  if (aqi <= 100) return const Color(0xFF9E9D24);
+  if (aqi <= 150) return const Color(0xFFFF9800);
+  if (aqi <= 200) return const Color(0xFFF4511E);
+  if (aqi <= 300) return const Color(0xFFE53935);
+  return const Color(0xFFB71C1C);
+}
+
+Color _uvColor(String uvText) {
+  final v = int.tryParse(RegExp(r'\d+').firstMatch(uvText)?.group(0) ?? '');
+  if (v == null) {
+    return uvText.contains('弱')
+        ? const Color(0xFF4CAF50)
+        : const Color(0xFFFF9800);
+  }
+  if (v <= 2) return const Color(0xFF4CAF50);
+  if (v <= 5) return const Color(0xFFC0CA33);
+  if (v <= 7) return const Color(0xFFFF9800);
+  if (v <= 10) return const Color(0xFFF4511E);
+  return const Color(0xFFB71C1C);
+}
+
+Widget _pill(String text, Color color) => Container(
+    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+    decoration: BoxDecoration(
+        color: color.withOpacity(0.14), borderRadius: BorderRadius.circular(50)),
+    child: Text(text,
+        style: TextStyle(
+            fontSize: 24, fontWeight: FontWeight.w500, color: color)));
+
+Widget _infoCardW(String title, Widget value) => SizedBox(
+    width: double.infinity,
+    child: Card(
+        margin: EdgeInsets.symmetric(vertical: 4),
+        child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style:
+                          TextStyle(fontSize: 17, color: Colors.grey)),
+                  SizedBox(height: 4),
+                  value,
+                ]))));

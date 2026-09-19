@@ -121,8 +121,62 @@ void main() {
   runApp(const CyanWeatherWebfApp());
 }
 
-class CyanWeatherWebfApp extends StatelessWidget {
+class CyanWeatherWebfApp extends StatefulWidget {
   const CyanWeatherWebfApp({super.key});
+
+  @override
+  State<CyanWeatherWebfApp> createState() => _CyanWeatherWebfAppState();
+}
+
+class _CyanWeatherWebfAppState extends State<CyanWeatherWebfApp>
+    with WidgetsBindingObserver {
+  final WebFController _controller = WebFController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // 页面 JS 上下文就绪时间不定，分多次注入直到生效
+    for (final delay in [0, 600, 1500, 3000, 5000]) {
+      Future.delayed(Duration(milliseconds: delay), _applyInsets);
+    }
+
+  }
+
+  @override
+  void didChangeMetrics() {
+    _applyInsets();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// 把状态栏/小白条高度注入页面：直接写 .topbar / #content 内联样式
+  /// （WebF 0.24 不支持 CSS calc/var）。JS 上下文就绪前会抛错，靠重试直至生效。
+  int _insetAttempts = 0;
+  void _applyInsets() {
+    if (_insetAttempts >= 40) return;
+    _insetAttempts++;
+    try {
+      final m = MediaQueryData.fromView(View.of(context));
+      final top = m.padding.top.toStringAsFixed(1);
+      final bottom = m.padding.bottom.toStringAsFixed(1);
+      _controller.view.evaluateJavaScripts(
+          "(function(){var tb=document.querySelector('.topbar');"
+          "if(tb){tb.style.paddingTop='${top}px';tb.style.paddingBottom='12px';}"
+          "var ct=document.getElementById('content');"
+          "if(ct){ct.style.paddingBottom='${(30 + m.padding.bottom).toStringAsFixed(1)}px';}"
+          "var sb=document.getElementById('settingsBtn');"
+          "if(sb){sb.style.top='${(m.padding.top + 8).toStringAsFixed(1)}px';}"
+          "var rb=document.getElementById('refreshBtn');"
+          "if(rb){rb.style.top='${(m.padding.top + 8).toStringAsFixed(1)}px';}})();");
+    } catch (_) {
+      Future.delayed(const Duration(milliseconds: 400), _applyInsets);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,13 +187,11 @@ class CyanWeatherWebfApp extends StatelessWidget {
         extendBody: true,
         extendBodyBehindAppBar: true,
         backgroundColor: const Color(0xFFF5F9FF),
-        body: SafeArea(
-          child: WebF.fromControllerName(
-            controllerName: 'home',
-            bundle: WebFBundle.fromUrl('assets:///assets/web/index.html'),
-            createController: () => WebFController(),
-            loadingWidget: const Center(child: CircularProgressIndicator()),
-          ),
+        body: WebF.fromControllerName(
+          controllerName: 'home',
+          bundle: WebFBundle.fromUrl('assets:///assets/web/index.html'),
+          createController: () => _controller,
+          loadingWidget: const Center(child: CircularProgressIndicator()),
         ),
       ),
     );

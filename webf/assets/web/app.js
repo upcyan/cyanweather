@@ -304,6 +304,27 @@ function hourCardHTML(timeStr, temperature, cond, icon, rainProb) {
   }
   return h + '</div>';
 }
+
+/* AQI/紫外线等级色 */
+function aqiColorOf(v) {
+  if (v == null) return '#9e9d24';
+  if (v <= 50) return '#4caf50';
+  if (v <= 100) return '#9e9d24';
+  if (v <= 150) return '#ff9800';
+  if (v <= 200) return '#f4511e';
+  if (v <= 300) return '#e53935';
+  return '#b71c1c';
+}
+function uvColorOf(text) {
+  var m = /\d+/.exec(text || '');
+  var v = m ? parseInt(m[0], 10) : null;
+  if (v == null) return /弱/.test(text) ? '#4caf50' : '#ff9800';
+  if (v <= 2) return '#4caf50';
+  if (v <= 5) return '#c0ca33';
+  if (v <= 7) return '#ff9800';
+  if (v <= 10) return '#f4511e';
+  return '#b71c1c';
+}
 function dayLabelCN(dateStr) {
   try {
     var parts = dateStr.substring(0, 10).split(/[-\/]/);
@@ -654,8 +675,10 @@ function paintGlyph(el, kind, px) {
   el.innerHTML = '<img class="meteocon" src="assets:///assets/web/icons/' + iconSlug(kind) + '.png" width="' + px + '" height="' + px + '" alt="">';
 }
 function iconSlug(kind) {
+  /* nmcTextKind/wmoKind 返回大写 KIND，这里统一小写后查表 */
+  var k = String(kind || '').toLowerCase();
   var map = { sun:'clear-day', partly:'partly-cloudy-day', cloud:'overcast', rain:'rain', thunder:'thunderstorms', snow:'snow', fog:'fog', haze:'fog', sleet:'sleet', wind:'overcast', moon:'clear-day' };
-  return map[kind] || 'overcast';
+  return map[k] || 'overcast';
 }
 /* ================= 渲染（统一模型） ================= */
 /* ---- 生活指数（对齐 native WeatherIndex.kt）---- */
@@ -695,7 +718,9 @@ function coldIndex(high, low) {
 }
 function lifeTileHTML(icon, title, text) {
   var parts = (text || '-').split('|');
-  return '<div class="life-tile"><div class="life-head"><span class="life-icon">' + icon + '</span><span class="life-title">' + title + '</span></div>' +
+  var colors = { '穿衣': '#7e57c2', '运动': '#42a5f5', '洗车': '#26a69a', '感冒': '#ef5350' };
+  var c = colors[title] || '#0b6bcb';
+  return '<div class="life-tile"><div class="life-head"><span class="life-ava" style="background:' + c + '">' + title.charAt(0) + '</span><span class="life-title">' + title + '</span></div>' +
     '<div class="life-main">' + escapeHTML(parts[0]) + '</div>' +
     (parts.length > 1 ? '<div class="life-sub">' + escapeHTML(parts[1]) + '</div>' : '') + '</div>';
 }
@@ -736,6 +761,14 @@ function renderWeather(w) {
     $('curUnit').textContent = '°C';
     $('curCond').textContent = w.condition || '-';
     paintGlyph($('weatherGlyph'), nmcTextKind(w.condition), 96);
+    /* 天气自适应背景/Hero 色调（含昼夜：夜间不用晴天暖色） */
+    var slugMap = { SUN: 'sun', PARTLY: 'partly', CLOUD: 'partly', RAIN: 'rain', THUNDER: 'thunder', SLEET: 'sleet', SNOW: 'snow', FOG: 'fog', HAZE: 'fog', WIND: 'partly', UNKNOWN: 'partly' };
+    var kind = nmcTextKind(w.condition);
+    var slug = slugMap[kind] || 'partly';
+    var hr = new Date().getHours();
+    var isDay = hr >= 6 && hr <= 18;
+    if (!isDay && (slug === 'sun' || slug === 'partly')) slug = 'night';
+    document.body.setAttribute('data-wx', slug);
   });
   safe('stats', function () {
     $('todayHigh').textContent = tempStr(w.todayHigh) + '°';
@@ -750,13 +783,21 @@ function renderWeather(w) {
     if (w.windPower) windTxt += '<br>' + w.windPower;
     if (w.windSpeed != null) windTxt += '（' + w.windSpeed.toFixed(1) + 'm/s）';
     $('windVal').innerHTML = windTxt || '-';
-    var aqiTxt = '';
-    if (w.aqi != null) aqiTxt = (w.aqiText ? w.aqiText + ' ' : '') + w.aqi;
-    else if (w.aqiText) aqiTxt = w.aqiText;
-    if (w.pm25 != null) aqiTxt += '\nPM2.5: ' + Math.round(w.pm25) + 'μg/m³';
-    if (w.pm10 != null) aqiTxt += '\nPM10: ' + Math.round(w.pm10) + 'μg/m³';
-    $('aqiVal').textContent = aqiTxt || '-';
-    $('uvVal').textContent = w.uvIndex || '-';
+    var aqiHtml = '';
+    if (w.aqi != null) {
+      var label = w.aqiText ? w.aqiText : aqiTextOf(w.aqi);
+      aqiHtml = '<span class="badge-pill" style="color:' + aqiColorOf(w.aqi) + ';background:' + aqiColorOf(w.aqi) + '1f">' + label + ' ' + w.aqi + '</span>';
+    } else if (w.aqiText) {
+      aqiHtml = '<span class="badge-pill" style="color:#666;background:#6666661f">' + w.aqiText + '</span>';
+    }
+    if (w.pm25 != null) aqiHtml += '<div style="font-size:0.75rem;color:#888;margin-top:4px">PM2.5: ' + Math.round(w.pm25) + 'μg/m³</div>';
+    if (w.pm10 != null) aqiHtml += '<div style="font-size:0.75rem;color:#888;margin-top:2px">PM10: ' + Math.round(w.pm10) + 'μg/m³</div>';
+    $('aqiVal').innerHTML = aqiHtml || '-';
+    if (w.uvIndex) {
+      $('uvVal').innerHTML = '<span class="badge-pill" style="color:' + uvColorOf(w.uvIndex) + ';background:' + uvColorOf(w.uvIndex) + '1f">' + w.uvIndex + '</span>';
+    } else {
+      $('uvVal').textContent = '-';
+    }
   });
 
   /* 生活指数四宫格（对齐 native） */
