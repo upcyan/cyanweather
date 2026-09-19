@@ -920,7 +920,7 @@ function renderRainTip(w) {
   }
   console.log('[CWJS] raintip=' + tip);
   if (tip) {
-    mountHTML('rainTipMount', '<section class="rain-tip-card card" id="rainTipCard"><span class="rain-tip-icon">🌂</span><span class="rain-tip-text">' + escapeHTML(tip) + '</span><span class="rain-tip-action" id="rainTipAction">' + (rainTrendOpen ? '收起降雨趋势 ›' : '查看降雨趋势 ›') + '</span></section>');
+    mountHTML('rainTipMount', '<section class="rain-tip-card card" id="rainTipCard"><span class="rain-tip-ava">雨</span><span class="rain-tip-text">' + escapeHTML(tip) + '</span><span class="rain-tip-action" id="rainTipAction">' + (rainTrendOpen ? '收起降雨趋势 ›' : '查看降雨趋势 ›') + '</span></section>');
     $('rainTipCard').addEventListener('click', function () {
       rainTrendOpen = !rainTrendOpen;
       mountHTML('rainBlockMount', rainTrendOpen ? rainTrendMarkup : '');

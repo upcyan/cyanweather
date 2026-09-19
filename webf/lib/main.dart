@@ -140,6 +140,7 @@ class _CyanWeatherWebfAppState extends State<CyanWeatherWebfApp>
     for (final delay in [0, 600, 1500, 3000, 5000]) {
       Future.delayed(Duration(milliseconds: delay), _applyInsets);
     }
+    Future.delayed(const Duration(milliseconds: 10000), _probeOverflow);
 
   }
 
@@ -152,6 +153,19 @@ class _CyanWeatherWebfAppState extends State<CyanWeatherWebfApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _probeOverflow() {
+    try {
+      _controller.view.evaluateJavaScripts(
+          "(function(){var vw=window.innerWidth;var out=[];var all=document.querySelectorAll('*');"
+          "for(var i=0;i<all.length;i++){var el=all[i];var r=el.getBoundingClientRect();"
+          "if(r.right>vw+1&&r.width>0){out.push(((el.id||el.className||el.tagName)+'').substring(0,22)+':'+Math.round(r.left)+'~'+Math.round(r.right));}}"
+          "var d=document.createElement('div');"
+          "d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#ff0;color:#000;font-size:13px;';"
+          "d.textContent='VW'+vw+' BW'+document.body.scrollWidth+' N'+out.length+' '+out.slice(0,5).join(' | ');"
+          "document.body.appendChild(d);})();");
+    } catch (_) {}
   }
 
   /// 把状态栏/小白条高度注入页面：直接写 .topbar / #content 内联样式

@@ -954,9 +954,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(children: [
-                          // 该设备缺 emoji 字体回退，🌂 显示为方框；改用矢量图标
-                          Icon(Icons.umbrella,
-                              size: 22 * _fs, color: const Color(0xFF0B6BCB)),
+                          Container(
+                              width: 30 * _fs,
+                              height: 30 * _fs,
+                              decoration: const BoxDecoration(
+                                  color: Color(0xFF0B6BCB),
+                                  shape: BoxShape.circle),
+                              alignment: Alignment.center,
+                              child: Text('雨',
+                                  style: TextStyle(
+                                      fontSize: 15 * _fs,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white))),
                           SizedBox(width: 8 * _fs),
                           Expanded(
                               child: Text(tip,
