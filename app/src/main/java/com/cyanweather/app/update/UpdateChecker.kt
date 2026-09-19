@@ -46,7 +46,9 @@ object UpdateChecker {
             val latestVersion = release.tag_name.removePrefix("v").trim()
             val currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0"
             if (compareVersions(latestVersion, currentVersion) > 0) {
-                val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk") }
+                // Release 里可能同时有原生版与 experimental 版 APK，优先选原生版
+                val apkAsset = release.assets.firstOrNull { it.name.endsWith("-release.apk") && !it.name.contains("experimental") }
+                    ?: release.assets.firstOrNull { it.name.endsWith(".apk") }
                 UpdateResult.UpdateAvailable(
                     version = latestVersion,
                     releaseNotes = release.body,
@@ -83,6 +85,7 @@ object UpdateChecker {
             .setTitle("下载更新")
             .setDescription("正在下载 $fileName")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            // 注意：目的地为 external-files 下的 updates/，与 res/xml/file_paths.xml 中的 external-files-path 声明保持一致
             .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, "updates/$fileName")
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(true)

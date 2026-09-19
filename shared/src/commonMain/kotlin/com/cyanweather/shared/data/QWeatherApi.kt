@@ -69,5 +69,10 @@ object QWeatherApi {
 }
 
 private fun JsonObject.text(key: String): String = this[key]?.jsonPrimitive?.contentOrNull.orEmpty()
-private fun JsonObject.double(key: String): Double? = this[key]?.jsonPrimitive?.doubleOrNull
-private fun JsonObject.int(key: String): Int? = this[key]?.jsonPrimitive?.intOrNull
+
+// 和风天气 v7 接口的数值字段以字符串返回（如 "28"、"85"），需同时兼容数字与字符串
+private fun JsonObject.double(key: String): Double? =
+    this[key]?.jsonPrimitive?.let { it.doubleOrNull ?: it.contentOrNull?.trim()?.toDoubleOrNull() }
+
+private fun JsonObject.int(key: String): Int? =
+    this[key]?.jsonPrimitive?.let { it.intOrNull ?: it.contentOrNull?.trim()?.toIntOrNull() }

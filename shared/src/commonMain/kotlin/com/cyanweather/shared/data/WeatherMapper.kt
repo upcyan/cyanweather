@@ -46,7 +46,17 @@ fun caiyunSkyconText(code: String): String = when (code) {
     "HAIL" -> "冰雹"
     "SLEET" -> "雨夹雪"
     "TORNADO" -> "龙卷风"
-    else -> code
+    // 未知码降级：按关键词给出基础中文，避免直接展示英文码
+    else -> when {
+        code.contains("THUNDER") -> "雷阵雨"
+        code.contains("SNOW") -> "雪"
+        code.contains("RAIN") -> "雨"
+        code.contains("HAZE") -> "霾"
+        code.contains("FOG") -> "雾"
+        code.contains("CLOUD") -> "多云"
+        code.contains("CLEAR") -> "晴"
+        else -> code
+    }
 }
 
 fun caiyunSkyconKind(code: String): SkyKind = when (code) {
@@ -69,8 +79,8 @@ fun caiyunSkyconKind(code: String): SkyKind = when (code) {
 
 fun nmcSkyconKind(text: String): SkyKind = when {
     text.contains("雷") -> SkyKind.THUNDER
-    text.contains("雪") -> SkyKind.SNOW
     text.contains("雨夹雪") -> SkyKind.SLEET
+    text.contains("雪") -> SkyKind.SNOW
     text.contains("雨") -> SkyKind.RAIN
     text.contains("晴") -> SkyKind.SUN
     text.contains("云") -> SkyKind.PARTLY
@@ -98,7 +108,10 @@ fun beaufort(speedMps: Double): String {
         speedMps < 13.9 -> 6
         speedMps < 17.2 -> 7
         speedMps < 20.8 -> 8
-        else -> 9
+        speedMps < 24.5 -> 9
+        speedMps < 28.5 -> 10
+        speedMps < 32.7 -> 11
+        else -> 12
     }
     return "${bft}级"
 }
@@ -163,6 +176,24 @@ private fun todayStr(): String {
     val now = Clock.System.now()
     val localDate = now.toLocalDateTime(TimeZone.currentSystemDefault()).date
     return "${localDate.year}-${localDate.monthNumber.toString().padStart(2, '0')}-${localDate.dayOfMonth.toString().padStart(2, '0')}"
+}
+
+/**
+ * 规范化逐时时间戳为 ISO "yyyy-MM-ddTHH:mm"，便于多源聚合时按同一小时合并。
+ * 兼容 "yyyy-MM-dd HH:mm"（气象局）、"MM-dd HH:mm"（气象局实况，补当前年份）与 "yyyy/M/d HH:mm"。
+ */
+internal fun normalizeHourTime(t: String): String {
+    val v = t.trim().replace("/", "-")
+    Regex("^(\\d{4})-(\\d{1,2})-(\\d{1,2})[ T](\\d{1,2}):(\\d{2})").find(v)?.let { m ->
+        val (y, mo, d, h, mi) = m.destructured
+        return "%s-%02d-%02dT%02d:%s".format(y, mo.toInt(), d.toInt(), h.toInt(), mi)
+    }
+    Regex("^(\\d{1,2})-(\\d{1,2})[ T](\\d{1,2}):(\\d{2})").find(v)?.let { m ->
+        val (mo, d, h, mi) = m.destructured
+        val year = todayStr().substring(0, 4)
+        return "%s-%02d-%02dT%02d:%s".format(year, mo.toInt(), d.toInt(), h.toInt(), mi)
+    }
+    return t
 }
 
 private fun currentTimestamp(): String {
@@ -261,7 +292,8 @@ fun parseOpenMeteo(w: OpenMeteoResponse, air: OpenMeteoAirQuality?, cityName: St
         savedAt = Clock.System.now().toEpochMilliseconds(),
         pm25 = air?.current?.pm25?.clean(),
         pm10 = air?.current?.pm10?.clean(),
-        windSpeed = windSpeedKmh
+        // 统一为 m/s，与彩云等数据源口径一致（界面按 m/s 展示）
+        windSpeed = windSpeedKmh?.div(3.6)
     )
 }
 
@@ -317,7 +349,7 @@ fun parseNmc(data: NmcData?, cityName: String): WeatherData {
         .sortedBy { it.time }
         .map {
             HourlyItem(
-                time = it.time,
+                time = normalizeHourTime(it.time),
                 temperature = it.temperature.clean(),
                 condition = "",
                 isForecast = false

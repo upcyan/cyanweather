@@ -84,24 +84,40 @@ object WeatherAggregator {
         val valid = values.zip(weights).filter { (v, _) -> v != null }.map { (v, w) -> v!! to w }
         if (valid.isEmpty()) return null
         if (valid.size == 1) return valid.first().first
-        val mean = valid.sumOf { it.first } / valid.size
-        val filtered = valid.filter { abs(it.first - mean) <= 2 * standardDeviation(valid.map { it.first }) }
-        if (filtered.isEmpty()) return valid.maxByOrNull { it.second }?.first
+        val filtered = robustFilter(valid)
         val totalWeight = filtered.sumOf { it.second.toDouble() }
         return filtered.sumOf { it.first * it.second } / totalWeight
     }
 
     private fun aggregateInt(values: List<Int?>, weights: List<Float>): Int? {
-        val valid = values.zip(weights).filter { (v, _) -> v != null }.map { (v, w) -> v!! to w }
+        val valid = values.zip(weights).filter { (v, _) -> v != null }.map { (v, w) -> v!!.toDouble() to w }
         if (valid.isEmpty()) return null
-        if (valid.size == 1) return valid.first().first
-        val mean = valid.sumOf { it.first.toDouble() } / valid.size
-        val std = standardDeviation(valid.map { it.first.toDouble() })
-        val filtered = valid.filter { abs(it.first - mean) <= 2 * std }
-        if (filtered.isEmpty()) return valid.maxByOrNull { it.second }?.first
+        if (valid.size == 1) return valid.first().first.toInt()
+        val filtered = robustFilter(valid)
         val totalWeight = filtered.sumOf { it.second.toDouble() }
-        val weightedSum = filtered.sumOf { it.first.toDouble() * it.second.toDouble() }
+        val weightedSum = filtered.sumOf { it.first * it.second }
         return (weightedSum / totalWeight).toInt()
+    }
+
+    /**
+     * 小样本稳健离群值过滤（MAD 法）。
+     * 原实现用均值±2σ，但样本数 n≤6 时任何单点的 z 分数上界为 (n-1)/√n ≤ 2，
+     * 过滤条件永远不触发，坏数据无法剔除；改用中位数±2.5·MAD，并设 1.0 绝对下限。
+     */
+    private fun robustFilter(valid: List<Pair<Double, Float>>): List<Pair<Double, Float>> {
+        if (valid.size < 3) return valid
+        val values = valid.map { it.first }
+        val med = median(values)
+        val mad = median(values.map { abs(it - med) })
+        val threshold = maxOf(2.5 * mad, 1.0)
+        val kept = valid.filter { abs(it.first - med) <= threshold }
+        return kept.ifEmpty { valid }
+    }
+
+    private fun median(values: List<Double>): Double {
+        val sorted = values.sorted()
+        val n = sorted.size
+        return if (n % 2 == 1) sorted[n / 2] else (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
     }
 
     private fun aggregateCondition(entries: List<Pair<String, Float>>): String {
@@ -129,7 +145,9 @@ object WeatherAggregator {
             data.hourly.map { it to (SOURCE_WEIGHTS[id] ?: 0.7f) }
         }.flatten()
         if (allHourly.isEmpty()) return emptyList()
-        val grouped = allHourly.groupBy { it.first.time }
+        // 先规范化时间戳（气象局用空格分隔、其它源用 T），否则同一小时无法合并
+        val normalized = allHourly.map { (item, w) -> item.copy(time = normalizeHourTime(item.time)) to w }
+        val grouped = normalized.groupBy { it.first.time }
         return grouped.map { (time, items) ->
             val temps = items.map { it.first.temperature to it.second }
             val conds = items.map { it.first.condition to it.second }

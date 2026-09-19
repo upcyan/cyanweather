@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <external-cache-path name="updates" path="updates/" />
+    <!-- APK 更新包下载目录：DownloadManager.setDestinationInExternalFilesDir(DIRECTORY_DOWNLOADS, "updates/…") -->
+    <external-files-path name="updates_files" path="Download/updates/" />
 </paths>

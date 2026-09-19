@@ -48,7 +48,8 @@ data class UiState(
     val selectedProvince: String? = null,
     val updateResult: UpdateResult? = null,
     val updateDownloading: Boolean = false,
-    val updateDownloadId: Long? = null
+    val updateDownloadId: Long? = null,
+    val updateProgressText: String? = null
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -63,10 +64,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     private var lastPauseTime = 0L
+    private var settingsLoaded = false
+    private var refreshJob: kotlinx.coroutines.Job? = null
 
     init {
         viewModelScope.launch {
             settingsStore.flow(context).collect { s ->
+                val firstLoad = !settingsLoaded
+                settingsLoaded = true
                 ui = ui.copy(
                     settings = s,
                     fontScale = when (s.fontSize) {
@@ -75,6 +80,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         else -> 1.3f
                     }
                 )
+                // 首次拿到持久化设置后再检查更新，否则读到默认值，用户关闭的开关不生效
+                if (firstLoad && s.autoCheckUpdate) checkUpdate()
             }
         }
         viewModelScope.launch {
@@ -83,7 +90,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         startAutoRefresh()
         observeLifecycle()
-        if (ui.settings.autoCheckUpdate) checkUpdate()
     }
 
     private fun checkUpdate() {
@@ -118,30 +124,71 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val downloadId = com.cyanweather.app.update.UpdateChecker.downloadAndInstall(context, url, fileName)
             updateFileName = fileName
             ui = ui.copy(updateDownloading = true, updateDownloadId = downloadId)
+            // DownloadManager 不弹安装框：必须在应用内轮询下载状态，完成后主动拉起安装器；
+            // waitMs 设长（1天）保证轮询持续到下载完成，进度会实时展示在 UI 上
+            checkDownloadComplete(waitMs = 24 * 60 * 60 * 1000L)
         }
     }
 
-    fun checkDownloadComplete() {
+    fun checkDownloadComplete(waitMs: Long = 0L) {
         val id = ui.updateDownloadId ?: return
+        viewModelScope.launch {
+            val result = try {
+                pollDownload(id, waitMs)
+            } catch (_: Exception) {
+                null
+            }
+            ui = ui.copy(updateProgressText = null)
+            if (result == false) {
+                // 超时未完成：保留 downloadId，回到前台时继续检查
+                ui = ui.copy(updateDownloading = false)
+                return@launch
+            }
+            val fileName = updateFileName
+            updateFileName = null
+            ui = ui.copy(updateDownloading = false, updateDownloadId = null)
+            if (result == true && fileName != null) {
+                try {
+                    val fileUri = com.cyanweather.app.update.UpdateChecker.getApkFileUri(context, fileName)
+                    com.cyanweather.app.update.UpdateChecker.installApk(context, fileUri)
+                } catch (_: Exception) { }
+            }
+        }
+    }
+
+    /** 轮询下载状态：成功返回 true；超时返回 false；失败抛异常。 */
+    private suspend fun pollDownload(id: Long, waitMs: Long): Boolean {
         val dm = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-        val query = android.app.DownloadManager.Query().setFilterById(id)
-        val cursor = dm.query(query)
-        cursor?.use { c ->
-            if (c.moveToFirst()) {
-                val statusIdx = c.getColumnIndex(android.app.DownloadManager.COLUMN_STATUS)
-                if (statusIdx >= 0) {
-                    val status = c.getInt(statusIdx)
-                    if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
-                        val fileName = updateFileName ?: return@use
-                        val fileUri = com.cyanweather.app.update.UpdateChecker.getApkFileUri(context, fileName)
-                        com.cyanweather.app.update.UpdateChecker.installApk(context, fileUri)
-                        updateFileName = null
-                        ui = ui.copy(updateDownloading = false, updateDownloadId = null)
-                    } else if (status == android.app.DownloadManager.STATUS_FAILED) {
-                        ui = ui.copy(updateDownloading = false, updateDownloadId = null)
+        val deadline = System.currentTimeMillis() + waitMs
+        while (true) {
+            dm.query(android.app.DownloadManager.Query().setFilterById(id))?.use { c ->
+                if (c.moveToFirst()) {
+                    val statusIdx = c.getColumnIndex(android.app.DownloadManager.COLUMN_STATUS)
+                    val reasonIdx = c.getColumnIndex(android.app.DownloadManager.COLUMN_REASON)
+                    if (statusIdx >= 0) {
+                        when (c.getInt(statusIdx)) {
+                            android.app.DownloadManager.STATUS_SUCCESSFUL -> return true
+                            android.app.DownloadManager.STATUS_FAILED -> throw RuntimeException(
+                                "下载失败" + if (reasonIdx >= 0) "（code=${c.getInt(reasonIdx)}）" else ""
+                            )
+                        }
+                    }
+                    if (waitMs > 0) {
+                        val doneIdx = c.getColumnIndex(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                        val totalIdx = c.getColumnIndex(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+                        if (doneIdx >= 0 && totalIdx >= 0) {
+                            val done = c.getLong(doneIdx)
+                            val total = c.getLong(totalIdx)
+                            if (total > 0) {
+                                val text = "已下载 ${done * 100 / total}%"
+                                if (ui.updateProgressText != text) ui = ui.copy(updateProgressText = text)
+                            }
+                        }
                     }
                 }
             }
+            if (System.currentTimeMillis() >= deadline) return false
+            delay(1_000)
         }
     }
 
@@ -151,6 +198,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 lastPauseTime = System.currentTimeMillis()
             }
             override fun onResume(owner: LifecycleOwner) {
+                if (ui.updateDownloadId != null) checkDownloadComplete()
                 if (ui.settings.refreshInterval == "on_resume") {
                     val elapsed = System.currentTimeMillis() - lastPauseTime
                     if (lastPauseTime == 0L || elapsed > 30_000) {
@@ -164,13 +212,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun fontScaleOf(): Float = ui.fontScale
 
     fun refresh() {
-        viewModelScope.launch {
+        // 新请求取消旧的进行中请求，避免并发刷新竞态覆盖，也保证设置变更后的重刷用最新配置
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
             ui = ui.copy(refreshing = true, error = null, loading = ui.weather == null)
             try {
                 val locationNotice = refreshLocation()
                 val w = repository.loadWeather()
                 settingsStore.saveCache(context, w)
                 ui = ui.copy(weather = w, loading = false, refreshing = false, locationNotice = locationNotice)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 val msg = e.message ?: "网络错误"
                 ui = ui.copy(loading = false, refreshing = false, error = msg)

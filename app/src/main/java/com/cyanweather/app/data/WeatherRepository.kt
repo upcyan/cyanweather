@@ -2,19 +2,22 @@ package com.cyanweather.app.data
 
 import android.content.Context
 import com.cyanweather.app.location.LocationHelper
-import com.cyanweather.shared.data.AdminHierarchy
 import com.cyanweather.shared.data.CaiyunApi
 import com.cyanweather.shared.data.NmcApi
 import com.cyanweather.shared.data.OpenMeteoApi
 import com.cyanweather.shared.data.QWeatherApi
 import com.cyanweather.shared.data.XiaomiWeatherApi
+import com.cyanweather.shared.data.caiyunSkyconText
 import com.cyanweather.shared.data.parseCaiyun
 import com.cyanweather.shared.data.parseNmc
 import com.cyanweather.shared.data.parseOpenMeteo
 import com.cyanweather.shared.model.CaiyunWeather
+import com.cyanweather.shared.model.DailyItem
 import com.cyanweather.shared.model.NmcCityItem
 import com.cyanweather.shared.model.NmcProvinceItem
 import com.cyanweather.shared.model.WeatherData
+import com.cyanweather.shared.model.clean
+import com.cyanweather.shared.model.skyconTextOf
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -247,22 +250,50 @@ class WeatherRepository(
 
     private suspend fun loadCaiyunExtended(settings: AppSettings, lat: Double, lng: Double, name: String): WeatherData {
         val token = settings.caiyunToken.trim()
-        val days = settings.extendedDays
-        val results = mutableListOf<CaiyunWeather>()
+        val days = settings.extendedDays.coerceAtLeast(3)
+        // 免费版单次最多返回 3 天，按 3 天一批无缝拼接；
+        // 开启「获取昨日天气」时首批从 dailystart=-1 开始（昨日+今明两天）
+        val firstStart = if (settings.getYesterday) -1 else 0
+        val batches = mutableListOf<CaiyunWeather>()
         coroutineScope {
             val jobs = mutableListOf<Deferred<CaiyunWeather?>>()
-            jobs += async { runCatching { CaiyunApi.weatherV1(token, lat, lng, -1, 1) }.getOrNull() }
-            var offset = 0
-            while (offset < days) {
-                val batch = minOf(5, days - offset)
-                val o = offset
-                jobs += async { runCatching { CaiyunApi.weatherV1(token, lat, lng, o, batch) }.getOrNull() }
-                offset += batch
+            jobs += async { runCatching { CaiyunApi.weatherV1(token, lat, lng, firstStart, 3) }.getOrNull() }
+            var start = firstStart + 3
+            while (start < days) {
+                val s = start
+                jobs += async { runCatching { CaiyunApi.weatherV1(token, lat, lng, s, 3) }.getOrNull() }
+                start += 3
             }
-            jobs.forEach { j -> j.await()?.let { results.add(it) } }
+            jobs.forEach { j -> j.await()?.let { batches.add(it) } }
         }
-        val base = results.firstOrNull() ?: throw RuntimeException("彩云请求失败")
-        return parseCaiyun(base, name)
+        val base = batches.firstOrNull() ?: throw RuntimeException("彩云请求失败")
+        val parsed = parseCaiyun(base, name)
+        if (batches.size == 1) return parsed
+
+        // 按日期去重合并后续批次的多日预报
+        val mergedDaily = parsed.daily.toMutableList()
+        val seen = mergedDaily.map { it.date }.toMutableSet()
+        batches.drop(1).forEach { resp ->
+            val r = resp.result ?: return@forEach
+            val temps = r.daily?.temperature ?: return@forEach
+            val skys = r.daily.skycon.associateBy { it.date }
+            temps.forEach { t ->
+                val dateStr = if (t.date.contains("T")) t.date.substring(0, 10) else t.date
+                if (dateStr in seen) return@forEach
+                val sky = skys[t.date]
+                mergedDaily.add(
+                    DailyItem(
+                        date = dateStr,
+                        dayText = caiyunSkyconText(skyconTextOf(sky?.value)),
+                        nightText = "",
+                        high = t.max?.clean(),
+                        low = t.min?.clean()
+                    )
+                )
+                seen.add(dateStr)
+            }
+        }
+        return parsed.copy(daily = mergedDaily.sortedBy { it.date })
     }
 
     private suspend fun resolveCaiyunCityName(settings: AppSettings, lat: Double, lng: Double): String {

@@ -36,12 +36,18 @@ object XiaomiLocalWeather {
                 )
             }
             val wind = text("wind").split(',')
+            // aqilevel 是空气质量等级（1优~6严重污染），不是 AQI 数值，不能直接当 AQI 展示
+            val aqiLevel = number(text("aqilevel"))?.toInt()
+            val aqiLevelText = when (aqiLevel) {
+                1 -> "优"; 2 -> "良"; 3 -> "轻度污染"; 4 -> "中度污染"; 5 -> "重度污染"; 6 -> "严重污染"
+                else -> ""
+            }
             WeatherData(
                 cityName = text("city_name"), updatedAt = text("publish_time"),
                 temperature = number(text("temperature")), condition = text("description"),
                 humidity = number(text("humidity"))?.toInt(), windDirect = wind.firstOrNull().orEmpty(),
                 windPower = wind.getOrNull(1).orEmpty(), todayHigh = daily.firstOrNull()?.high,
-                todayLow = daily.firstOrNull()?.low, aqi = number(text("aqilevel"))?.toInt(),
+                todayLow = daily.firstOrNull()?.low, aqi = null, aqiText = aqiLevelText.ifEmpty { null },
                 sunrise = millisToTime(text("sunrise")), sunset = millisToTime(text("sunset")),
                 sourceTag = "数据来源：小米天气（设备本地）", daily = daily
             )
