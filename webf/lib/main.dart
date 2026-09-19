@@ -164,15 +164,11 @@ class _CyanWeatherWebfAppState extends State<CyanWeatherWebfApp>
       final m = MediaQueryData.fromView(View.of(context));
       final top = m.padding.top.toStringAsFixed(1);
       final bottom = m.padding.bottom.toStringAsFixed(1);
-      _controller.view.evaluateJavaScripts(
+_controller.view.evaluateJavaScripts(
           "(function(){var tb=document.querySelector('.topbar');"
-          "if(tb){tb.style.paddingTop='${top}px';tb.style.paddingBottom='12px';}"
+          "if(tb){tb.style.top='${m.padding.top}px';}"
           "var ct=document.getElementById('content');"
-          "if(ct){ct.style.paddingBottom='${(30 + m.padding.bottom).toStringAsFixed(1)}px';}"
-          "var sb=document.getElementById('settingsBtn');"
-          "if(sb){sb.style.top='${(m.padding.top + 8).toStringAsFixed(1)}px';}"
-          "var rb=document.getElementById('refreshBtn');"
-          "if(rb){rb.style.top='${(m.padding.top + 8).toStringAsFixed(1)}px';}})();");
+          "if(ct){ct.style.paddingBottom='${(44 + m.padding.bottom)}px';}})();");
     } catch (_) {
       Future.delayed(const Duration(milliseconds: 400), _applyInsets);
     }

@@ -1040,13 +1040,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 padding: EdgeInsets.only(top: 4 * _fs),
                 child: Text('PM2.5: ${w.pm25!.round()}μg/m³',
                     style: TextStyle(
-                        fontSize: 15 * _fs, color: const Color(0xFF888888)))),
+                        fontSize: 15 * _fs, color: const Color(0xFF666666)))),
           if (w.pm10 != null)
             Padding(
                 padding: EdgeInsets.only(top: 2 * _fs),
                 child: Text('PM10: ${w.pm10!.round()}μg/m³',
                     style: TextStyle(
-                        fontSize: 15 * _fs, color: const Color(0xFF888888)))),
+                        fontSize: 15 * _fs, color: const Color(0xFF666666)))),
         ])));
     if (w.uvIndex.isNotEmpty) {
       children.add(_infoCardW(
@@ -1165,7 +1165,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               padding: EdgeInsets.all(16 * _fs),
               child: Text('彩云天气暂不提供昨日天气数据',
                   style:
-                      TextStyle(fontSize: 16 * _fs, color: Colors.grey)))));
+                      TextStyle(fontSize: 16 * _fs, color: const Color(0xFF666666))))));
     }
 
     // 数据来源（居中）+ 置信度（多源聚合时显示，对齐 native）
@@ -1173,7 +1173,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         padding: EdgeInsets.only(top: 16 * _fs),
         child: Text(w.sourceTag,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13 * _fs, color: Colors.grey))));
+            style: TextStyle(fontSize: 13 * _fs, color: const Color(0xFF666666)))));
     if (w.confidence > 0) {
       children.add(Padding(
           padding: EdgeInsets.only(top: 4 * _fs),
@@ -1182,8 +1182,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               style: TextStyle(
                   fontSize: 13 * _fs,
                   color: w.confidence >= 0.8
-                      ? const Color(0xFF4CAF50)
-                      : const Color(0xFFFF9800)))));
+                      ? const Color(0xFF2E7D32)
+                      : const Color(0xFFE65100)))));
     }
 
     return Column(
@@ -1247,7 +1247,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   children: [
                     Text(title,
                         style:
-                            TextStyle(fontSize: 17 * _fs, color: Colors.grey)),
+                            TextStyle(fontSize: 17 * _fs, color: const Color(0xFF666666))),
                     SizedBox(height: 4 * _fs),
                     Text(value,
                         style: TextStyle(
@@ -1255,7 +1255,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ]))));
 
   Widget _statCol(String l, String v, Color c) => Column(children: [
-        Text(l, style: TextStyle(fontSize: 15 * _fs, color: Colors.grey)),
+        Text(l, style: TextStyle(fontSize: 15 * _fs, color: const Color(0xFF666666))),
         Text(v,
             style: TextStyle(
                 fontSize: 26 * _fs, fontWeight: FontWeight.bold, color: c))
@@ -1590,12 +1590,12 @@ List<Color> _weatherGradient(String? condition) {
 }
 
 Color _aqiColor(int? aqi) {
-  if (aqi == null) return const Color(0xFF9E9D24);
-  if (aqi <= 50) return const Color(0xFF4CAF50);
-  if (aqi <= 100) return const Color(0xFF9E9D24);
-  if (aqi <= 150) return const Color(0xFFFF9800);
-  if (aqi <= 200) return const Color(0xFFF4511E);
-  if (aqi <= 300) return const Color(0xFFE53935);
+  if (aqi == null) return const Color(0xFF827717);
+  if (aqi <= 50) return const Color(0xFF2E7D32);
+  if (aqi <= 100) return const Color(0xFF827717);
+  if (aqi <= 150) return const Color(0xFFE65100);
+  if (aqi <= 200) return const Color(0xFFBF360C);
+  if (aqi <= 300) return const Color(0xFFC62828);
   return const Color(0xFFB71C1C);
 }
 
@@ -1606,10 +1606,10 @@ Color _uvColor(String uvText) {
         ? const Color(0xFF4CAF50)
         : const Color(0xFFFF9800);
   }
-  if (v <= 2) return const Color(0xFF4CAF50);
-  if (v <= 5) return const Color(0xFFC0CA33);
-  if (v <= 7) return const Color(0xFFFF9800);
-  if (v <= 10) return const Color(0xFFF4511E);
+  if (v <= 2) return const Color(0xFF2E7D32);
+  if (v <= 5) return const Color(0xFF827717);
+  if (v <= 7) return const Color(0xFFE65100);
+  if (v <= 10) return const Color(0xFFBF360C);
   return const Color(0xFFB71C1C);
 }
 
@@ -1632,7 +1632,7 @@ Widget _infoCardW(String title, Widget value) => SizedBox(
                 children: [
                   Text(title,
                       style:
-                          TextStyle(fontSize: 17, color: Colors.grey)),
+                          TextStyle(fontSize: 17, color: const Color(0xFF666666))),
                   SizedBox(height: 4),
                   value,
                 ]))));

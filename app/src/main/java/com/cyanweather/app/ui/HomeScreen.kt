@@ -383,10 +383,10 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
                     }
                 }
                 weather.pm25?.let {
-                    Text("PM2.5: ${String.format(Locale.US, "%.0f", it)}μg/m³", style = fst(16), color = Color(0xFF888888))
+                    Text("PM2.5: ${String.format(Locale.US, "%.0f", it)}μg/m³", style = fst(16), color = Color(0xFF666666))
                 }
                 weather.pm10?.let {
-                    Text("PM10: ${String.format(Locale.US, "%.0f", it)}μg/m³", style = fst(16), color = Color(0xFF888888))
+                    Text("PM10: ${String.format(Locale.US, "%.0f", it)}μg/m³", style = fst(16), color = Color(0xFF666666))
                 }
             } else {
                 Text("-", style = fst(28, FontWeight.Medium))
@@ -475,7 +475,7 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
         Text(
             weather.sourceTag,
             style = fst(16),
-            color = Color(0xFF888888),
+            color = Color(0xFF666666),
             textAlign = TextAlign.Center
         )
         if (weather.sourceContributions.isNotEmpty()) {
@@ -494,7 +494,7 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
             Text(
                 "置信度：${(weather.confidence * 100).toInt()}%",
                 style = fst(13),
-                color = if (weather.confidence >= 0.8f) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                color = if (weather.confidence >= 0.8f) Color(0xFF2E7D32) else Color(0xFFE65100),
                 textAlign = TextAlign.Center
             )
         }
@@ -578,11 +578,11 @@ private fun Pill(text: String, color: Color, modifier: Modifier = Modifier) {
 }
 
 private fun aqiLevelColor(aqi: Int): Color = when {
-    aqi <= 50 -> Color(0xFF4CAF50)
-    aqi <= 100 -> Color(0xFF9E9D24)
-    aqi <= 150 -> Color(0xFFFF9800)
-    aqi <= 200 -> Color(0xFFF4511E)
-    aqi <= 300 -> Color(0xFFE53935)
+    aqi <= 50 -> Color(0xFF2E7D32)
+    aqi <= 100 -> Color(0xFF827717)
+    aqi <= 150 -> Color(0xFFE65100)
+    aqi <= 200 -> Color(0xFFBF360C)
+    aqi <= 300 -> Color(0xFFC62828)
     else -> Color(0xFFB71C1C)
 }
 

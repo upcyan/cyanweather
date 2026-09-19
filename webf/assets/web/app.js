@@ -307,22 +307,22 @@ function hourCardHTML(timeStr, temperature, cond, icon, rainProb) {
 
 /* AQI/紫外线等级色 */
 function aqiColorOf(v) {
-  if (v == null) return '#9e9d24';
-  if (v <= 50) return '#4caf50';
-  if (v <= 100) return '#9e9d24';
-  if (v <= 150) return '#ff9800';
-  if (v <= 200) return '#f4511e';
-  if (v <= 300) return '#e53935';
+  if (v == null) return '#827717';
+  if (v <= 50) return '#2e7d32';
+  if (v <= 100) return '#827717';
+  if (v <= 150) return '#e65100';
+  if (v <= 200) return '#bf360c';
+  if (v <= 300) return '#c62828';
   return '#b71c1c';
 }
 function uvColorOf(text) {
   var m = /\d+/.exec(text || '');
   var v = m ? parseInt(m[0], 10) : null;
-  if (v == null) return /弱/.test(text) ? '#4caf50' : '#ff9800';
-  if (v <= 2) return '#4caf50';
-  if (v <= 5) return '#c0ca33';
-  if (v <= 7) return '#ff9800';
-  if (v <= 10) return '#f4511e';
+  if (v == null) return /弱/.test(text) ? '#2e7d32' : '#e65100';
+  if (v <= 2) return '#2e7d32';
+  if (v <= 5) return '#827717';
+  if (v <= 7) return '#e65100';
+  if (v <= 10) return '#bf360c';
   return '#b71c1c';
 }
 function dayLabelCN(dateStr) {
@@ -884,7 +884,7 @@ function renderWeather(w) {
 
   safe('footer', function () {
     $('sourceFooter').innerHTML = escapeHTML(w.sourceTag) +
-      (w.confidence ? '<div class="conf-line" style="color:' + (w.confidence >= 0.8 ? '#4caf50' : '#ff9800') + '">置信度：' + Math.round(w.confidence * 100) + '%</div>' : '');
+      (w.confidence ? '<div class="conf-line" style="color:' + (w.confidence >= 0.8 ? '#2e7d32' : '#e65100') + '">置信度：' + Math.round(w.confidence * 100) + '%</div>' : '');
     mountHTML('errorBox', '');
   });
 }
