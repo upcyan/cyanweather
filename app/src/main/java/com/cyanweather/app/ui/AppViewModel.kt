@@ -220,7 +220,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val locationNotice = refreshLocation()
                 val w = repository.loadWeather()
                 settingsStore.saveCache(context, w)
-                ui = ui.copy(weather = w, loading = false, refreshing = false, locationNotice = locationNotice)
+                ui = ui.copy(weather = w, loading = false, refreshing = false, error = null, locationNotice = locationNotice)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {

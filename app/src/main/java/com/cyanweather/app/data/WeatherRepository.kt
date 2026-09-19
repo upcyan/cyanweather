@@ -49,9 +49,14 @@ class WeatherRepository(
         val results = mutableListOf<Pair<String, WeatherData>>()
         val failures = mutableListOf<String>()
         for (source in selected) {
-            runCatching { loadSource(source, settings) }
-                .onSuccess { data -> results += source to data }
-                .onFailure { failures += "${sourceName(source)}：${it.message ?: "不可用"}" }
+            try {
+                results += source to loadSource(source, settings)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // 刷新被新请求取代/作用域取消：原样上抛，不能当成单个数据源的失败
+                throw e
+            } catch (e: Exception) {
+                failures += "${sourceName(source)}：${e.message ?: "不可用"}"
+            }
         }
         if (results.isEmpty()) {
             throw RuntimeException(failures.joinToString("；").ifBlank { "没有启用可用的天气源" })
