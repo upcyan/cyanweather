@@ -192,7 +192,32 @@ body {
 .info-list { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
 .info-card { padding: 12px 20px; }
 .info-label { display: block; font-size: 0.9rem; color: var(--muted); margin-bottom: 4px; }
-.info-value { display: block; font-size: 1.2rem; font-weight: 500; }
+.info-value { display: block; font-size: 1.2rem; font-weight: 500; white-space: pre-line; }
+
+/* ---- 生活指数四宫格（对齐 native LifestyleTile）---- */
+.life-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.life-tile {
+  background: var(--accent-soft);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.life-head { display: flex; align-items: center; gap: 6px; }
+.life-icon { font-size: 1rem; }
+.life-title { font-size: 0.85rem; font-weight: 500; color: #555555; }
+.life-main { font-size: 1rem; font-weight: 500; margin-top: 5px; }
+.life-sub {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-wrap { padding: 0; }
 
 /* ---- 降雨提醒卡 ---- */
 .rain-tip-card {

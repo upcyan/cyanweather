@@ -62,11 +62,11 @@ function wmoKind(c) {
   if ([95,96,99].indexOf(c) >= 0) return 'THUNDER';
   return 'UNKNOWN';
 }
-function nmcTextKind(t) { /* native nmcSkyconKind */
+function nmcTextKind(t) { /* native nmcSkyconKind（雨夹雪优先于雪） */
   if (!t) return 'UNKNOWN';
   if (t.indexOf('雷') >= 0) return 'THUNDER';
-  if (t.indexOf('雪') >= 0) return 'SNOW';
   if (t.indexOf('雨夹雪') >= 0) return 'SLEET';
+  if (t.indexOf('雪') >= 0) return 'SNOW';
   if (t.indexOf('雨') >= 0) return 'RAIN';
   if (t.indexOf('晴') >= 0) return 'SUN';
   if (t.indexOf('云') >= 0) return 'PARTLY';
@@ -184,14 +184,18 @@ function paintAllIcons(root) { /* 对容器内所有标记 canvas 批量绘制 *
 
 function windDirName(deg) {
   var dirs = ['北风','东北风','东风','东南风','南风','西南风','西风','西北风'];
-  return dirs[Math.floor((deg + 22.5) / 45) % 8];
+  var norm = ((deg % 360) + 360) % 360;
+  return dirs[Math.floor((((norm + 22.5) % 360)) / 45) % 8];
 }
 function beaufort(kmh) {
+  /* 对齐 native beaufort：0~12 级完整档位 */
   var mps = kmh / 3.6;
   var b = mps < 0.3 ? 0 : mps < 1.6 ? 1 : mps < 3.4 ? 2 : mps < 5.5 ? 3 : mps < 8 ? 4
-        : mps < 10.8 ? 5 : mps < 13.9 ? 6 : mps < 17.2 ? 7 : mps < 20.8 ? 8 : 9;
+        : mps < 10.8 ? 5 : mps < 13.9 ? 6 : mps < 17.2 ? 7 : mps < 20.8 ? 8
+        : mps < 24.5 ? 9 : mps < 28.5 ? 10 : mps < 32.7 ? 11 : 12;
   return b + '级';
 }
+function windSpeedMs(kmh) { return kmh == null ? null : (kmh / 3.6); }
 function aqiTextOf(v) {
   if (v <= 50) return '优';
   if (v <= 100) return '良';
@@ -212,6 +216,16 @@ function cleanInt(v) { return (v === null || v === undefined || isNaN(v)) ? null
 function cleanNmcText(s) { if (!s) return ''; var v = String(s).trim(); return (v === '' || v === '9999' || v === '0') ? '' : v; }
 function tempStr(v) { var n = cleanNum(v); return n === null ? '-' : Math.round(n); }
 function combineDayNight(day, night) { return (!night || night === day) ? day : day + '转' + night; }
+
+/* 规范化逐时时间戳为 ISO yyyy-MM-ddTHH:mm（对齐 native normalizeHourTime）*/
+function normalizeHourTime(t) {
+  var v = String(t || '').trim().replace(/\//g, '-');
+  var m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})/);
+  if (m) return m[1] + '-' + pad(+m[2]) + '-' + pad(+m[3]) + 'T' + pad(+m[4]) + ':' + m[5];
+  m = v.match(/^(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})/);
+  if (m) return ymd(new Date()).substring(0, 4) + '-' + pad(+m[1]) + '-' + pad(+m[2]) + 'T' + pad(+m[3]) + ':' + m[4];
+  return String(t || '');
+}
 
 /* ================= 状态与持久化 ================= */
 var state = {
@@ -305,7 +319,7 @@ function fetchForecast(lat, lon) {
   return fetch(url).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
 }
 function fetchAqi(lat, lon) {
-  var url = AQI_URL + '?latitude=' + lat + '&longitude=' + lon + '&current=us_aqi&timezone=auto';
+  var url = AQI_URL + '?latitude=' + lat + '&longitude=' + lon + '&current=us_aqi,pm2_5,pm10&timezone=auto';
   function tryOpen() {
     return fetch(url).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (j) { var v = j && j.current ? cleanInt(j.current.us_aqi) : null; if (v == null) throw new Error('no us_aqi'); return j; });
@@ -365,6 +379,9 @@ function mapOpenMeteo(w, air, cityNameOverride) {
   }
   var aqi = air && air.current ? cleanInt(air.current.us_aqi) : null;
   var uv = ti >= 0 ? cleanNum(daily.uv_index_max[ti]) : null;
+  var pm25 = air && air.current ? cleanNum(air.current.pm2_5) : null;
+  var pm10 = air && air.current ? cleanNum(air.current.pm10) : null;
+  var wspd = cleanNum(c.wind_speed_10m);
 
   return {
     cityName: cityNameOverride || state.city || '未识别位置',
@@ -374,10 +391,12 @@ function mapOpenMeteo(w, air, cityNameOverride) {
     feelsLike: cleanNum(c.apparent_temperature),
     humidity: cleanInt(c.relative_humidity_2m),
     windDirect: c.wind_direction_10m != null ? windDirName(c.wind_direction_10m) : '',
-    windPower: c.wind_speed_10m != null ? beaufort(c.wind_speed_10m) : '',
+    windPower: wspd != null ? beaufort(wspd) : '',
+    windSpeed: windSpeedMs(wspd),
     todayHigh: ti >= 0 ? cleanNum(daily.temperature_2m_max[ti]) : null,
     todayLow: ti >= 0 ? cleanNum(daily.temperature_2m_min[ti]) : null,
     aqi: aqi, aqiText: aqi !== null ? aqiTextOf(aqi) : '',
+    pm25: pm25, pm10: pm10,
     warning: null,
     sunrise: ti >= 0 ? (daily.sunrise[ti] || '').slice(11, 16) : '',
     sunset: ti >= 0 ? (daily.sunset[ti] || '').slice(11, 16) : '',
@@ -508,7 +527,7 @@ function parseNmc(data, cityName) { /* native parseNmc 完整移植 */
   }
   passed.sort(function (a, b) { return a.time < b.time ? -1 : 1; });
   var passedItems = passed.map(function (p) {
-    return { time: p.time, temperature: cleanNum(p.temperature), condition: '', isForecast: false, icon: '' };
+    return { time: normalizeHourTime(p.time), temperature: cleanNum(p.temperature), condition: '', isForecast: false, icon: '' };
   });
 
   var yesterday = null;
@@ -628,6 +647,67 @@ function iconSlug(kind) {
   return map[kind] || 'overcast';
 }
 /* ================= 渲染（统一模型） ================= */
+/* ---- 生活指数（对齐 native WeatherIndex.kt）---- */
+function clothingIndex(t) {
+  if (t == null) return '-';
+  if (t >= 35) return '酷热|穿透气薄衣';
+  if (t >= 30) return '炎热|短袖短裤';
+  if (t >= 25) return '温暖|轻薄长袖';
+  if (t >= 20) return '舒适|长袖薄外套';
+  if (t >= 15) return '微凉|夹克毛衣';
+  if (t >= 10) return '凉爽|厚外套';
+  if (t >= 5) return '寒冷|棉衣羽绒';
+  if (t >= 0) return '很冷|厚羽绒保暖';
+  return '极寒|防寒服加厚';
+}
+function exerciseIndex(t, cond, aqi) {
+  if (t == null) return '-';
+  if (cond.indexOf('雨') >= 0 || cond.indexOf('雪') >= 0 || cond.indexOf('雾') >= 0 || cond.indexOf('霾') >= 0) return '不宜|天气不佳';
+  if (aqi != null && aqi > 150) return '不宜|空气质量差';
+  if (t >= 35) return '不宜|高温炎热';
+  if (t >= 30) return '较不宜|偏热';
+  if (t >= 15 && t <= 28) return '适宜|温度舒适';
+  if (t >= 10) return '较适宜|注意保暖';
+  return '较不宜|温度偏低';
+}
+function carwashIndex(cond, rainProb) {
+  var hasRain = cond.indexOf('雨') >= 0 || cond.indexOf('雪') >= 0 || (rainProb != null && rainProb > 50);
+  return hasRain ? '不宜|有降水' : '适宜|近期无雨';
+}
+function coldIndex(high, low) {
+  if (high == null || low == null) return '-';
+  var diff = high - low;
+  if (diff >= 12) return '易发|温差大，注意增减衣物';
+  if (diff >= 8) return '较易发|温差较大';
+  if (diff >= 5) return '少发|温差适中';
+  return '不易发|温差小';
+}
+function lifeTileHTML(icon, title, text) {
+  var parts = (text || '-').split('|');
+  return '<div class="life-tile"><div class="life-head"><span class="life-icon">' + icon + '</span><span class="life-title">' + title + '</span></div>' +
+    '<div class="life-main">' + escapeHTML(parts[0]) + '</div>' +
+    (parts.length > 1 ? '<div class="life-sub">' + escapeHTML(parts[1]) + '</div>' : '') + '</div>';
+}
+function renderLifeIndex(w) {
+  var mount = $('lifeIndexMount');
+  if (!mount) return;
+  var nextProb = null;
+  var n = 0;
+  for (var i = 0; i < w.hourly.length && n < 12; i++) {
+    var it = w.hourly[i];
+    if (!it.isForecast) continue;
+    n++;
+    if (it.rainProb != null && (nextProb == null || it.rainProb > nextProb)) nextProb = it.rainProb;
+  }
+  mount.innerHTML =
+    '<div class="block"><h3>生活指数</h3><div class="life-grid card-wrap">' +
+    lifeTileHTML('👔', '穿衣', clothingIndex(w.temperature)) +
+    lifeTileHTML('🏃', '运动', exerciseIndex(w.temperature, w.condition || '', w.aqi)) +
+    lifeTileHTML('🚗', '洗车', carwashIndex(w.condition || '', nextProb)) +
+    lifeTileHTML('🤧', '感冒', coldIndex(w.todayHigh, w.todayLow)) +
+    '</div></div>';
+}
+
 function renderWeather(w) {
   console.log('[CWJS] renderWeather enter src=' + w.sourceTag);
   if (w.cityName) state.city = w.cityName;
@@ -645,9 +725,19 @@ function renderWeather(w) {
   $('sunset').textContent = w.sunset || '-';
 
   $('humidityVal').textContent = w.humidity != null ? w.humidity + '%' : '-';
-  $('windVal').textContent = ((w.windDirect || '') + ' ' + (w.windPower || '')).trim() || '-';
-  $('aqiVal').textContent = w.aqi != null ? (w.aqiText ? w.aqiText + ' ' : '') + w.aqi : '-';
+  var windTxt = ((w.windDirect || '') + ' ' + (w.windPower || '')).trim();
+  if (w.windSpeed != null) windTxt += '（' + w.windSpeed.toFixed(1) + 'm/s）';
+  $('windVal').textContent = windTxt || '-';
+  var aqiTxt = '';
+  if (w.aqi != null) aqiTxt = (w.aqiText ? w.aqiText + ' ' : '') + w.aqi;
+  else if (w.aqiText) aqiTxt = w.aqiText;
+  if (w.pm25 != null) aqiTxt += '\nPM2.5: ' + Math.round(w.pm25) + 'μg/m³';
+  if (w.pm10 != null) aqiTxt += '\nPM10: ' + Math.round(w.pm10) + 'μg/m³';
+  $('aqiVal').textContent = aqiTxt || '-';
   $('uvVal').textContent = w.uvIndex || '-';
+
+  /* 生活指数四宫格（对齐 native） */
+  renderLifeIndex(w);
 
   /* 预警横幅 */
   if (w.warning) {
@@ -663,14 +753,20 @@ function renderWeather(w) {
     mountHTML('minutelyMount', '');
   }
 
-  /* 逐小时 */
+  /* 逐小时（对齐 native：仅标签含"预报"时显示，气象局实况并入昨日卡）。
+   WebF 0.24 对 display:none 切换不可靠，改用「内容置空」模型：
+   标题保留文字由 CSS :empty 隐藏，卡片容器置空即视觉上整体隐藏。 */
   var hh = '';
-  for (var i = 0; i < w.hourly.length; i++) {
-    var it = w.hourly[i];
-    hh += hourCardHTML(it.time, it.temperature, it.isForecast ? it.condition : '', it.icon, it.rainProb);
+  var showHourly = (w.hourlyLabel || '').indexOf('预报') >= 0 && w.hourly.length > 0;
+  if (showHourly) {
+    for (var i = 0; i < w.hourly.length; i++) {
+      var it = w.hourly[i];
+      hh += hourCardHTML(it.time, it.temperature, it.isForecast ? it.condition : '', it.icon, it.rainProb);
+    }
   }
-  $('hourlyLabel').textContent = w.hourlyLabel;
-  $('hourly').innerHTML = hh || '<div class="empty-tip">暂无数据</div>';
+  $('hourlyLabel').textContent = showHourly ? w.hourlyLabel : '';
+  $('hourly').innerHTML = showHourly ? hh : '';
+  $('hourlyLabel').style.display = showHourly ? '' : 'none';
 
   /* 多日 */
   var dh = '';
@@ -703,14 +799,9 @@ function renderWeather(w) {
     mountHTML('yesterdayMount', '<div class="empty-tip">暂无昨日数据</div>');
   }
 
-  /* 降雨提醒 + 趋势（仅预报类源；NMC 无逐时预报） */
-  if (w.sourceTag.indexOf('中央气象台') < 0) {
-    renderRainTip(w);
-    renderRainTrend(w);
-  } else {
-    mountHTML('rainTipMount', '');
-    mountHTML('rainBlockMount', '');
-  }
+  /* 降雨提醒 + 趋势（所有源可用，与 native 对齐；无预报逐时时仅显示近期趋势档） */
+  renderRainTip(w);
+  renderRainTrend(w);
 
   $('sourceFooter').textContent = w.sourceTag;
   mountHTML('errorBox', '');
@@ -920,7 +1011,8 @@ function mapCaiyun(d, cityNameOverride) {
     temperature: cleanNum(rt.temperature), condition: cond, feelsLike: cleanNum(rt.apparent_temperature),
     humidity: rt.humidity != null ? Math.round(rt.humidity * 100) : null,
     windDirect: rt.wind && rt.wind.direction != null ? windDirName(rt.wind.direction) : '',
-    windPower: windSpeed != null ? beaufort(windSpeed * 3.6) : '',
+    windPower: windSpeed != null ? beaufort(windSpeed) : '',
+    windSpeed: windSpeed,
     todayHigh: dailyList.length ? dailyList[0].high : null,
     todayLow: dailyList.length ? dailyList[0].low : null,
     aqi: aqi, aqiText: aqi != null ? aqiTextOf(aqi) : '',

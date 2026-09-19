@@ -9,8 +9,11 @@ class WeatherData {
   final int? humidity;
   final String windDirect;
   final String windPower;
+  final double? windSpeed;
   final int? aqi;
   final String aqiText;
+  final double? pm25;
+  final double? pm10;
   final String sunrise;
   final String sunset;
   final String uvIndex;
@@ -33,8 +36,11 @@ class WeatherData {
     this.humidity,
     this.windDirect = '',
     this.windPower = '',
+    this.windSpeed,
     this.aqi,
     this.aqiText = '',
+    this.pm25,
+    this.pm10,
     this.sunrise = '',
     this.sunset = '',
     this.uvIndex = '',
@@ -57,8 +63,11 @@ class WeatherData {
     int? humidity,
     String? windDirect,
     String? windPower,
+    double? windSpeed,
     int? aqi,
     String? aqiText,
+    double? pm25,
+    double? pm10,
     String? sunrise,
     String? sunset,
     String? uvIndex,
@@ -78,8 +87,11 @@ class WeatherData {
       humidity: humidity ?? this.humidity,
       windDirect: windDirect ?? this.windDirect,
       windPower: windPower ?? this.windPower,
+      windSpeed: windSpeed ?? this.windSpeed,
       aqi: aqi ?? this.aqi,
       aqiText: aqiText ?? this.aqiText,
+      pm25: pm25 ?? this.pm25,
+      pm10: pm10 ?? this.pm10,
       sunrise: sunrise ?? this.sunrise,
       sunset: sunset ?? this.sunset,
       uvIndex: uvIndex ?? this.uvIndex,
@@ -144,8 +156,11 @@ class WeatherCodec {
         'humidity': w.humidity,
         'windDirect': w.windDirect,
         'windPower': w.windPower,
+        'windSpeed': w.windSpeed,
         'aqi': w.aqi,
         'aqiText': w.aqiText,
+        'pm25': w.pm25,
+        'pm10': w.pm10,
         'sunrise': w.sunrise,
         'sunset': w.sunset,
         'uvIndex': w.uvIndex,
@@ -185,8 +200,11 @@ class WeatherCodec {
       humidity: j['humidity'] as int?,
       windDirect: (j['windDirect'] ?? '').toString(),
       windPower: (j['windPower'] ?? '').toString(),
+      windSpeed: (j['windSpeed'] as num?)?.toDouble(),
       aqi: j['aqi'] as int?,
       aqiText: (j['aqiText'] ?? '').toString(),
+      pm25: (j['pm25'] as num?)?.toDouble(),
+      pm10: (j['pm10'] as num?)?.toDouble(),
       sunrise: (j['sunrise'] ?? '').toString(),
       sunset: (j['sunset'] ?? '').toString(),
       uvIndex: (j['uvIndex'] ?? '').toString(),

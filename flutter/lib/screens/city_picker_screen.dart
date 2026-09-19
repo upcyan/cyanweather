@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
+/// 城市选择页（对齐 native CityPickerScreen）：
+/// 首屏即「📍 使用当前位置」+ 全国省份列表 → 点击进市级列表；搜索走 NMC 全量城市（Open-Meteo 兜底）。
 class CityPickerScreen extends StatefulWidget {
   const CityPickerScreen({super.key});
   @override
@@ -10,37 +12,42 @@ class CityPickerScreen extends StatefulWidget {
 class _CityPickerScreenState extends State<CityPickerScreen> {
   String _search = '';
   bool _loading = false;
+  bool _allCitiesLoading = false;
   List<Map<String, dynamic>> _provinces = [];
   List<Map<String, dynamic>> _cities = [];
+  List<Map<String, dynamic>> _allCities = [];
   String? _selectedProvince;
   String? _selectedProvName;
 
-  final _preset = [
-    {'name': '北京', 'lat': 39.9042, 'lng': 116.4074},
-    {'name': '上海', 'lat': 31.2304, 'lng': 121.4737},
-    {'name': '广州', 'lat': 23.1291, 'lng': 113.2644},
-    {'name': '深圳', 'lat': 22.5431, 'lng': 114.0579},
-    {'name': '杭州', 'lat': 30.2741, 'lng': 120.1551},
-    {'name': '南京', 'lat': 32.0603, 'lng': 118.7969},
-    {'name': '武汉', 'lat': 30.5928, 'lng': 114.3055},
-    {'name': '成都', 'lat': 30.5728, 'lng': 104.0668},
-    {'name': '重庆', 'lat': 29.4316, 'lng': 106.9123},
-    {'name': '西安', 'lat': 34.3416, 'lng': 108.9398},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadProvinces();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectedProvince != null ? '选择城市/区县' : '选择城市'),
-        leading: _selectedProvince != null
-            ? IconButton(onPressed: () => setState(() { _selectedProvince = null; _selectedProvName = null; _cities = []; }), icon: const Icon(Icons.arrow_back))
-            : null,
+        title: Text(_selectedProvince != null ? '选择城市 / 区县' : '选择省份'),
+        leading: IconButton(
+          onPressed: () {
+            if (_selectedProvince != null) {
+              setState(() { _selectedProvince = null; _selectedProvName = null; _cities = []; });
+            } else {
+              Navigator.pop(context);
+            }
+          },
+          icon: const Icon(Icons.arrow_back),
+        ),
       ),
       body: Column(children: [
         Padding(padding: const EdgeInsets.all(16), child: TextField(
           decoration: const InputDecoration(hintText: '搜索城市/区县', prefixIcon: Icon(Icons.search)),
-          onChanged: (v) => setState(() => _search = v),
+          onChanged: (v) {
+            setState(() => _search = v.trim());
+            if (_search.isNotEmpty) _ensureAllCities();
+          },
         )),
         const Divider(),
         Expanded(child: _buildList()),
@@ -49,36 +56,56 @@ class _CityPickerScreenState extends State<CityPickerScreen> {
   }
 
   Widget _buildList() {
-    if (_selectedProvince == null) {
-      // Province list or preset
-      if (_search.isEmpty) {
-        return ListView(children: [
-          ListTile(leading: const Icon(Icons.my_location, color: Color(0xFF0B6BCB)),
-            title: const Text('使用当前位置', style: TextStyle(fontSize: 18)),
-            onTap: () => Navigator.pop(context, {'name': '当前位置', 'lat': 39.9042, 'lng': 116.4074, 'code': ''})),
-          const Divider(),
-          ..._preset.where((c) => _search.isEmpty || c['name'].toString().contains(_search))
-              .map((c) => ListTile(title: Text(c['name'].toString(), style: const TextStyle(fontSize: 18)), onTap: () => Navigator.pop(context, c))),
-        ]);
+    // 搜索模式：NMC 全量城市匹配（对齐 native ensureAllCities + filter）
+    if (_search.isNotEmpty) {
+      if (_allCitiesLoading && _allCities.isEmpty) {
+        return const Center(child: CircularProgressIndicator());
       }
-      // Search preset
-      final filtered = _preset.where((c) => c['name'].toString().contains(_search)).toList();
-      return ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) =>
-        ListTile(title: Text(filtered[i]['name'].toString(), style: const TextStyle(fontSize: 18)),
-          onTap: () => Navigator.pop(context, filtered[i])));
+      if (_allCities.isEmpty) {
+        return const Center(child: Text('城市数据加载失败，请检查网络'));
+      }
+      final matched = _allCities.where((c) {
+        final city = (c['city'] ?? '').toString();
+        final prov = (c['province'] ?? '').toString();
+        return city.contains(_search) || prov.contains(_search);
+      }).toList();
+      if (matched.isEmpty) return Center(child: Text('未找到「$_search」，换个名字试试'));
+      return ListView.builder(itemCount: matched.length, itemBuilder: (_, i) {
+        final c = matched[i];
+        final city = (c['city'] ?? '').toString();
+        final prov = (c['province'] ?? '').toString();
+        return _bigListTile('$city（$prov）', () => Navigator.pop(context, {'name': city, 'code': c['code'] ?? ''}));
+      });
     }
-    // City list for selected province
+
+    if (_selectedProvince != null) {
+      // 市级列表
+      if (_loading) return const Center(child: CircularProgressIndicator());
+      if (_cities.isEmpty) return const Center(child: Text('未找到城市，换个名字试试'));
+      return ListView.builder(itemCount: _cities.length, itemBuilder: (_, i) {
+        final c = _cities[i];
+        final name = (c['city'] ?? '').toString();
+        return _bigListTile(name, () => Navigator.pop(context, {'name': name, 'code': c['code'] ?? ''}));
+      });
+    }
+
+    // 省级列表：📍 使用当前位置 + 全国省份
     if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_cities.isEmpty) return const Center(child: Text('暂无数据'));
-    final filtered = _search.isEmpty ? _cities : _cities.where((c) => (c['city'] ?? '').toString().contains(_search)).toList();
-    return ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) {
-      final c = filtered[i];
-      final name = c['city'] ?? '';
-      final code = c['code'] ?? '';
-      return ListTile(title: Text(name, style: const TextStyle(fontSize: 18)),
-        onTap: () => Navigator.pop(context, {'name': name, 'code': code, 'lat': 39.9042, 'lng': 116.4074}));
-    });
+    return ListView(children: [
+      _bigListTile('📍 使用当前位置', () => Navigator.pop(context, {'useLocation': true})),
+      ..._provinces.map((p) => _bigListTile(
+          (p['name'] ?? '').toString(),
+          () => _loadCities((p['code'] ?? '').toString()))),
+    ]);
   }
+
+  Widget _bigListTile(String text, VoidCallback onTap) => Card(
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        child: ListTile(
+          title: Text(text, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500)),
+          onTap: onTap,
+        ),
+      );
 
   void _loadProvinces() async {
     setState(() => _loading = true);
@@ -90,5 +117,27 @@ class _CityPickerScreenState extends State<CityPickerScreen> {
     setState(() { _loading = true; _selectedProvince = code; _cities = []; });
     try { _cities = await ApiService.fetchNmcCities(code); } catch (_) {}
     setState(() => _loading = false);
+  }
+
+  /// 搜索时懒加载全国城市（对齐 native ensureAllCities）
+  void _ensureAllCities() async {
+    if (_allCities.isNotEmpty || _allCitiesLoading) return;
+    setState(() => _allCitiesLoading = true);
+    try {
+      final provinces = await ApiService.fetchNmcProvinces();
+      final all = <Map<String, dynamic>>[];
+      for (final p in provinces) {
+        try {
+          final code = (p['code'] ?? '').toString();
+          final provName = (p['name'] ?? '').toString();
+          final cities = await ApiService.fetchNmcCities(code);
+          for (final c in cities) {
+            all.add({'city': c['city'], 'code': c['code'], 'province': provName});
+          }
+        } catch (_) {}
+      }
+      _allCities = all;
+    } catch (_) {}
+    if (mounted) setState(() => _allCitiesLoading = false);
   }
 }

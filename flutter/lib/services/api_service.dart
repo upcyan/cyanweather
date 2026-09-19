@@ -127,12 +127,13 @@ class ApiService {
       throw Exception('API请求失败: ${response.statusCode}');
     final json = jsonDecode(response.body);
 
-    // Fetch AQI separately（该子域名在部分网络下会被间歇性过滤，加重试）
+    // Fetch AQI separately（该子域名在部分网络下会被间歇性过滤，加重试；含 PM2.5/PM10 明细）
     String aqiText = '';
     int? aqi;
+    double? pm25, pm10;
     _log('start lat=$lat lng=$lng nmcStationId=$nmcStationId');
     final airUrl =
-        'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=$lat&longitude=$lng&current=us_aqi';
+        'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=$lat&longitude=$lng&current=us_aqi,pm2_5,pm10';
     for (var attempt = 0; attempt < 3 && aqi == null; attempt++) {
       try {
         final airResp = await http
@@ -143,6 +144,8 @@ class ApiService {
         if (airResp.statusCode == 200) {
           final airJson = jsonDecode(airResp.body);
           aqi = airJson['current']?['us_aqi']?.round();
+          pm25 = (airJson['current']?['pm2_5'] as num?)?.toDouble();
+          pm10 = (airJson['current']?['pm10'] as num?)?.toDouble();
           _log('try$attempt us_aqi raw=${airJson['current']?['us_aqi']} -> aqi=$aqi');
           aqiText = _aqiText(aqi);
         }
@@ -187,7 +190,7 @@ class ApiService {
         }
       } catch (_) {}
     }
-    return _parseOpenMeteo(json, aqi: aqi, aqiText: aqiText);
+    return _parseOpenMeteo(json, aqi: aqi, aqiText: aqiText, pm25: pm25, pm10: pm10);
   }
 
   // NMC
@@ -234,7 +237,7 @@ class ApiService {
 
   // Parse Open-Meteo
   static WeatherData _parseOpenMeteo(Map<String, dynamic> json,
-      {int? aqi, String aqiText = ''}) {
+      {int? aqi, String aqiText = '', double? pm25, double? pm10}) {
     final c = json['current'], h = json['hourly'], d = json['daily'];
     final todayStr = DateTime.now().toIso8601String().substring(0, 10);
     final nowHour = DateTime.now().toIso8601String().substring(0, 13);
@@ -306,8 +309,11 @@ class ApiService {
         windDirect:
             _windDir((c['wind_direction_10m'] as num?)?.toDouble() ?? 0),
         windPower: _beaufort((c['wind_speed_10m'] as num?)?.toDouble() ?? 0),
+        windSpeed: ((c['wind_speed_10m'] as num?)?.toDouble() ?? 0) / 3.6,
         aqi: aqi,
         aqiText: aqiText,
+        pm25: pm25,
+        pm10: pm10,
         sunrise:
             sunrise.length >= 16 ? sunrise.substring(11, 16) : '',
         sunset:
@@ -328,42 +334,70 @@ class ApiService {
 
   static String _wmoToText(int c) =>
       {
+        // 对齐 native wmoToText 细化文本
         0: '晴',
-        1: '大部晴朗',
+        1: '晴',
         2: '多云',
         3: '阴',
         45: '雾',
         48: '雾',
-        51: '毛毛雨',
-        53: '毛毛雨',
-        55: '毛毛雨',
-        61: '雨',
-        63: '雨',
-        65: '雨',
-        71: '雪',
-        73: '雪',
-        75: '雪',
-        80: '阵雨',
-        81: '阵雨',
-        82: '阵雨',
-        95: '雷阵雨'
+        51: '小雨',
+        53: '小雨',
+        55: '小雨',
+        56: '雨夹雪',
+        57: '雨夹雪',
+        61: '小雨',
+        63: '中雨',
+        65: '大雨',
+        66: '雨夹雪',
+        67: '雨夹雪',
+        71: '小雪',
+        73: '中雪',
+        75: '大雪',
+        77: '小雪',
+        80: '小雨',
+        81: '中雨',
+        82: '大雨',
+        85: '中雪',
+        86: '大雪',
+        95: '雷阵雨',
+        96: '雷阵雨',
+        99: '雷阵雨',
       }[c] ??
-      '未知';
+      '-';
   static String _windDir(double d) {
-    const dirs = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
-    return dirs[((d + 22.5) / 45).floor() % 8];
+    // 对齐 native windDirection：带"风"字后缀，索引先归一化避免越界
+    const dirs = ['北风', '东北风', '东风', '东南风', '南风', '西南风', '西风', '西北风'];
+    final norm = ((d % 360) + 360) % 360;
+    return dirs[(((norm + 22.5) % 360) / 45).floor() % 8];
   }
 
   static String _beaufort(double s) {
-    final k = s * 3.6;
-    if (k < 2) return '0级';
-    if (k < 12) return '1级';
-    if (k < 20) return '2级';
-    if (k < 29) return '3级';
-    if (k < 39) return '4级';
-    if (k < 50) return '5级';
-    if (k < 62) return '6级';
-    return '7级';
+    // 对齐 native beaufort：输入 m/s，0~12 级完整档位
+    final b = s < 0.3
+        ? 0
+        : s < 1.6
+            ? 1
+            : s < 3.4
+                ? 2
+                : s < 5.5
+                    ? 3
+                    : s < 8.0
+                        ? 4
+                        : s < 10.8
+                            ? 5
+                            : s < 13.9
+                                ? 6
+                                : s < 17.2
+                                    ? 7
+                                    : s < 20.8
+                                        ? 8
+                                        : s < 24.5
+                                            ? 9
+                                            : s < 28.5
+                                                ? 10
+                                                : s < 32.7 ? 11 : 12;
+    return '$b级';
   }
 
   static String _aqiText(int? aqi) {
@@ -372,7 +406,8 @@ class ApiService {
     if (aqi <= 100) return '良';
     if (aqi <= 150) return '轻度污染';
     if (aqi <= 200) return '中度污染';
-    return '重度污染';
+    if (aqi <= 300) return '重度污染';
+    return '严重污染';
   }
 
   static String _uvLevel(double uv) {

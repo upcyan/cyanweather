@@ -645,11 +645,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final r = await Navigator.push(
         context, MaterialPageRoute(builder: (_) => const CityPickerScreen()));
     if (r != null && r is Map) {
-      await widget.prefs.setString('cityName', r['name'] ?? '');
-      await widget.prefs.setString('cityCode', r['code'] ?? '');
-      await widget.prefs.setDouble('lat', r['lat'] ?? 39.9042);
-      await widget.prefs.setDouble('lng', r['lng'] ?? 116.4074);
-      await widget.prefs.setBool('useGps', false);
+      if (r['useLocation'] == true) {
+        // 对齐 native useCurrentLocation：恢复 GPS 自动定位
+        await widget.prefs.setBool('useGps', true);
+        await widget.prefs.setString('cityName', '');
+        await widget.prefs.setString('cityCode', '');
+        _loadPrefs();
+        await _refreshLocation(requestPermission: true);
+      } else {
+        await widget.prefs.setString('cityName', r['name'] ?? '');
+        await widget.prefs.setString('cityCode', r['code'] ?? '');
+        await widget.prefs.setBool('useGps', false);
+      }
       _loadPrefs();
       _loadWeather();
     }
@@ -820,9 +827,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       color: const Color(0xFFB71C1C),
                       fontWeight: FontWeight.w500)))));
 
-    // 降雨提醒（可点击进入降雨趋势页；气象局数据源不支持）
+    // 降雨提醒（可点击进入降雨趋势页；所有源可用，与 native 对齐）
     final tip = _rainReminder(w);
-    if (tip != null && !w.sourceTag.contains('中央气象台'))
+    if (tip != null)
       children.add(GestureDetector(
           onTap: _openRainForecast,
           child: Card(
@@ -888,12 +895,60 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             Expanded(child: _sunCol('日落', w.sunset)),
           ])));
 
-    // 湿度 / 风力 / 空气质量 / 紫外线强度
+    // 湿度 / 风力 / 空气质量 / 紫外线强度（对齐 native：空气质量含 PM 明细，风力含 m/s）
     children.add(_infoCard('湿度', '${w.humidity ?? '-'}%'));
-    children.add(_infoCard('风力', '${w.windDirect} ${w.windPower}'.trim()));
-    children.add(_infoCard(
-        '空气质量', w.aqi != null ? '${w.aqiText} ${w.aqi}' : '-'));
+    final windText = StringBuffer();
+    windText.write('${w.windDirect} ${w.windPower}'.trim());
+    if (w.windSpeed != null)
+      windText.write('（${w.windSpeed!.toStringAsFixed(1)}m/s）');
+    children.add(_infoCard('风力', windText.toString()));
+    final aqiText = StringBuffer();
+    if (w.aqi != null) {
+      aqiText.write('${w.aqiText.isEmpty ? _aqiText(w.aqi) : w.aqiText} ${w.aqi}');
+    } else if (w.aqiText.isNotEmpty) {
+      aqiText.write(w.aqiText);
+    }
+    if (w.pm25 != null)
+      aqiText.write('\nPM2.5: ${w.pm25!.round()}μg/m³');
+    if (w.pm10 != null)
+      aqiText.write('\nPM10: ${w.pm10!.round()}μg/m³');
+    children.add(_infoCard('空气质量',
+        aqiText.isEmpty ? '-' : aqiText.toString()));
     if (w.uvIndex.isNotEmpty) children.add(_infoCard('紫外线强度', w.uvIndex));
+
+    // 生活指数四宫格（对齐 native）
+    double? nextRainProb;
+    for (final h in w.hourly.where((h) => h.isForecast).take(12)) {
+      if (h.rainProb != null && (nextRainProb == null || h.rainProb! > nextRainProb)) {
+        nextRainProb = h.rainProb;
+      }
+    }
+    children.add(_sectionTitle('生活指数'));
+    children.add(Card(
+        margin: EdgeInsets.only(bottom: 4 * _fs),
+        child: Padding(
+            padding: EdgeInsets.all(12 * _fs),
+            child: Column(children: [
+              Row(children: [
+                Expanded(
+                    child: _lifeTile('👔', '穿衣',
+                        _clothingIndex(w.temperature, w.condition))),
+                SizedBox(width: 10 * _fs),
+                Expanded(
+                    child: _lifeTile('🏃', '运动',
+                        _exerciseIndex(w.temperature, w.condition, w.aqi))),
+              ]),
+              SizedBox(height: 10 * _fs),
+              Row(children: [
+                Expanded(
+                    child: _lifeTile('🚗', '洗车',
+                        _carwashIndex(w.condition, nextRainProb))),
+                SizedBox(width: 10 * _fs),
+                Expanded(
+                    child: _lifeTile(
+                        '🤧', '感冒', _coldIndex(w.todayHigh, w.todayLow))),
+              ]),
+            ]))));
 
     // 彩云分钟级降水
     if (w.minutelyText.isNotEmpty)
@@ -1066,56 +1121,200 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   TextStyle(fontSize: 20 * _fs, fontWeight: FontWeight.bold))));
 
   Widget _hourCard(HourlyItem h) {
+    // 对齐 native HourCard：日期 + 时辰 + 图标 + 文本 + 温度 + 降水概率
+    final datePart = h.time.length >= 10
+        ? h.time.substring(5, 10).replaceAll('-', '/')
+        : '';
+    final hourPart = h.time.length >= 13
+        ? '${int.tryParse(h.time.substring(11, 13)) ?? '?'}时'
+        : h.time;
     return SizedBox(
-        width: 76 * _fs,
+        width: 92 * _fs,
         child: Card(
           child: Padding(
             padding:
-                EdgeInsets.symmetric(vertical: 8 * _fs, horizontal: 6 * _fs),
+                EdgeInsets.symmetric(vertical: 10 * _fs, horizontal: 6 * _fs),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text('${h.time.substring(11, 13)}时',
-                    style: TextStyle(fontSize: 13 * _fs, color: Colors.grey)),
-                SizedBox(height: 4 * _fs),
-                WeatherIcon(condition: h.condition, size: 26 * _fs),
+                Text(datePart,
+                    style: TextStyle(
+                        fontSize: 12 * _fs,
+                        color: const Color(0xFF666666))),
+                Text(hourPart,
+                    style: TextStyle(
+                        fontSize: 13 * _fs,
+                        color: const Color(0xFF666666))),
+                SizedBox(height: 6 * _fs),
+                WeatherIcon(condition: h.condition, size: 28 * _fs),
+                if (h.condition.isNotEmpty) ...[
+                  SizedBox(height: 4 * _fs),
+                  Text(h.condition, style: TextStyle(fontSize: 13 * _fs)),
+                ],
                 SizedBox(height: 4 * _fs),
                 Text('${h.temperature?.round() ?? '-'}°',
                     style: TextStyle(
-                        fontSize: 14 * _fs, fontWeight: FontWeight.bold)),
-                Text(h.condition,
-                    style: TextStyle(fontSize: 11 * _fs),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
+                        fontSize: 16 * _fs,
+                        fontWeight: FontWeight.bold)),
+                if (h.rainProb != null && h.rainProb! > 0) ...[
+                  SizedBox(height: 2 * _fs),
+                  Text('💧${h.rainProb!.round()}%',
+                      style: TextStyle(
+                          fontSize: 11 * _fs,
+                          color: const Color(0xFF1976D2))),
+                ],
               ],
             ),
           ),
         ));
   }
 
-  Widget _dailyRow(DailyItem d) => Padding(
-      padding: EdgeInsets.symmetric(vertical: 3 * _fs),
-      child: Row(children: [
-        SizedBox(
-            width: 80 * _fs,
-            child: Text(d.date.substring(5),
-                style: TextStyle(fontSize: 15 * _fs))),
-        WeatherIcon(condition: d.dayText, size: 24 * _fs),
-        SizedBox(width: 8 * _fs),
-        Expanded(
-            child: Text(d.dayText,
-                style: TextStyle(fontSize: 15 * _fs),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis)),
-        Text('${d.high?.round() ?? '-'}°/',
-            style: TextStyle(
-                fontSize: 16 * _fs,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFFC62828))),
-        Text('${d.low?.round() ?? '-'}°',
-            style: TextStyle(
-                fontSize: 16 * _fs,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF1565C0))),
-      ]));
+  Widget _dailyRow(DailyItem d) {
+    // 对齐 native DailyRow：今天/明天/后天 + 星期 + 白天转夜间
+    return Card(
+        margin: EdgeInsets.symmetric(vertical: 4 * _fs),
+        child: Padding(
+            padding:
+                EdgeInsets.symmetric(horizontal: 16 * _fs, vertical: 10 * _fs),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_dayLabel(d.date),
+                      style: TextStyle(
+                          fontSize: 17 * _fs,
+                          fontWeight: FontWeight.w500)),
+                  SizedBox(height: 4 * _fs),
+                  Row(children: [
+                    WeatherIcon(condition: d.dayText, size: 30 * _fs),
+                    SizedBox(width: 10 * _fs),
+                    Expanded(
+                        child: Text(_combineDayNight(d.dayText, d.nightText),
+                            style: TextStyle(fontSize: 17 * _fs))),
+                    Text('${d.high?.round() ?? '-'}°',
+                        style: TextStyle(
+                            fontSize: 19 * _fs,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFFC62828))),
+                    Text('/',
+                        style: TextStyle(
+                            fontSize: 19 * _fs,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF666666))),
+                    Text('${d.low?.round() ?? '-'}°',
+                        style: TextStyle(
+                            fontSize: 19 * _fs,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF1565C0))),
+                  ]),
+                ])));
+  }
+
+  static String _aqiText(int? aqi) {
+    if (aqi == null) return '-';
+    if (aqi <= 50) return '优';
+    if (aqi <= 100) return '良';
+    if (aqi <= 150) return '轻度污染';
+    if (aqi <= 200) return '中度污染';
+    if (aqi <= 300) return '重度污染';
+    return '严重污染';
+  }
+
+  static String _dayLabel(String date) {
+    try {
+      final clean = date.contains('T') ? date.substring(0, 10) : date;
+      final d = DateTime.parse(clean.replaceAll('/', '-'));
+      final today = DateTime.now();
+      final t0 = DateTime(today.year, today.month, today.day);
+      final diff = d.difference(t0).inDays;
+      const wd = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+      final md = '${d.month}月${d.day}日 ${wd[d.weekday - 1]}';
+      if (diff == 0) return '今天 $md';
+      if (diff == 1) return '明天 $md';
+      if (diff == 2) return '后天 $md';
+      return md;
+    } catch (_) {
+      return date;
+    }
+  }
+
+  // ---- 生活指数（对齐 native WeatherIndex.kt）----
+  static String _clothingIndex(double? temp, String condition) {
+    final t = temp;
+    if (t == null) return '-';
+    if (t >= 35) return '酷热\n穿透气薄衣';
+    if (t >= 30) return '炎热\n短袖短裤';
+    if (t >= 25) return '温暖\n轻薄长袖';
+    if (t >= 20) return '舒适\n长袖薄外套';
+    if (t >= 15) return '微凉\n夹克毛衣';
+    if (t >= 10) return '凉爽\n厚外套';
+    if (t >= 5) return '寒冷\n棉衣羽绒';
+    if (t >= 0) return '很冷\n厚羽绒保暖';
+    return '极寒\n防寒服加厚';
+  }
+
+  static String _exerciseIndex(double? temp, String condition, int? aqi) {
+    final t = temp;
+    if (t == null) return '-';
+    final badWeather = condition.contains('雨') ||
+        condition.contains('雪') ||
+        condition.contains('雾') ||
+        condition.contains('霾');
+    if (badWeather) return '不宜\n天气不佳';
+    if (aqi != null && aqi > 150) return '不宜\n空气质量差';
+    if (t >= 35) return '不宜\n高温炎热';
+    if (t >= 30) return '较不宜\n偏热';
+    if (t >= 15 && t <= 28) return '适宜\n温度舒适';
+    if (t >= 10) return '较适宜\n注意保暖';
+    return '较不宜\n温度偏低';
+  }
+
+  static String _carwashIndex(String condition, double? rainProb) {
+    final hasRain = condition.contains('雨') ||
+        condition.contains('雪') ||
+        (rainProb != null && rainProb > 50);
+    return hasRain ? '不宜\n有降水' : '适宜\n近期无雨';
+  }
+
+  static String _coldIndex(double? high, double? low) {
+    if (high == null || low == null) return '-';
+    final diff = high - low;
+    if (diff >= 12) return '易发\n温差大，注意增减衣物';
+    if (diff >= 8) return '较易发\n温差较大';
+    if (diff >= 5) return '少发\n温差适中';
+    return '不易发\n温差小';
+  }
+
+  Widget _lifeTile(String icon, String title, String text) {
+    final parts = text.split('\n');
+    return Container(
+        padding:
+            EdgeInsets.symmetric(horizontal: 12 * _fs, vertical: 10 * _fs),
+        decoration: BoxDecoration(
+            color: const Color(0xFFE3EDF9),
+            borderRadius: BorderRadius.circular(12 * _fs)),
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Text(icon, style: TextStyle(fontSize: 17 * _fs)),
+                SizedBox(width: 6 * _fs),
+                Text(title,
+                    style: TextStyle(
+                        fontSize: 15 * _fs,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF555555))),
+              ]),
+              SizedBox(height: 5 * _fs),
+              Text(parts.first,
+                  style: TextStyle(
+                      fontSize: 17 * _fs, fontWeight: FontWeight.w500)),
+              if (parts.length > 1)
+                Text(parts[1],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 13 * _fs,
+                        color: const Color(0xFF666666))),
+            ]));
+  }
 }
