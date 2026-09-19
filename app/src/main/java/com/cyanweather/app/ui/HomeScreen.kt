@@ -509,53 +509,8 @@ private fun InfoCard(title: String, value: String) {
     }
 }
 
-fun clothingIndex(temp: Double?, condition: String): String {
-    val t = temp ?: return "-"
-    return when {
-        t >= 35 -> "酷热\n穿透气薄衣"
-        t >= 30 -> "炎热\n短袖短裤"
-        t >= 25 -> "温暖\n轻薄长袖"
-        t >= 20 -> "舒适\n长袖薄外套"
-        t >= 15 -> "微凉\n夹克毛衣"
-        t >= 10 -> "凉爽\n厚外套"
-        t >= 5 -> "寒冷\n棉衣羽绒"
-        t >= 0 -> "很冷\n厚羽绒保暖"
-        else -> "极寒\n防寒服加厚"
-    }
-}
-
-fun exerciseIndex(temp: Double?, condition: String, aqi: Int?): String {
-    val t = temp ?: return "-"
-    val badWeather = condition.contains("雨") || condition.contains("雪") || condition.contains("雾") || condition.contains("霾")
-    val badAqi = aqi != null && aqi > 150
-    return when {
-        badWeather -> "不宜\n天气不佳"
-        badAqi -> "不宜\n空气质量差"
-        t >= 35 -> "不宜\n高温炎热"
-        t >= 30 && t < 35 -> "较不宜\n偏热"
-        t >= 15 && t <= 28 -> "适宜\n温度舒适"
-        t >= 10 && t < 15 -> "较适宜\n注意保暖"
-        else -> "较不宜\n温度偏低"
-    }
-}
-
-fun carwashIndex(condition: String, rainProb: Double?): String {
-    val hasRain = condition.contains("雨") || condition.contains("雪") || (rainProb != null && rainProb > 50.0)
-    return if (hasRain) "不宜\n有降水" else "适宜\n近期无雨"
-}
-
-fun coldIndex(tempHigh: Double?, tempLow: Double?): String {
-    if (tempHigh == null || tempLow == null) return "-"
-    val diff = tempHigh - tempLow
-    return when {
-        diff >= 12 -> "易发\n温差大，注意增减衣物"
-        diff >= 8 -> "较易发\n温差较大"
-        diff >= 5 -> "少发\n温差适中"
-        else -> "不易发\n温差小"
-    }
-}
-
-fun clothingIndex(temp: Double?, condition: String): String {
+@Composable
+private fun LifestyleTile(icon: String, title: String, text: String, modifier: Modifier = Modifier) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(12.dp),

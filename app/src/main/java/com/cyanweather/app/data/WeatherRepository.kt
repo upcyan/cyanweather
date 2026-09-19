@@ -275,8 +275,9 @@ class WeatherRepository(
         val seen = mergedDaily.map { it.date }.toMutableSet()
         batches.drop(1).forEach { resp ->
             val r = resp.result ?: return@forEach
-            val temps = r.daily?.temperature ?: return@forEach
-            val skys = r.daily.skycon.associateBy { it.date }
+            val daily = r.daily ?: return@forEach
+            val temps = daily.temperature ?: return@forEach
+            val skys = daily.skycon.associateBy { it.date }
             temps.forEach { t ->
                 val dateStr = if (t.date.contains("T")) t.date.substring(0, 10) else t.date
                 if (dateStr in seen) return@forEach
