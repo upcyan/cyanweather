@@ -233,26 +233,16 @@ body {
 /* ---- 降雨提醒卡 ---- */
 .rain-tip-card {
   background: #e3f2fd;
-  padding: 16px;
+  padding: 14px 16px;
   margin-bottom: 14px;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   cursor: pointer;
 }
-.rain-tip-ava {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: #0b6bcb;
-  color: #ffffff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
+.rain-tip-ico { width: 30px; height: 30px; flex-shrink: 0; }
+.rain-tip-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .rain-tip-text { font-size: 1rem; }
 .rain-tip-action { font-size: 0.85rem; color: var(--accent); }
 
