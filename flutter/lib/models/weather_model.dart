@@ -21,6 +21,7 @@ class WeatherData {
   final String sourceTag;
   final String warning;
   final String hourlyLabel;
+  final double confidence;
   final YesterdayData? yesterday;
   final List<HourlyItem> hourly;
   final List<DailyItem> daily;
@@ -48,6 +49,7 @@ class WeatherData {
     this.sourceTag = '',
     this.warning = '',
     this.hourlyLabel = '未来48小时逐时预报',
+    this.confidence = 0,
     this.yesterday,
     this.hourly = const [],
     this.daily = const [],
@@ -73,6 +75,7 @@ class WeatherData {
     String? uvIndex,
     String? minutelyText,
     String? sourceTag,
+    double? confidence,
     YesterdayData? yesterday,
     List<HourlyItem>? hourly,
     List<DailyItem>? daily,
@@ -97,6 +100,7 @@ class WeatherData {
       uvIndex: uvIndex ?? this.uvIndex,
       minutelyText: minutelyText ?? this.minutelyText,
       sourceTag: sourceTag ?? this.sourceTag,
+      confidence: confidence ?? this.confidence,
       yesterday: yesterday ?? this.yesterday,
       hourly: hourly ?? this.hourly,
       daily: daily ?? this.daily,
@@ -168,6 +172,7 @@ class WeatherCodec {
         'sourceTag': w.sourceTag,
         'warning': w.warning,
         'hourlyLabel': w.hourlyLabel,
+        'confidence': w.confidence,
         'yesterday': w.yesterday == null
             ? null
             : {
@@ -212,6 +217,7 @@ class WeatherCodec {
       sourceTag: (j['sourceTag'] ?? '').toString(),
       warning: (j['warning'] ?? '').toString(),
       hourlyLabel: (j['hourlyLabel'] ?? '').toString(),
+      confidence: (j['confidence'] as num?)?.toDouble() ?? 0,
       yesterday: y == null
           ? null
           : YesterdayData(

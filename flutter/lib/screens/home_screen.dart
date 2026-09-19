@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import '../models/weather_model.dart';
 import '../services/api_service.dart';
+import '../services/weather_aggregator.dart';
 import '../widgets/weather_icon.dart';
 import 'settings_screen.dart';
 import 'city_picker_screen.dart';
@@ -28,10 +30,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   DateTime? _pausedAt;
   String? _error;
   String _source = 'openmeteo';
+  List<String> _weatherSources = ['nmc', 'openmeteo'];
   String _cityName = '';
   String _cityCode = '';
   double _lat = 39.9042, _lng = 116.4074;
   String _caiyunToken = '';
+  String _qweatherHost = '';
+  String _qweatherKey = '';
   String _fontSize = 'large';
   bool _useGps = true;
   String? _locationNotice;
@@ -130,8 +135,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _initialize() async {
-    // 先用已保存的坐标/城市立即出天气；随后定位精化再刷新一次
-    await _loadWeather();
+    // 启动先用缓存的天气立即渲染（_hydrateLastWeather），定位完成后只刷新一次
     unawaited(_checkUpdate());
     await _refreshLocation(requestPermission: true);
     if (!mounted) return;
@@ -140,12 +144,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _loadPrefs() {
     _source = widget.prefs.getString('source') ?? 'openmeteo';
+    // 多源列表（对齐 native weatherSources）：迁移旧单选；全新安装默认气象局+Open-Meteo 混合
+    final rawSources = widget.prefs.getString('weatherSources');
+    if (rawSources != null && rawSources.isNotEmpty) {
+      try {
+        final list = (jsonDecode(rawSources) as List)
+            .map((e) => e.toString())
+            .where((s) => ['nmc', 'openmeteo', 'caiyun', 'qweather'].contains(s))
+            .toList();
+        _weatherSources = list;
+      } catch (_) {}
+    } else if (widget.prefs.getString('source') != null) {
+      _weatherSources = [_source];
+    }
+    if (_weatherSources.isEmpty) _weatherSources = ['nmc', 'openmeteo'];
     _cityName = widget.prefs.getString('cityName') ?? '';
     _cityCode = widget.prefs.getString('cityCode') ?? '';
     _lat = widget.prefs.getDouble('lat') ?? 39.9042;
     _lng = widget.prefs.getDouble('lng') ?? 116.4074;
     _fontSize = widget.prefs.getString('fontSize') ?? 'large';
     _caiyunToken = widget.prefs.getString('caiyunToken') ?? '';
+    _qweatherHost = widget.prefs.getString('qweatherHost') ?? '';
+    _qweatherKey = widget.prefs.getString('qweatherKey') ?? '';
     _useGps = widget.prefs.getBool('useGps') ?? true;
   }
 
@@ -174,18 +194,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         });
       return;
     }
-    Position? position;
+    double? nLat;
+    double? nLng;
+    // 首选原生通道（对齐 webf 端：系统 LocationManager 网络优先，规避 geolocator 在 MIUI 上的超时问题）
     try {
-      position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 15),
-        ),
-      );
-    } catch (_) {
-      position = await Geolocator.getLastKnownPosition();
+      final fix =
+          await const MethodChannel('cyanweather/location').invokeMethod<String>('fix');
+      if (fix != null) {
+        final j = jsonDecode(fix);
+        nLat = (j['latitude'] as num?)?.toDouble();
+        nLng = (j['longitude'] as num?)?.toDouble();
+      }
+    } catch (_) {}
+    if (nLat == null || nLng == null) {
+      Position? position;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 8),
+          ),
+        );
+      } catch (_) {
+        // 室内 GPS 冷启动常超时；回退低精度网络定位（对齐 native NETWORK_PROVIDER 快速出坐标）
+        try {
+          position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.low,
+              timeLimit: Duration(seconds: 8),
+            ),
+          );
+        } catch (_) {
+          position = await Geolocator.getLastKnownPosition();
+        }
+      }
+      nLat = position?.latitude;
+      nLng = position?.longitude;
     }
-    if (position == null) {
+    if (nLat == null || nLng == null) {
       if (mounted)
         setState(() {
           _locationNotice = '定位失败，请检查网络/GPS后重试；当前显示默认城市北京';
@@ -193,15 +239,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         });
       return;
     }
-    final pos = position!;
-    await widget.prefs.setDouble('lat', pos.latitude);
-    await widget.prefs.setDouble('lng', pos.longitude);
+    await widget.prefs.setDouble('lat', nLat);
+    await widget.prefs.setDouble('lng', nLng);
     await widget.prefs.setString('cityName', '');
     await widget.prefs.setString('cityCode', '');
     if (mounted)
       setState(() {
-        _lat = pos.latitude;
-        _lng = pos.longitude;
+        _lat = nLat!;
+        _lng = nLng!;
         _cityName = '';
         _cityCode = '';
         _locationNotice = null;
@@ -210,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       });
     // GPS：自动解析气象站代码（open-meteo 空气质量兜底也需要）
     if (_useGps) {
-      await _resolveNmcCity(pos.latitude, pos.longitude);
+      await _resolveNmcCity(nLat, nLng);
     }
   }
 
@@ -310,33 +355,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
     try {
       WeatherData w;
-      if (_source == 'caiyun' && _caiyunToken.isNotEmpty) {
-        final data = await ApiService.fetchCaiyunV1(_caiyunToken, _lat, _lng);
-        w = _parseCaiyun(data, _cityName);
-      } else if (_source == 'nmc') {
-        // 无站点编码时先按定位解析最近气象站（对齐 native 行为）
-        if (_cityCode.isEmpty) {
-          try {
-            await _resolveNmcCity(_lat, _lng);
-          } catch (_) {}
-        }
-        if (_cityCode.isNotEmpty) {
-          final data = await ApiService.fetchNmcWeather(_cityCode);
-          w = _parseNmc(data, _cityName);
-        } else {
-          // 站点解析失败时回退 Open-Meteo，保证应用可用
-          w = await ApiService.fetchWeather(_lat, _lng);
-        }
-      } else {
-        w = await ApiService.fetchWeather(_lat, _lng,
-            nmcStationId: _cityCode, resolveStation: _stationResolver);
+      // 多源混合（对齐 native）：并行拉取所有启用源，成功多个则加权聚合
+      final bySource = <String, WeatherData>{};
+      final failures = <String>[];
+      await Future.wait(_weatherSources.map((s) async {
         try {
-          final g = await ApiService.reverseGeocode(_lat, _lng);
-          if (g.isNotEmpty) {
-            // 只改城市名；此前手工重建 WeatherData 曾漏掉 aqi/aqiText 导致界面显示「-」
-            w = w.copyWith(cityName: _simp(g));
-          }
-        } catch (_) {}
+          bySource[s] = await _fetchSource(s);
+        } catch (e) {
+          failures.add('${WeatherAggregator.sourceName(s)}：${_shortErr(e)}');
+        }
+      }));
+      if (bySource.isEmpty) {
+        throw Exception(failures.isEmpty ? '没有启用可用的天气源' : failures.join('；'));
+      }
+      // primary 与 native 一致：按启用顺序取第一个成功源
+      final ordered = _weatherSources.where((s) => bySource.containsKey(s)).toList();
+      if (ordered.length == 1) {
+        w = bySource[ordered.first]!
+            .copyWith(sourceTag: '数据来源：${WeatherAggregator.sourceName(ordered.first)}');
+      } else {
+        w = WeatherAggregator.aggregate(
+            ordered.map((s) => MapEntry(s, bySource[s]!)).toList());
       }
       _fetching = false;
       setState(() {
@@ -363,6 +402,51 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _refreshing = false;
       });
     }
+  }
+
+  Future<WeatherData> _fetchSource(String id) async {
+    switch (id) {
+      case 'caiyun':
+        if (_caiyunToken.isEmpty) throw Exception('凭证未填写完整');
+        return _parseCaiyun(
+            await ApiService.fetchCaiyunV1(_caiyunToken, _lat, _lng), _cityName);
+      case 'nmc':
+        // 无站点编码时先按定位解析最近气象站（对齐 native 行为）
+        if (_cityCode.isEmpty) {
+          try {
+            await _resolveNmcCity(_lat, _lng);
+          } catch (_) {}
+        }
+        if (_cityCode.isEmpty) throw Exception('站点未解析');
+        return _parseNmc(
+            await ApiService.fetchNmcWeather(_cityCode), _cityName);
+      case 'qweather':
+        final w = await ApiService.fetchQWeather(
+            _qweatherHost, _qweatherKey, _lat, _lng, _cityName);
+        return _cityName.isEmpty ? w.copyWith(cityName: '当前位置') : w;
+      default: // openmeteo
+        final w = await ApiService.fetchWeather(_lat, _lng,
+            nmcStationId: _cityCode, resolveStation: _stationResolver);
+        try {
+          if (_cityName.isEmpty) {
+            final g = await ApiService.reverseGeocode(_lat, _lng);
+            if (g.isNotEmpty) {
+              // 只改城市名；此前手工重建 WeatherData 曾漏掉 aqi/aqiText 导致界面显示「-」
+              return w.copyWith(cityName: _simp(g));
+            }
+          }
+        } catch (_) {}
+        return w;
+    }
+  }
+
+  String _shortErr(Object e) {
+    final s = e.toString();
+    if (s.contains('SocketException') || s.contains('Failed host lookup')) {
+      return '网络不可用';
+    }
+    if (s.contains('TimeoutException') || s.contains('timeout')) return '超时';
+    return s.length > 60 ? s.substring(0, 60) : s;
   }
 
   WeatherData _parseCaiyun(Map<String, dynamic> d, String cityName) {
@@ -852,8 +936,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('🌂 $tip',
-                            style: TextStyle(fontSize: 18 * _fs)),
+                        Row(children: [
+                          // 该设备缺 emoji 字体回退，🌂 显示为方框；改用矢量图标
+                          Icon(Icons.umbrella,
+                              size: 22 * _fs, color: const Color(0xFF0B6BCB)),
+                          SizedBox(width: 8 * _fs),
+                          Expanded(
+                              child: Text(tip,
+                                  style: TextStyle(fontSize: 18 * _fs))),
+                        ]),
                         SizedBox(height: 6 * _fs),
                         Text('查看降雨趋势 ›',
                             style: TextStyle(
@@ -909,8 +1000,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     // 湿度 / 风力 / 空气质量 / 紫外线强度（对齐 native：空气质量含 PM 明细，风力含 m/s）
     children.add(_infoCard('湿度', '${w.humidity ?? '-'}%'));
-    final windText = StringBuffer();
-    windText.write('${w.windDirect} ${w.windPower}'.trim());
+    // 风向与风力分两行展示（_infoCard 文本 maxLines=3）
+    final windText = StringBuffer(w.windDirect);
+    if (w.windPower.isNotEmpty) windText.write('\n${w.windPower}');
     if (w.windSpeed != null)
       windText.write('（${w.windSpeed!.toStringAsFixed(1)}m/s）');
     children.add(_infoCard('风力', windText.toString()));
@@ -977,11 +1069,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       children.add(_sectionTitle(w.hourlyLabel));
       children.add(SizedBox(
           height: 140 * _fs,
-          child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: w.hourly.length,
-              separatorBuilder: (_, __) => SizedBox(width: 8 * _fs),
-              itemBuilder: (_, i) => _hourCard(w.hourly[i]))));
+          child: _HourlyRow(
+              items: w.hourly, fs: () => _fs, builder: (h) => _hourCard(h))));
     }
 
     // 多日预报
@@ -1022,14 +1111,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ]),
                 if (y.hourly.isNotEmpty) ...[
                   SizedBox(height: 10 * _fs),
+                  // 与逐时预报同高，卡片样式完全统一
                   SizedBox(
-                      height: 120 * _fs,
-                      child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: y.hourly.length,
-                          separatorBuilder: (_, __) =>
-                              SizedBox(width: 8 * _fs),
-                          itemBuilder: (_, i) => _hourCard(y.hourly[i]))),
+                      height: 140 * _fs,
+                      child: _HourlyRow(
+                          items: y.hourly,
+                          fs: () => _fs,
+                          builder: (h) => _hourCard(h))),
                 ],
               ]))));
     } else if (w.sourceTag.contains('彩云')) {
@@ -1043,12 +1131,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       TextStyle(fontSize: 16 * _fs, color: Colors.grey)))));
     }
 
-    // 数据来源（居中）
+    // 数据来源（居中）+ 置信度（多源聚合时显示，对齐 native）
     children.add(Padding(
         padding: EdgeInsets.only(top: 16 * _fs),
         child: Text(w.sourceTag,
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13 * _fs, color: Colors.grey))));
+    if (w.confidence > 0) {
+      children.add(Padding(
+          padding: EdgeInsets.only(top: 4 * _fs),
+          child: Text('置信度：${(w.confidence * 100).round()}%',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 13 * _fs,
+                  color: w.confidence >= 0.8
+                      ? const Color(0xFF4CAF50)
+                      : const Color(0xFFFF9800)))));
+    }
 
     return Column(
         crossAxisAlignment: CrossAxisAlignment.center, children: children);
@@ -1328,5 +1427,97 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         fontSize: 13 * _fs,
                         color: const Color(0xFF666666))),
             ]));
+  }
+}
+
+/// 逐时列表 + 左右滚动圆形箭头（对齐 native HourlyRow：无渐变遮罩）
+class _HourlyRow extends StatefulWidget {
+  final List<HourlyItem> items;
+  final double Function() fs;
+  final Widget Function(HourlyItem item) builder;
+  const _HourlyRow(
+      {required this.items, required this.fs, required this.builder});
+  @override
+  State<_HourlyRow> createState() => _HourlyRowState();
+}
+
+class _HourlyRowState extends State<_HourlyRow> {
+  final ScrollController _ctrl = ScrollController();
+  bool _canPrev = false;
+  bool _canNext = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.addListener(_updateArrows);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
+  }
+
+  @override
+  void didUpdateWidget(covariant _HourlyRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
+  }
+
+  @override
+  void dispose() {
+    _ctrl.removeListener(_updateArrows);
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _updateArrows() {
+    if (!mounted || !_ctrl.hasClients) return;
+    final canPrev = _ctrl.offset > 2;
+    final canNext = _ctrl.offset < _ctrl.position.maxScrollExtent - 2;
+    if (canPrev != _canPrev || canNext != _canNext) {
+      setState(() {
+        _canPrev = canPrev;
+        _canNext = canNext;
+      });
+    }
+  }
+
+  void _scroll(bool forward) {
+    if (!_ctrl.hasClients) return;
+    final target = _ctrl.offset + (forward ? 240.0 : -240.0);
+    _ctrl.animateTo(
+        target.clamp(0.0, _ctrl.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut);
+  }
+
+  Widget _arrowBtn(IconData icon, bool forward) => Positioned(
+      left: forward ? null : 0,
+      right: forward ? 0 : null,
+      top: 0,
+      bottom: 0,
+      child: Center(
+          child: GestureDetector(
+              onTap: () => _scroll(forward),
+              child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceVariant
+                          .withOpacity(0.95),
+                      shape: BoxShape.circle),
+                  child: Icon(icon,
+                      size: 26, color: const Color(0xFF0B6BCB))))));
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(children: [
+      ListView.separated(
+          controller: _ctrl,
+          scrollDirection: Axis.horizontal,
+          itemCount: widget.items.length,
+          separatorBuilder: (_, __) => SizedBox(width: 8 * widget.fs()),
+          itemBuilder: (_, i) => widget.builder(widget.items[i])),
+      if (_canPrev) _arrowBtn(Icons.keyboard_arrow_left, false),
+      if (_canNext) _arrowBtn(Icons.keyboard_arrow_right, true),
+    ]);
   }
 }

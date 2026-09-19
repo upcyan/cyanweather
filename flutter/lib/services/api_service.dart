@@ -112,6 +112,107 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
+  // 和风天气 v7（对齐 native QWeatherApi：数值字段兼容字符串与数字）
+  static Future<WeatherData> fetchQWeather(
+      String host, String apiKey, double lat, double lng, String cityName) async {
+    final base = host.trim().replaceAll(RegExp(r'^https?://'), '').replaceAll(RegExp(r'/+$'), '');
+    if (base.isEmpty) throw Exception('请填写和风天气 API Host');
+    if (apiKey.trim().isEmpty) throw Exception('请填写和风天气 API Key');
+    final headers = {'X-QW-Api-Key': apiKey.trim()};
+    final location = '$lat,$lng';
+    final now = await _qwGet('https://$base/v7/weather/now?location=$location&lang=zh', headers);
+    final hourly = await _qwGet('https://$base/v7/weather/24h?location=$location&lang=zh', headers);
+    final daily = await _qwGet('https://$base/v7/weather/7d?location=$location&lang=zh', headers);
+    Map<String, dynamic>? warning;
+    try {
+      warning = await _qwGet('https://$base/v7/warning/now?location=$location&lang=zh', headers);
+    } catch (_) {}
+
+    _qwCheckCode(now);
+    _qwCheckCode(hourly);
+    _qwCheckCode(daily);
+    final n = (now['now'] as Map<String, dynamic>?) ?? const {};
+    final days = (daily['daily'] as List?) ?? const [];
+    final firstDay = days.isNotEmpty ? days.first as Map<String, dynamic> : null;
+    final updRaw = _qwText(now['updateTime']);
+    String updatedAt = '';
+    if (updRaw.contains('T')) {
+      final t = updRaw.split('T')[1];
+      updatedAt = t.length >= 5 ? t.substring(0, 5) : t;
+    }
+    if (updatedAt.isEmpty) updatedAt = _qwText(n['obsTime']);
+    return WeatherData(
+      cityName: cityName,
+      updatedAt: updatedAt,
+      temperature: _qwDouble(n['temp']) ?? 0,
+      condition: _qwText(n['text']),
+      feelsLike: _qwDouble(n['feelsLike']),
+      humidity: _qwInt(n['humidity']),
+      windDirect: _qwText(n['windDir']),
+      windPower: _qwText(n['windScale']).isEmpty ? '' : '${_qwText(n['windScale'])}级',
+      todayHigh: firstDay == null ? null : _qwDouble(firstDay['tempMax']),
+      todayLow: firstDay == null ? null : _qwDouble(firstDay['tempMin']),
+      warning: _qwWarningTitle(warning),
+      sunrise: firstDay == null ? '' : _qwText(firstDay['sunrise']),
+      sunset: firstDay == null ? '' : _qwText(firstDay['sunset']),
+      uvIndex: firstDay == null ? '' : _qwText(firstDay['uvIndex']),
+      sourceTag: '数据来源：和风天气',
+      hourly: ((hourly['hourly'] as List?) ?? const [])
+          .map((item) => HourlyItem(
+                time: _qwText(item['fxTime']),
+                temperature: _qwDouble(item['temp']),
+                condition: _qwText(item['text']),
+                isForecast: true,
+                rainProb: _qwDouble(item['pop']),
+              ))
+          .toList(),
+      daily: days
+          .map((item) => DailyItem(
+                date: _qwText(item['fxDate']),
+                dayText: _qwText(item['textDay']),
+                nightText: _qwText(item['textNight']),
+                high: _qwDouble(item['tempMax']),
+                low: _qwDouble(item['tempMin']),
+              ))
+          .toList(),
+    );
+  }
+
+  static String _qwWarningTitle(Map<String, dynamic>? warning) {
+    final list = (warning?['warning'] as List?);
+    if (list == null || list.isEmpty) return '';
+    final title = _qwText((list.first as Map)['title']);
+    return title.isEmpty ? '' : title;
+  }
+
+  static Future<Map<String, dynamic>> _qwGet(
+      String url, Map<String, String> headers) async {
+    final response = await http
+        .get(Uri.parse(url), headers: headers)
+        .timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) throw Exception('和风天气请求失败: ${response.statusCode}');
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  static void _qwCheckCode(Map<String, dynamic> root) {
+    final code = root['code']?.toString();
+    if (code != '200') throw Exception('和风天气接口返回 $code');
+  }
+
+  static String _qwText(dynamic v) => v?.toString() ?? '';
+
+  static double? _qwDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString().trim());
+  }
+
+  static int? _qwInt(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.round();
+    return int.tryParse(v.toString().trim());
+  }
+
   // Open-Meteo
   static Future<WeatherData> fetchWeather(double lat, double lng,
       {String? nmcStationId, Future<String?> Function()? resolveStation}) async {

@@ -28,6 +28,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
@@ -337,7 +339,7 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
         InfoCard("湿度", "${weather.humidity ?: "-"}%")
         val windText = buildString {
             append(weather.windDirect)
-            if (weather.windPower.isNotBlank()) append(" ${weather.windPower}")
+            if (weather.windPower.isNotBlank()) append("\n${weather.windPower}")
             weather.windSpeed?.let { append("（${String.format(Locale.US, "%.1f", it)}m/s）") }
         }.trim()
         InfoCard("风力", windText.ifBlank { "-" })
@@ -554,7 +556,6 @@ private fun HourlyRow(items: List<HourlyItem>) {
         }
     }
     Box(Modifier.fillMaxWidth()) {
-        val edge = MaterialTheme.colorScheme.background
         LazyRow(
             state = listState,
             contentPadding = PaddingValues(horizontal = 4.dp),
@@ -567,50 +568,38 @@ private fun HourlyRow(items: List<HourlyItem>) {
             Box(
                 Modifier
                     .align(Alignment.CenterStart)
-                    .width(64.dp)
-                    .fillMaxHeight()
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(edge.copy(alpha = 0.98f), edge.copy(alpha = 0.78f), edge.copy(alpha = 0f))
-                        )
-                    ),
+                    .padding(start = 4.dp)
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f))
+                    .clickable { scope.launch { listState.scrollToItem(maxOf(0, listState.firstVisibleItemIndex - 3)) } },
                 contentAlignment = Alignment.Center
             ) {
-                Box(
-                    Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f))
-                        .clickable { scope.launch { listState.scrollToItem(maxOf(0, listState.firstVisibleItemIndex - 3)) } },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("‹", style = fst(22, FontWeight.Bold), color = Color(0xFF0B6BCB))
-                }
+                Icon(
+                    Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                    contentDescription = "向前滚动",
+                    tint = Color(0xFF0B6BCB),
+                    modifier = Modifier.size(26.dp)
+                )
             }
         }
         if (canNext) {
             Box(
                 Modifier
                     .align(Alignment.CenterEnd)
-                    .width(64.dp)
-                    .fillMaxHeight()
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(edge.copy(alpha = 0f), edge.copy(alpha = 0.78f), edge.copy(alpha = 0.98f))
-                        )
-                    ),
+                    .padding(end = 4.dp)
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f))
+                    .clickable { scope.launch { listState.scrollToItem(listState.firstVisibleItemIndex + 3) } },
                 contentAlignment = Alignment.Center
             ) {
-                Box(
-                    Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f))
-                        .clickable { scope.launch { listState.scrollToItem(listState.firstVisibleItemIndex + 3) } },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("›", style = fst(22, FontWeight.Bold), color = Color(0xFF0B6BCB))
-                }
+                Icon(
+                    Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = "向后滚动",
+                    tint = Color(0xFF0B6BCB),
+                    modifier = Modifier.size(26.dp)
+                )
             }
         }
     }

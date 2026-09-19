@@ -1,5 +1,5 @@
 /* CyanWeather WebF — 数据源：Open-Meteo / 中央气象台（对齐 native app/ 版） */
-var APP_VERSION = '1.6.0';
+var APP_VERSION = '1.2.0';
 window.addEventListener('error', function (ev) { console.log('[CWJS] ERR ' + ev.message + ' @line ' + ev.lineno); });
 window.addEventListener('unhandledrejection', function (ev) { console.log('[CWJS] REJ ' + (ev.reason && ev.reason.message ? ev.reason.message : ev.reason)); });
 
@@ -79,7 +79,7 @@ function nmcTextKind(t) { /* native nmcSkyconKind（雨夹雪优先于雪） */
 var KIND_ICON = { SUN:'☀️', PARTLY:'⛅', CLOUD:'☁️', RAIN:'🌧️', SNOW:'❄️', THUNDER:'⛈️', FOG:'🌫️', SLEET:'🌨️', WIND:'🌬️', HAZE:'😷', UNKNOWN:'' };
 
 /* ---- Canvas 天气图标：复刻 native WeatherIcon.kt 几何与配色 ---- */
-var IC = { sun:'#f6a821', cloud:'#7c97ab', rain:'#3fa3f0', bolt:'#f2a93b', snow:'#90caf9', fog:'#b0bec5' };
+var IC = { sun:'#f6a821', cloud:'#7e99b5', rain:'#3fa3f0', bolt:'#f2a93b', snow:'#90caf9', fog:'#b0bec5' };
 var KIND_NORM = { SUN:.80, MOON:1.08, PARTLY:.68, CLOUD:.98, RAIN:1.06, SNOW:1.06, THUNDER:.94, SLEET:1.06, FOG:1.22, HAZE:1.22, WIND:.98, UNKNOWN:1.10 };
 
 function paintIcon(cv, kind) {
@@ -236,6 +236,8 @@ var state = {
   manualCity: false,
   useGps: true,
   source: 'openmeteo',
+  sources: ['nmc', 'openmeteo'],
+  qwHost: '', qwKey: '',
   cyMode: 'v1', cyToken: '', cyKey: '', cySecret: '',
   cyExt: false, cyDays: '15',
   fontSize: 'large',
@@ -260,6 +262,15 @@ function loadState() {
     state.manualCity = !!s.manualCity;
     state.useGps = s.useGps !== false;
     state.source = s.source === 'nmc' ? 'nmc' : (s.source === 'caiyun' ? 'caiyun' : 'openmeteo');
+    /* 多源列表（对齐 native weatherSources）：迁移旧单选；全新安装默认气象局+Open-Meteo 混合 */
+    var srcOk = function (x) { return ['nmc', 'openmeteo', 'caiyun', 'qweather'].indexOf(x) >= 0; };
+    if (Array.isArray(s.sources)) {
+      state.sources = s.sources.filter(srcOk);
+    } else if (s.source) {
+      state.sources = [state.source];
+    }
+    if (!state.sources.length) state.sources = ['nmc', 'openmeteo'];
+    state.qwHost = s.qwHost || ''; state.qwKey = s.qwKey || '';
     state.cyMode = s.cyMode === 'v3' ? 'v3' : 'v1';
     state.cyToken = s.cyToken || ''; state.cyKey = s.cyKey || ''; state.cySecret = s.cySecret || '';
     state.cyExt = !!s.cyExt; state.cyDays = s.cyDays || '15';
@@ -710,101 +721,131 @@ function renderLifeIndex(w) {
 
 function renderWeather(w) {
   console.log('[CWJS] renderWeather enter src=' + w.sourceTag);
-  if (w.cityName) state.city = w.cityName;
-  $('cityName').textContent = w.cityName || state.city;
-  $('updatedAt').textContent = w.updatedAt || '';
-  $('curTemp').textContent = tempStr(w.temperature);
-  $('curUnit').textContent = '°C';
-  $('curCond').textContent = w.condition || '-';
-  paintGlyph($('weatherGlyph'), nmcTextKind(w.condition), 96);
-  $('todayHigh').textContent = tempStr(w.todayHigh) + '°';
-  $('todayLow').textContent = tempStr(w.todayLow) + '°';
-  $('feelsLike').textContent = tempStr(w.feelsLike) + '°';
+  /* 各区块独立容错：WebF 上某段抛错不应中断其余区块渲染（昨日卡/降雨/置信度等消失的保险） */
+  function safe(name, fn) {
+    try { fn(); } catch (e) {
+      console.log('[CWJS] render ' + name + ' ERR: ' + e.message);
+      dtrace('render ' + name + ' ERR: ' + (e && e.message ? e.message : e));
+    }
+  }
+  safe('header', function () {
+    if (w.cityName) state.city = w.cityName;
+    $('cityName').textContent = w.cityName || state.city;
+    $('updatedAt').textContent = w.updatedAt || '';
+    $('curTemp').textContent = tempStr(w.temperature);
+    $('curUnit').textContent = '°C';
+    $('curCond').textContent = w.condition || '-';
+    paintGlyph($('weatherGlyph'), nmcTextKind(w.condition), 96);
+  });
+  safe('stats', function () {
+    $('todayHigh').textContent = tempStr(w.todayHigh) + '°';
+    $('todayLow').textContent = tempStr(w.todayLow) + '°';
+    $('feelsLike').textContent = tempStr(w.feelsLike) + '°';
 
-  $('sunrise').textContent = w.sunrise || '-';
-  $('sunset').textContent = w.sunset || '-';
+    $('sunrise').textContent = w.sunrise || '-';
+    $('sunset').textContent = w.sunset || '-';
 
-  $('humidityVal').textContent = w.humidity != null ? w.humidity + '%' : '-';
-  var windTxt = ((w.windDirect || '') + ' ' + (w.windPower || '')).trim();
-  if (w.windSpeed != null) windTxt += '（' + w.windSpeed.toFixed(1) + 'm/s）';
-  $('windVal').textContent = windTxt || '-';
-  var aqiTxt = '';
-  if (w.aqi != null) aqiTxt = (w.aqiText ? w.aqiText + ' ' : '') + w.aqi;
-  else if (w.aqiText) aqiTxt = w.aqiText;
-  if (w.pm25 != null) aqiTxt += '\nPM2.5: ' + Math.round(w.pm25) + 'μg/m³';
-  if (w.pm10 != null) aqiTxt += '\nPM10: ' + Math.round(w.pm10) + 'μg/m³';
-  $('aqiVal').textContent = aqiTxt || '-';
-  $('uvVal').textContent = w.uvIndex || '-';
+    $('humidityVal').textContent = w.humidity != null ? w.humidity + '%' : '-';
+    var windTxt = (w.windDirect || '');
+    if (w.windPower) windTxt += '<br>' + w.windPower;
+    if (w.windSpeed != null) windTxt += '（' + w.windSpeed.toFixed(1) + 'm/s）';
+    $('windVal').innerHTML = windTxt || '-';
+    var aqiTxt = '';
+    if (w.aqi != null) aqiTxt = (w.aqiText ? w.aqiText + ' ' : '') + w.aqi;
+    else if (w.aqiText) aqiTxt = w.aqiText;
+    if (w.pm25 != null) aqiTxt += '\nPM2.5: ' + Math.round(w.pm25) + 'μg/m³';
+    if (w.pm10 != null) aqiTxt += '\nPM10: ' + Math.round(w.pm10) + 'μg/m³';
+    $('aqiVal').textContent = aqiTxt || '-';
+    $('uvVal').textContent = w.uvIndex || '-';
+  });
 
   /* 生活指数四宫格（对齐 native） */
-  renderLifeIndex(w);
+  safe('lifeIndex', function () { renderLifeIndex(w); });
 
   /* 预警横幅 */
-  if (w.warning) {
-    mountHTML('warnMount', '<section class="warn-card card"><div class="warn-title">⚠️ 气象预警</div><div class="warn-body">' + escapeHTML(w.warning) + '</div></section>');
-  } else {
-    mountHTML('warnMount', '');
-  }
+  safe('warning', function () {
+    if (w.warning) {
+      mountHTML('warnMount', '<section class="warn-card card"><div class="warn-title">⚠️ 气象预警</div><div class="warn-body">' + escapeHTML(w.warning) + '</div></section>');
+    } else {
+      mountHTML('warnMount', '');
+    }
+  });
 
   /* 分钟级降水描述（彩云） */
-  if (w.minutelyText) {
-    mountHTML('minutelyMount', '<section class="minutely-card card">⏱ ' + escapeHTML(w.minutelyText) + '</section>');
-  } else {
-    mountHTML('minutelyMount', '');
-  }
-
-  /* 逐小时（对齐 native：仅标签含"预报"时显示，气象局实况并入昨日卡）。
-   WebF 0.24 对 display:none 切换不可靠，改用「内容置空」模型：
-   标题保留文字由 CSS :empty 隐藏，卡片容器置空即视觉上整体隐藏。 */
-  var hh = '';
-  var showHourly = (w.hourlyLabel || '').indexOf('预报') >= 0 && w.hourly.length > 0;
-  if (showHourly) {
-    for (var i = 0; i < w.hourly.length; i++) {
-      var it = w.hourly[i];
-      hh += hourCardHTML(it.time, it.temperature, it.isForecast ? it.condition : '', it.icon, it.rainProb);
+  safe('minutely', function () {
+    if (w.minutelyText) {
+      mountHTML('minutelyMount', '<section class="minutely-card card">⏱ ' + escapeHTML(w.minutelyText) + '</section>');
+    } else {
+      mountHTML('minutelyMount', '');
     }
-  }
-  $('hourlyLabel').textContent = showHourly ? w.hourlyLabel : '';
-  $('hourly').innerHTML = showHourly ? hh : '';
-  $('hourlyLabel').style.display = showHourly ? '' : 'none';
+  });
 
-  /* 多日 */
-  var dh = '';
-  for (var j = 0; j < w.daily.length; j++) {
-    var dd = w.daily[j];
-    dh += '<div class="day-row">' +
-      '<span class="day-name">' + dayLabelCN(dd.date) + '</span>' +
-      '<div class="day-main">' +
-      (dd.icon ? '<span class="day-icon"><img class="meteocon" src="assets:///assets/web/icons/' + iconSlug(dd.icon) + '.png" width="34" height="34" alt=""></span>' : '') +
-      '<span class="day-cond">' + combineDayNight(dd.dayText, dd.nightText) + '</span>' +
-      '<span class="day-temp"><span class="day-high">' + tempStr(dd.high) + '°</span>' +
-      '<span class="day-slash">/</span>' +
-      '<span class="day-low">' + tempStr(dd.low) + '°</span></span>' +
-      '</div></div>';
-  }
-  $('dailyLabel').textContent = '未来多日预报（' + w.daily.length + '天）';
-  $('daily').innerHTML = dh || '<div class="empty-tip">暂无数据</div>';
-
-  /* 昨日 */
-  console.log('[CWJS] yest-diag src=' + w.sourceTag + ' y=' + JSON.stringify(w.yesterday ? {h: w.yesterday.high, l: w.yesterday.low, n: (w.yesterday.hourly || []).length} : null));
-  if (w.yesterday && (w.yesterday.high != null || w.yesterday.low != null)) {
-    var yh = '';
-    for (var k = 0; k < (w.yesterday.hourly || []).length; k++) {
-      var yy = w.yesterday.hourly[k];
-      yh += '<div class="yh-item"><div class="yh-time">' + parseInt(yy.time.substring(11, 13), 10) + '时</div>' +
-        '<div class="yh-temp">' + tempStr(yy.temperature) + '°</div></div>';
+  safe('hourly', function () {
+    /* 逐小时（对齐 native：仅标签含"预报"时显示，气象局实况并入昨日卡）。
+     WebF 0.24 对 display:none 切换不可靠，改用「内容置空」模型：
+     标题保留文字由 CSS :empty 隐藏，卡片容器置空即视觉上整体隐藏。 */
+    var hh = '';
+    var showHourly = (w.hourlyLabel || '').indexOf('预报') >= 0 && w.hourly.length > 0;
+    if (showHourly) {
+      for (var i = 0; i < w.hourly.length; i++) {
+        var it = w.hourly[i];
+        hh += hourCardHTML(it.time, it.temperature, it.isForecast ? it.condition : '', it.icon, it.rainProb);
+      }
     }
-    mountHTML('yesterdayMount', '<div class="yesterday card"><div class="yesterday-row"><span class="yesterday-label">昨日最高</span><span class="yesterday-value yesterday-high">' + tempStr(w.yesterday.high) + '°</span></div><div class="yesterday-row"><span class="yesterday-label">昨日最低</span><span class="yesterday-value yesterday-low">' + tempStr(w.yesterday.low) + '°</span></div>' + (yh ? '<div class="yest-hourly scroll-x">' + yh + '</div>' : '') + '</div>');
-  } else {
-    mountHTML('yesterdayMount', '<div class="empty-tip">暂无昨日数据</div>');
-  }
+    $('hourlyLabel').textContent = showHourly ? w.hourlyLabel : '';
+    $('hourly').innerHTML = showHourly ? hh : '';
+    $('hourlyLabel').style.display = showHourly ? '' : 'none';
+    updateHourArrows();
+  });
 
-  /* 降雨提醒 + 趋势（所有源可用，与 native 对齐；无预报逐时时仅显示近期趋势档） */
-  renderRainTip(w);
-  renderRainTrend(w);
+  safe('daily', function () {
+    /* 多日 */
+    var dh = '';
+    for (var j = 0; j < w.daily.length; j++) {
+      var dd = w.daily[j];
+      dh += '<div class="day-row">' +
+        '<span class="day-name">' + dayLabelCN(dd.date) + '</span>' +
+        '<div class="day-main">' +
+        (dd.icon ? '<span class="day-icon"><img class="meteocon" src="assets:///assets/web/icons/' + iconSlug(dd.icon) + '.png" width="34" height="34" alt=""></span>' : '') +
+        '<span class="day-cond">' + combineDayNight(dd.dayText, dd.nightText) + '</span>' +
+        '<span class="day-temp"><span class="day-high">' + tempStr(dd.high) + '°</span>' +
+        '<span class="day-slash">/</span>' +
+        '<span class="day-low">' + tempStr(dd.low) + '°</span></span>' +
+        '</div></div>';
+    }
+    $('dailyLabel').textContent = '未来多日预报（' + w.daily.length + '天）';
+    $('daily').innerHTML = dh || '<div class="empty-tip">暂无数据</div>';
+  });
 
-  $('sourceFooter').textContent = w.sourceTag;
-  mountHTML('errorBox', '');
+  safe('yesterday', function () {
+    /* 昨日 */
+    if (w.yesterday && (w.yesterday.high != null || w.yesterday.low != null)) {
+      var yh = '';
+      for (var k = 0; k < (w.yesterday.hourly || []).length; k++) {
+        var yy = w.yesterday.hourly[k];
+        yh += '<div class="yh-item">' +
+          '<div class="yh-time">' + parseInt(yy.time.substring(11, 13), 10) + '时</div>' +
+          (yy.icon ? '<div class="yh-icon"><img class="meteocon" src="assets:///assets/web/icons/' + iconSlug(yy.icon) + '.png" alt=""></div>' : '') +
+          (yy.condition ? '<div class="yh-cond">' + yy.condition + '</div>' : '') +
+          '<div class="yh-temp">' + tempStr(yy.temperature) + '°</div></div>';
+      }
+      mountHTML('yesterdayMount', '<div class="yesterday card"><div class="yesterday-row"><span class="yesterday-label">昨日最高</span><span class="yesterday-value yesterday-high">' + tempStr(w.yesterday.high) + '°</span></div><div class="yesterday-row"><span class="yesterday-label">昨日最低</span><span class="yesterday-value yesterday-low">' + tempStr(w.yesterday.low) + '°</span></div>' + (yh ? '<div class="yest-hourly scroll-x">' + yh + '</div>' : '') + '</div>');
+    } else {
+      mountHTML('yesterdayMount', '<div class="empty-tip">暂无昨日数据</div>');
+    }
+  });
+
+  safe('rain', function () {
+    /* 降雨提醒 + 趋势（所有源可用，与 native 对齐；无预报逐时时仅显示近期趋势档） */
+    renderRainTip(w);
+    renderRainTrend(w);
+  });
+
+  safe('footer', function () {
+    $('sourceFooter').innerHTML = escapeHTML(w.sourceTag) +
+      (w.confidence ? '<div class="conf-line" style="color:' + (w.confidence >= 0.8 ? '#4caf50' : '#ff9800') + '">置信度：' + Math.round(w.confidence * 100) + '%</div>' : '');
+    mountHTML('errorBox', '');
+  });
 }
 
 function renderRainTip(w) {
@@ -834,34 +875,73 @@ function renderRainTip(w) {
   }
   console.log('[CWJS] raintip=' + tip);
   if (tip) {
-    mountHTML('rainTipMount', '<section class="rain-tip-card card" id="rainTipCard"><span class="rain-tip-icon">🌂</span><span class="rain-tip-text">' + escapeHTML(tip) + '</span><span class="rain-tip-action">查看降雨趋势 ›</span></section>');
+    mountHTML('rainTipMount', '<section class="rain-tip-card card" id="rainTipCard"><span class="rain-tip-icon">🌂</span><span class="rain-tip-text">' + escapeHTML(tip) + '</span><span class="rain-tip-action" id="rainTipAction">' + (rainTrendOpen ? '收起降雨趋势 ›' : '查看降雨趋势 ›') + '</span></section>');
     $('rainTipCard').addEventListener('click', function () {
-      mountHTML('rainBlockMount', rainTrendMarkup);
+      rainTrendOpen = !rainTrendOpen;
+      mountHTML('rainBlockMount', rainTrendOpen ? rainTrendMarkup : '');
+      try { $('rainTipAction').textContent = rainTrendOpen ? '收起降雨趋势 ›' : '查看降雨趋势 ›'; } catch (e) { }
     });
-  } else mountHTML('rainTipMount', '');
+  } else {
+    rainTrendOpen = false;
+    mountHTML('rainBlockMount', '');
+    mountHTML('rainTipMount', '');
+  }
 }
 
 var rainTrendMarkup = '';
+var rainTrendOpen = false;
 function renderRainTrend(w) {
   var cols = [], i;
   for (i = 0; i < w.hourly.length && cols.length < 24; i++) {
     var it = w.hourly[i];
     if (!it.isForecast) continue;
-    cols.push({ label: it.time.substring(5, 10).replace('-', '/') + ' ' + parseInt(it.time.substring(11, 13), 10) + '时',
-      pct: it.rainProb == null ? 0 : it.rainProb });
+    cols.push({ date: it.time.substring(5, 10).replace('-', '/'),
+      hour: parseInt(it.time.substring(11, 13), 10) + '时',
+      cond: it.condition || '',
+      pct: Math.min(100, Math.max(0, it.rainProb == null ? 0 : it.rainProb)) });
   }
   if (!cols.length) { rainTrendMarkup = ''; mountHTML('rainBlockMount', ''); return; }
+  /* 对齐 native RainForecastScreen：时间两行 + 天气文字 + 百分比 + 比例条（雨天或 ≥50% 深蓝标出） */
   var html = '';
   for (var j = 0; j < cols.length; j++) {
     var cc = cols[j];
-    var barH = Math.max(cc.pct > 0 ? 6 : 2, Math.round(cc.pct * 0.9));
-    html += '<div class="rain-col">' +
-      '<div class="rain-pct">' + (cc.pct > 0 ? cc.pct + '%' : '') + '</div>' +
-      '<div class="rain-bar-wrap"><div class="rain-bar" style="height:' + barH + '%"></div></div>' +
-      '<div class="rain-label">' + cc.label + '</div></div>';
+    var strong = cc.cond.indexOf('雨') >= 0 || cc.cond.indexOf('雷') >= 0 || cc.pct >= 50;
+    html += '<div class="rain-hour' + (strong ? ' strong' : '') + '">' +
+      '<div class="rain-row">' +
+      '<span class="rr-time"><span class="rr-date">' + cc.date + '</span><span class="rr-hour">' + cc.hour + '</span></span>' +
+      '<span class="rr-cond">' + (cc.cond || '-') + '</span>' +
+      '<span class="rr-pct">' + Math.round(cc.pct) + '%</span>' +
+      '</div>' +
+      '<div class="rr-bar"><div class="rr-fill" style="width:' + Math.round(cc.pct) + '%"></div></div>' +
+      '</div>';
   }
-  rainTrendMarkup = '<section class="block rain-trend" id="rainBlock"><h3>未来24小时降雨趋势</h3><div class="rain scroll-x">' + html + '</div></section>';
-  mountHTML('rainBlockMount', '');
+  rainTrendMarkup = '<section class="block rain-trend" id="rainBlock"><h3>未来24小时降雨概率</h3>' +
+    '<div class="rain-hint">数值为降雨概率，雨天与雷雨时段以蓝色标出。</div>' +
+    '<div class="rain-rows">' + html + '</div></section>';
+  mountHTML('rainBlockMount', rainTrendOpen ? rainTrendMarkup : '');
+}
+
+/* ================= 逐时箭头 ================= */
+function updateHourArrows() {
+  var el = $('hourly'), prev = $('hourPrev'), next = $('hourNext');
+  if (!el || !prev || !next) return;
+  var overflow = el.scrollWidth > el.clientWidth + 4;
+  var atStart = el.scrollLeft <= 4;
+  var atEnd = el.scrollLeft >= el.scrollWidth - el.clientWidth - 4;
+  prev.className = 'hour-arrow left' + (overflow && !atStart ? '' : ' hidden');
+  next.className = 'hour-arrow right' + (overflow && !atEnd ? '' : ' hidden');
+}
+function bindHourArrows() {
+  var el = $('hourly');
+  if (!el) return;
+  function go(delta) {
+    try { el.scrollBy({ left: delta, behavior: 'smooth' }); }
+    catch (e) { el.scrollLeft += delta; }
+    setTimeout(updateHourArrows, 400);
+  }
+  $('hourPrev').addEventListener('click', function () { go(-300); });
+  $('hourNext').addEventListener('click', function () { go(300); });
+  el.addEventListener('scroll', updateHourArrows);
 }
 
 /* ================= 提示 / 错误 / 遮罩 ================= */
@@ -1066,6 +1146,229 @@ function ensureGpsFix() {
   });
 }
 
+/* ================= 多源加权聚合（对齐 native WeatherAggregator） ================= */
+var W_SOURCE_WEIGHTS = { nmc: 0.9, openmeteo: 0.8, caiyun: 0.85, qweather: 0.85, xiaomi: 0.7 };
+var W_SOURCE_NAMES = { nmc: '中国气象局', openmeteo: 'Open-Meteo', caiyun: '彩云天气', qweather: '和风天气', xiaomi: '小米天气' };
+
+function wMedian(vals) {
+  var s = vals.slice().sort(function (a, b) { return a - b; });
+  var n = s.length;
+  return (n % 2 === 1) ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+}
+/* 小样本稳健离群值过滤（MAD 法）：中位数 ± 2.5·MAD，绝对下限 1.0 */
+function wRobustFilter(pairs) {
+  if (pairs.length < 3) return pairs;
+  var vals = pairs.map(function (p) { return p[0]; });
+  var med = wMedian(vals);
+  var mad = wMedian(vals.map(function (v) { return Math.abs(v - med); }));
+  var threshold = Math.max(2.5 * mad, 1.0);
+  var kept = pairs.filter(function (p) { return Math.abs(p[0] - med) <= threshold; });
+  return kept.length ? kept : pairs;
+}
+/* pairs: [[数值, 权重], ...] → 加权平均（先 MAD 过滤） */
+function wAggNum(pairs) {
+  var valid = pairs.filter(function (p) { return p[0] !== null && p[0] !== undefined; });
+  if (!valid.length) return null;
+  if (valid.length === 1) return valid[0][0];
+  var filtered = wRobustFilter(valid);
+  var tw = 0, sum = 0;
+  for (var i = 0; i < filtered.length; i++) { tw += filtered[i][1]; sum += filtered[i][0] * filtered[i][1]; }
+  return sum / tw;
+}
+/* entries: [[文本, 权重], ...] → 权重最高者胜 */
+function wAggCond(entries) {
+  var nb = entries.filter(function (e) { return e[0]; });
+  if (!nb.length) return '';
+  if (nb.length === 1) return nb[0][0];
+  var best = nb[0];
+  for (var i = 1; i < nb.length; i++) if (nb[i][1] > best[1]) best = nb[i];
+  return best[0];
+}
+function wFirstNonBlank(arr) {
+  for (var i = 0; i < arr.length; i++) if (arr[i]) return arr[i];
+  return '';
+}
+function aggregateWeather(list) { /* list: [{id, w}] */
+  if (!list.length) throw new Error('No sources to aggregate');
+  if (list.length === 1) return list[0].w;
+  var primary = list[0].w;
+  var ws = list.map(function (e) { return W_SOURCE_WEIGHTS[e.id] || 0.7; });
+  var maxHourly = list.reduce(function (m, e) { return Math.max(m, (e.w.hourly || []).length); }, 0);
+  /* 逐时合并：规范化时间戳后按小时分组 */
+  var allH = [];
+  list.forEach(function (e) {
+    var w = W_SOURCE_WEIGHTS[e.id] || 0.7;
+    (e.w.hourly || []).forEach(function (h) {
+      allH.push([{ time: normalizeHourTime(h.time), temperature: h.temperature, condition: h.condition,
+        isForecast: h.isForecast, rainProb: h.rainProb, icon: h.icon }, w]);
+    });
+  });
+  var byTime = {};
+  allH.forEach(function (p) { (byTime[p[0].time] = byTime[p[0].time] || []).push(p); });
+  var hourly = Object.keys(byTime).sort().map(function (t) {
+    var items = byTime[t];
+    return {
+      time: t,
+      temperature: wAggNum(items.map(function (p) { return [p[0].temperature, p[1]]; })),
+      condition: wAggCond(items.map(function (p) { return [p[0].condition, p[1]]; })),
+      isForecast: items.some(function (p) { return p[0].isForecast; }),
+      rainProb: wAggNum(items.filter(function (p) { return p[0].rainProb != null; })
+        .map(function (p) { return [p[0].rainProb, p[1]]; })),
+      icon: wAggCond(items.map(function (p) { return [p[0].icon, p[1]]; }))
+    };
+  });
+  /* 气象局实况时段无天气文字，剔除已过去的非预报时段，避免列表开头一排空卡 */
+  var nowD = new Date();
+  var nowKey = ymd(nowD) + 'T' + pad(nowD.getHours()) + ':00';
+  hourly = hourly.filter(function (h) { return h.isForecast || h.time > nowKey; });
+  /* 多日合并：按日期分组 */
+  var allD = [];
+  list.forEach(function (e) {
+    var w = W_SOURCE_WEIGHTS[e.id] || 0.7;
+    (e.w.daily || []).forEach(function (d) { allD.push([d, w]); });
+  });
+  var byDate = {};
+  allD.forEach(function (p) { (byDate[p[0].date] = byDate[p[0].date] || []).push(p); });
+  var daily = Object.keys(byDate).sort().map(function (dt) {
+    var items = byDate[dt];
+    return {
+      date: dt,
+      dayText: wAggCond(items.map(function (p) { return [p[0].dayText, p[1]]; })),
+      nightText: wAggCond(items.map(function (p) { return [p[0].nightText, p[1]]; })),
+      high: wAggNum(items.map(function (p) { return [p[0].high, p[1]]; })),
+      low: wAggNum(items.map(function (p) { return [p[0].low, p[1]]; })),
+      icon: wAggCond(items.map(function (p) { return [p[0].icon, p[1]]; }))
+    };
+  });
+  /* 昨日：取含昨日数据的源，逐时按时间合并、高低温取均值 */
+  var ys = list.map(function (e) { return e.w.yesterday; }).filter(function (y) { return y; });
+  var yesterday = null;
+  if (ys.length) {
+    var byHt = {};
+    ys.forEach(function (y) { (y.hourly || []).forEach(function (h) { (byHt[h.time] = byHt[h.time] || []).push(h); }); });
+    var yh = Object.keys(byHt).sort().map(function (t) {
+      var items = byHt[t];
+      return { time: t,
+        temperature: wAggNum(items.map(function (h) { return [h.temperature, 0.8]; })),
+        condition: wAggCond(items.map(function (h) { return [h.condition, 0.8]; })),
+        icon: wAggCond(items.map(function (h) { return [h.icon, 0.8]; })),
+        isForecast: false };
+    });
+    var hi = ys.map(function (y) { return y.high; }).filter(function (v) { return v != null; });
+    var lo = ys.map(function (y) { return y.low; }).filter(function (v) { return v != null; });
+    var avg = function (a) { return a.length ? a.reduce(function (x, y2) { return x + y2; }, 0) / a.length : null; };
+    yesterday = { high: avg(hi), low: avg(lo), hourly: yh };
+  }
+  var aqi = wAggNum(list.map(function (e, i) { return [e.w.aqi, ws[i]]; }));
+  /* 预警：气象局优先 */
+  var warning = '';
+  for (var i = 0; i < list.length; i++) if (list[i].id === 'nmc' && list[i].w.warning) { warning = list[i].w.warning; break; }
+  if (!warning) warning = wFirstNonBlank(list.map(function (e) { return e.w.warning || ''; }));
+  return {
+    cityName: primary.cityName,
+    updatedAt: primary.updatedAt,
+    temperature: wAggNum(list.map(function (e, i) { return [e.w.temperature, ws[i]]; })),
+    condition: wAggCond(list.map(function (e, i) { return [e.w.condition, ws[i]]; })),
+    feelsLike: wAggNum(list.map(function (e, i) { return [e.w.feelsLike, ws[i]]; })),
+    humidity: (function () { var v = wAggNum(list.map(function (e, i) { return [e.w.humidity, ws[i]]; })); return v == null ? null : Math.round(v); })(),
+    windDirect: wFirstNonBlank(list.map(function (e) { return e.w.windDirect || ''; })),
+    windPower: wFirstNonBlank(list.map(function (e) { return e.w.windPower || ''; })),
+    windSpeed: wAggNum(list.map(function (e, i) { return [e.w.windSpeed, ws[i]]; })),
+    todayHigh: wAggNum(list.map(function (e, i) { return [e.w.todayHigh, ws[i]]; })),
+    todayLow: wAggNum(list.map(function (e, i) { return [e.w.todayLow, ws[i]]; })),
+    aqi: aqi == null ? null : Math.round(aqi),
+    aqiText: aqi == null ? '' : aqiTextOf(aqi),
+    pm25: wAggNum(list.map(function (e, i) { return [e.w.pm25, ws[i]]; })),
+    pm10: wAggNum(list.map(function (e, i) { return [e.w.pm10, ws[i]]; })),
+    warning: warning,
+    sunrise: wFirstNonBlank(list.map(function (e) { return e.w.sunrise || ''; })),
+    sunset: wFirstNonBlank(list.map(function (e) { return e.w.sunset || ''; })),
+    minutelyText: wFirstNonBlank(list.map(function (e) { return e.w.minutelyText || ''; })),
+    uvIndex: wFirstNonBlank(list.map(function (e) { return e.w.uvIndex || ''; })),
+    sourceTag: '数据来源：' + list.map(function (e) { return W_SOURCE_NAMES[e.id] || e.id; }).join(' + ') + '（智能聚合）',
+    confidence: (function () {
+      /* 对齐 native computeConfidence：覆盖度×0.4 + 温度一致性×0.6 */
+      if (list.length === 1) return ws[0];
+      var tw = 0, i;
+      for (i = 0; i < ws.length; i++) tw += ws[i];
+      var coverage = tw / (list.length * 0.9);
+      var temps = [];
+      for (i = 0; i < list.length; i++) {
+        if (list[i].w.temperature != null) temps.push(list[i].w.temperature);
+      }
+      var agreement = 1;
+      if (temps.length >= 2) {
+        var mean = temps.reduce(function (a, b) { return a + b; }, 0) / temps.length;
+        var variance = temps.reduce(function (a, b) { return a + (b - mean) * (b - mean); }, 0) / temps.length;
+        var std = Math.sqrt(variance);
+        agreement = Math.max(0, Math.min(1, (5 - std) / 5));
+      }
+      return Math.max(0, Math.min(1, coverage * 0.4 + agreement * 0.6));
+    })(),
+    hourly: hourly, hourlyLabel: '未来' + maxHourly + '小时逐时预报（多源聚合）',
+    daily: daily, yesterday: yesterday
+  };
+}
+
+/* ================= 和风天气 v7（对齐 native QWeatherApi） ================= */
+function fetchQWeather(lat, lon) {
+  var host = String(state.qwHost || '').trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  var key = String(state.qwKey || '').trim();
+  if (!host) return Promise.reject(new Error('请填写和风天气 API Host'));
+  if (!key) return Promise.reject(new Error('请填写和风天气 API Key'));
+  var hdr = { headers: { 'X-QW-Api-Key': key } };
+  var q = 'location=' + lat + ',' + lon + '&lang=zh';
+  function get(p) {
+    return fetch('https://' + host + p, hdr).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (j) {
+      if (!j || j.code !== '200') throw new Error('和风天气接口返回 ' + (j ? j.code : '无响应'));
+      return j;
+    });
+  }
+  function num(v) { if (v === null || v === undefined || v === '') return null; var f = parseFloat(v); return isNaN(f) ? null : f; }
+  return Promise.all([
+    get('/v7/weather/now?' + q),
+    get('/v7/weather/24h?' + q),
+    get('/v7/weather/7d?' + q)
+  ]).then(function (rs) {
+    var n = rs[0].now || {};
+    var hours = rs[1].hourly || [];
+    var days = rs[2].daily || [];
+    var first = days[0] || {};
+    return {
+      cityName: state.city || '当前位置',
+      updatedAt: String(n.obsTime || '').substring(5, 16).replace('T', ' '),
+      temperature: num(n.temp),
+      condition: n.text || '',
+      feelsLike: num(n.feelsLike),
+      humidity: num(n.humidity) == null ? null : Math.round(num(n.humidity)),
+      windDirect: n.windDir || '',
+      windPower: n.windScale ? n.windScale + '级' : '',
+      windSpeed: null,
+      todayHigh: num(first.tempMax),
+      todayLow: num(first.tempMin),
+      aqi: null, aqiText: '', pm25: null, pm10: null,
+      warning: '',
+      sunrise: String(first.sunrise || '').substring(0, 5),
+      sunset: String(first.sunset || '').substring(0, 5),
+      uvIndex: first.uvIndex || '',
+      sourceTag: '数据来源：和风天气',
+      hourly: hours.map(function (h) {
+        return { time: h.fxTime, temperature: num(h.temp), condition: h.text || '',
+          isForecast: true, rainProb: num(h.pop), icon: nmcTextKind(h.text || '') };
+      }),
+      hourlyLabel: '未来24小时逐时预报',
+      daily: days.map(function (d) {
+        return { date: d.fxDate, dayText: d.textDay || '', nightText: d.textNight || '',
+          high: num(d.tempMax), low: num(d.tempMin), icon: nmcTextKind(d.textDay || '') };
+      }),
+      yesterday: null
+    };
+  });
+}
+
 function fullRefresh() {
   dtrace('fullRefresh src=' + state.source + ' gps=' + state.useGps + ' manual=' + state.manualCity + ' lat=' + state.lat);
   if (refreshing) { dtrace('fullRefresh skipped: refreshing'); return; }
@@ -1073,30 +1376,52 @@ function fullRefresh() {
   clearErrors();
   setRefreshing(true);
 
-  function startFetch() {
-    if (state.source === 'nmc') {
-      return ensureGpsFix().then(loadNmcWeather);
-    }
-    if (state.source === 'caiyun') {
-      return ensureGpsFix().then(function () {
+  function fetchOneSource(id) {
+    if (id === 'nmc') return loadNmcWeather();
+    if (id === 'caiyun') {
+      return Promise.resolve().then(function () {
         var ok = state.cyMode === 'v3' ? (state.cyKey.trim() && state.cySecret.trim()) : state.cyToken.trim();
-        if (!ok) throw new Error('请先在设置中填写彩云天气凭据');
+        if (!ok) throw new Error('凭证未填写完整');
         return loadCaiyun(state.lat, state.lon);
       });
     }
+    if (id === 'qweather') return fetchQWeather(state.lat, state.lon);
+    /* openmeteo：城市名 GPS 时反向解析县区名 */
+    return Promise.all([
+      fetchForecast(state.lat, state.lon),
+      fetchAqi(state.lat, state.lon).catch(function () { return null; })
+    ]).then(function (rs) {
+      if (state.useGps && !state.manualCity) {
+        return reverseGeocodeFull(state.lat, state.lon).then(function (g) {
+          var name = stripAdmin(simp(g.locality || g.city || '')) || '未识别位置';
+          return mapOpenMeteo(rs[0], rs[1], name);
+        });
+      }
+      return mapOpenMeteo(rs[0], rs[1], state.city);
+    });
+  }
+
+  function startFetch() {
     return ensureGpsFix().then(function () {
-      return Promise.all([
-        fetchForecast(state.lat, state.lon),
-        fetchAqi(state.lat, state.lon).catch(function () { return null; })
-      ]).then(function (rs) {
-        /* openmeteo 城市名：GPS 时反向解析县区名 */
-        if (state.useGps && !state.manualCity) {
-          return reverseGeocodeFull(state.lat, state.lon).then(function (g) {
-            var name = stripAdmin(simp(g.locality || g.city || '')) || '未识别位置';
-            return mapOpenMeteo(rs[0], rs[1], name);
-          });
+      /* 多源混合（对齐 native）：并行拉取所有启用源，成功多个则加权聚合 */
+      var jobs = state.sources.map(function (id) {
+        return fetchOneSource(id).then(
+          function (w) { return { id: id, w: w, ok: true }; },
+          function (e) { return { id: id, e: e, ok: false }; });
+      });
+      return Promise.all(jobs).then(function (rs) {
+        var oks = [], fails = [];
+        for (var i = 0; i < rs.length; i++) {
+          if (rs[i].ok) oks.push({ id: rs[i].id, w: rs[i].w });
+          else fails.push((W_SOURCE_NAMES[rs[i].id] || rs[i].id) + '：' +
+            ((rs[i].e && rs[i].e.message) ? rs[i].e.message : '不可用'));
         }
-        return mapOpenMeteo(rs[0], rs[1], state.city);
+        if (!oks.length) throw new Error(fails.length ? fails.join('；') : '没有启用可用的天气源');
+        if (oks.length === 1) {
+          oks[0].w.sourceTag = '数据来源：' + (W_SOURCE_NAMES[oks[0].id] || oks[0].id);
+          return oks[0].w;
+        }
+        return aggregateWeather(oks);
       });
     });
   }
@@ -1117,9 +1442,20 @@ function fullRefresh() {
   p.then(function (w) {
     renderWeather(w);
     saveState();
+    try { localStorage.setItem('cyanweather.last', JSON.stringify(w)); } catch (e) { }
   }).catch(function (e) {
     console.log('[CWJS] STACK >>> ' + (e && e.stack ? String(e.stack).split('\n').slice(0, 6).join(' | ') : 'no-stack'));
-    showErrorFull('天气数据获取失败：' + e.message);
+    var msg = e && e.message ? e.message : String(e);
+    var cached = null;
+    try { cached = JSON.parse(localStorage.getItem('cyanweather.last') || 'null'); } catch (e2) { }
+    if (cached && cached.temperature != null && $('curTemp')) {
+      /* 有历史缓存：明确标注数据时间并提供重试，不冒充最新数据 */
+      showNoticeAction('刷新失败：' + escapeHTML(msg) + '。当前为 ' +
+        (cached.updatedAt ? cached.updatedAt + ' ' : '') + '的缓存数据',
+        '重新获取 ›', function () { fullRefresh(); });
+    } else {
+      showErrorFull('天气数据获取失败：' + msg);
+    }
   }).then(function () {
     refreshing = false;
     setRefreshing(false);
@@ -1201,7 +1537,7 @@ function openSearch() {
     state.manualCity = true;
     saveState();
     mountHTML('searchMount', '');
-    if (state.source === 'nmc') {
+    if (state.sources.indexOf('nmc') >= 0) {
       resolveNmcByLocation(state.lat, state.lon).then(function (rc) {
         state.city = rc.name; state.cityCode = rc.code; saveState(); fullRefresh();
       }).catch(function () { fullRefresh(); });
@@ -1229,16 +1565,21 @@ function doSearch(q) {
 /* ================= 设置：每次打开都向常驻挂载点重建整棵子树 ================= */
 function checked(actual, expected) { return actual === expected ? ' checked' : ''; }
 function settingsHTML() {
-  var cy = state.source === 'caiyun' ? '<div style="margin-top:8px"><div class="radio-row"><input type="radio" name="cymode" value="v1"' + checked(state.cyMode, 'v1') + '><label>个人版 Token (v1)</label></div><div class="radio-row"><input type="radio" name="cymode" value="v3"' + checked(state.cyMode, 'v3') + '><label>专业版 Key/Secret (v3)</label></div><input type="text" id="cyToken" placeholder="彩云 Token (v1)" class="text-input" value="' + escapeHTML(state.cyToken) + '"><input type="text" id="cyKey" placeholder="AppKey (v3)" class="text-input" value="' + escapeHTML(state.cyKey) + '"><input type="password" id="cySecret" placeholder="AppSecret (v3)" class="text-input" value="' + escapeHTML(state.cySecret) + '"><div class="switch-row"><span>扩展多日预报（含昨日）</span><input type="checkbox" id="cyExt"' + (state.cyExt ? ' checked' : '') + '></div><select id="cyDays" class="text-input"><option value="7"' + (state.cyDays === '7' ? ' selected' : '') + '>扩展 7 天</option><option value="15"' + (state.cyDays === '15' ? ' selected' : '') + '>扩展 15 天</option><option value="30"' + (state.cyDays === '30' ? ' selected' : '') + '>扩展 30 天</option></select></div>' : '';
+  var cySel = state.sources.indexOf('caiyun') >= 0;
+  var qwSel = state.sources.indexOf('qweather') >= 0;
+  var cy = cySel ? '<div style="margin-top:8px"><div class="radio-row"><input type="radio" name="cymode" value="v1"' + checked(state.cyMode, 'v1') + '><label>个人版 Token (v1)</label></div><div class="radio-row"><input type="radio" name="cymode" value="v3"' + checked(state.cyMode, 'v3') + '><label>专业版 Key/Secret (v3)</label></div><input type="text" id="cyToken" placeholder="彩云 Token (v1)" class="text-input" value="' + escapeHTML(state.cyToken) + '"><input type="text" id="cyKey" placeholder="AppKey (v3)" class="text-input" value="' + escapeHTML(state.cyKey) + '"><input type="password" id="cySecret" placeholder="AppSecret (v3)" class="text-input" value="' + escapeHTML(state.cySecret) + '"><div class="switch-row"><span>扩展多日预报（含昨日）</span><input type="checkbox" id="cyExt"' + (state.cyExt ? ' checked' : '') + '></div><select id="cyDays" class="text-input"><option value="7"' + (state.cyDays === '7' ? ' selected' : '') + '>扩展 7 天</option><option value="15"' + (state.cyDays === '15' ? ' selected' : '') + '>扩展 15 天</option><option value="30"' + (state.cyDays === '30' ? ' selected' : '') + '>扩展 30 天</option></select></div>' : '';
+  var qw = qwSel ? '<div style="margin-top:8px"><input type="text" id="qwHost" placeholder="API Host（如 devapi.qweather.com）" class="text-input" value="' + escapeHTML(state.qwHost) + '"><input type="password" id="qwKey" placeholder="API Key" class="text-input" value="' + escapeHTML(state.qwKey) + '"></div>' : '';
   function radio(name, value, label, current) { return '<div class="radio-row"><input type="radio" name="' + name + '" value="' + value + '"' + checked(current, value) + '><label>' + label + '</label></div>'; }
+  function srcBox(id, label) { return '<div class="radio-row"><input type="checkbox" name="srcbox" value="' + id + '"' + (state.sources.indexOf(id) >= 0 ? ' checked' : '') + '><label>' + label + '</label></div>'; }
   return '<div class="modal"><div class="modal-box"><div class="modal-head"><b>设置</b><button id="settingsClose" class="icon-btn">✕</button></div><div class="settings-body">' +
     '<div class="city-entry" id="cityEntry"><span>当前城市：<b>' + escapeHTML(state.city) + '</b></span><span class="go">搜索更改 ›</span></div><div class="city-entry" id="cascEntry"><span>按省市选择城市</span><span class="go">选择 ›</span></div>' +
-    '<div class="setting-card"><b>天气数据源</b>' + radio('src','openmeteo','Open-Meteo',state.source) + radio('src','nmc','中国气象局',state.source) + radio('src','caiyun','彩云天气',state.source) + cy + '</div>' +
+    '<div class="setting-card"><b>天气数据源（可多选，选多个即智能聚合）</b>' + srcBox('nmc', '中国气象局') + srcBox('openmeteo', 'Open-Meteo') + srcBox('caiyun', '彩云天气（需凭证）') + srcBox('qweather', '和风天气（需 Host/Key）') + cy + qw +
+    '<div class="about-text">凭证未填写完整的源会自动跳过；多选时各字段按源权重智能聚合</div></div>' +
     '<div class="setting-card"><b>字体大小</b>' + radio('font','standard','标准',state.fontSize) + radio('font','large','大 <span class="badge">推荐</span>',state.fontSize) + radio('font','xlarge','特大',state.fontSize) + '</div>' +
     '<div class="setting-card"><label class="switch-row"><span class="switch-label"><b>使用自动定位</b><span class="switch-hint">需要定位权限</span></span><input type="checkbox" id="useGps"' + (state.useGps ? ' checked' : '') + '></label></div>' +
     '<div class="setting-card"><b>自动刷新</b>' + radio('refresh','off','关闭',state.refreshInterval) + radio('refresh','on_resume','每次进入App',state.refreshInterval) + radio('refresh','10','每 10 分钟',state.refreshInterval) + radio('refresh','30','每 30 分钟 <span class="badge">推荐</span>',state.refreshInterval) + radio('refresh','60','每 60 分钟',state.refreshInterval) + radio('refresh','360','每 6 小时',state.refreshInterval) + radio('refresh','720','每 12 小时',state.refreshInterval) + radio('refresh','1440','每 24 小时',state.refreshInterval) + '</div>' +
     '<div class="setting-card"><label class="switch-row"><span><b>自动检查更新</b></span><input type="checkbox" id="autoCheckUpdate"' + (state.autoCheckUpdate ? ' checked' : '') + '></label></div><div class="setting-card"><button id="manualCheckUpdate" class="check-update-btn"><span>手动检查更新</span><span>检查 ›</span></button></div>' +
-    '<div class="setting-card about-card"><div class="about-title"><b>关于</b><span class="version">v' + APP_VERSION + '</span></div><div class="about-text">晴暖天气：为长辈设计的简洁大字天气应用。</div><div class="about-text">数据来源：中央气象台 / 彩云天气 / Open-Meteo</div></div></div></div></div>';
+    '<div class="setting-card about-card"><div class="about-title"><b>关于</b><span class="version">v' + APP_VERSION + '</span></div><div class="about-text">晴暖天气：为长辈设计的简洁大字天气应用。</div><div class="about-text">数据来源：中央气象台 / 彩云天气 / 和风天气 / Open-Meteo</div></div></div></div></div>';
 }
 function bindRadioGroup(name, handler) {
   var radios = document.querySelectorAll('input[name="' + name + '"]');
@@ -1251,13 +1592,29 @@ function openSettings() {
   $('settingsClose').addEventListener('click', function () { mountHTML('settingsMount', ''); });
   $('cityEntry').addEventListener('click', function () { mountHTML('settingsMount', ''); openSearch(); });
   $('cascEntry').addEventListener('click', function () { mountHTML('settingsMount', ''); openCascade(); });
-  bindRadioGroup('src', function (v) { state.source = v; saveState(); openSettings(); fullRefresh(); });
+  (function () {
+    var boxes = document.querySelectorAll('input[name="srcbox"]');
+    for (var i = 0; i < boxes.length; i++) {
+      boxes[i].addEventListener('change', function () {
+        var id = this.value;
+        var idx = state.sources.indexOf(id);
+        if (this.checked && idx < 0) state.sources.push(id);
+        if (!this.checked && idx >= 0) state.sources.splice(idx, 1);
+        state.source = state.sources[0] || 'openmeteo';
+        saveState();
+        openSettings();
+        fullRefresh();
+      });
+    }
+  })();
   bindRadioGroup('cymode', function (v) { state.cyMode = v; saveState(); openSettings(); });
   bindRadioGroup('font', function (v) { state.fontSize = v; applyFontSize(); saveState(); });
   bindRadioGroup('refresh', function (v) { state.refreshInterval = v; saveState(); armAutoRefresh(); });
   if ($('cyToken')) $('cyToken').addEventListener('input', function () { state.cyToken = this.value.trim(); saveState(); });
   if ($('cyKey')) $('cyKey').addEventListener('input', function () { state.cyKey = this.value.trim(); saveState(); });
   if ($('cySecret')) $('cySecret').addEventListener('input', function () { state.cySecret = this.value.trim(); saveState(); });
+  if ($('qwHost')) $('qwHost').addEventListener('input', function () { state.qwHost = this.value.trim(); saveState(); });
+  if ($('qwKey')) $('qwKey').addEventListener('input', function () { state.qwKey = this.value.trim(); saveState(); });
   if ($('cyExt')) $('cyExt').addEventListener('change', function () { state.cyExt = this.checked; saveState(); });
   if ($('cyDays')) $('cyDays').addEventListener('change', function () { state.cyDays = this.value; saveState(); });
   $('useGps').addEventListener('change', function () { state.useGps = this.checked; saveState(); });
@@ -1346,7 +1703,8 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   onTap($('refreshBtn'), fullRefresh);
   onTap($('settingsBtn'), openSettings);
-  /* WebF 部分版本不会替 radio 的 label 转发点击。 */
+  bindHourArrows();
+  /* WebF 部分版本不会替 radio/checkbox 的 label 转发点击。 */
   document.body.addEventListener('click', function (ev) {
     var node = ev.target, row = null;
     while (node && node !== document.body) {
@@ -1354,20 +1712,33 @@ document.addEventListener('DOMContentLoaded', function () {
       node = node.parentNode;
     }
     if (!row) return;
-    var inp = row.querySelector('input[type="radio"]');
-    if (inp && !inp.checked) {
+    var inp = row.querySelector('input[type="radio"]') || row.querySelector('input[type="checkbox"]');
+    if (!inp) return;
+    if (inp.type === 'checkbox') {
+      inp.checked = !inp.checked;
+    } else if (inp.checked) {
+      return;
+    } else {
       inp.checked = true;
-      try { inp.dispatchEvent(new Event('change')); } catch (e) {
-        var nm = inp.name, val = inp.value;
-        var rs = document.querySelectorAll('input[name="' + nm + '"]');
-        for (var i = 0; i < rs.length; i++) rs[i].checked = (rs[i] === inp);
-        if (nm === 'src') { state.source = val; saveState(); openSettings(); fullRefresh(); }
-        else if (nm === 'cymode') { state.cyMode = val; saveState(); }
-        else if (nm === 'font') { state.fontSize = val; applyFontSize(); saveState(); }
-        else if (nm === 'refresh') { state.refreshInterval = val; saveState(); armAutoRefresh(); }
-      }
+    }
+    try { inp.dispatchEvent(new Event('change')); } catch (e) {
+      var nm = inp.name, val = inp.value;
+      var rs = document.querySelectorAll('input[name="' + nm + '"]');
+      for (var i = 0; i < rs.length; i++) rs[i].checked = (rs[i] === inp);
+      if (nm === 'cymode') { state.cyMode = val; saveState(); }
+      else if (nm === 'font') { state.fontSize = val; applyFontSize(); saveState(); }
+      else if (nm === 'refresh') { state.refreshInterval = val; saveState(); armAutoRefresh(); }
     }
   });
+
+  /* 先渲染上次成功数据（离线/刷新失败时不再显示 "--"），随后 fullRefresh 精化 */
+  try {
+    var lastRaw = localStorage.getItem('cyanweather.last');
+    if (lastRaw) {
+      var lastW = JSON.parse(lastRaw);
+      if (lastW && lastW.temperature != null) renderWeather(lastW);
+    }
+  } catch (e) { }
 
   if (state.autoCheckUpdate) checkUpdate(false);
   dtrace('init: calling fullRefresh src=' + state.source);

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>CyanWeather</title>
+  <title>晴暖天气</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -90,10 +90,14 @@
       <!-- 生活指数四宫格（对齐 native） -->
       <div id="lifeIndexMount"></div>
 
-      <!-- 逐小时预报 -->
+      <!-- 逐小时预报（带左右滚动箭头，对齐 native） -->
       <section class="block">
         <h3 id="hourlyLabel">未来48小时逐时预报</h3>
-        <div class="hourly scroll-x" id="hourly"></div>
+        <div class="hour-wrap">
+          <button id="hourPrev" class="hour-arrow left hidden"><span class="tri"></span></button>
+          <div class="hourly scroll-x" id="hourly"></div>
+          <button id="hourNext" class="hour-arrow right hidden"><span class="tri"></span></button>
+        </div>
       </section>
 
       <!-- 多日预报 -->

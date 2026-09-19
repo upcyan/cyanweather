@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,23 +12,64 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _source = 'openmeteo';
+  List<String> _weatherSources = ['nmc', 'openmeteo'];
   String _fontSize = 'large';
   String _refreshInterval = '30';
   bool _autoCheckUpdate = true;
   bool _useGps = true;
   String _caiyunToken = '';
   String _caiyunMode = 'none';
+  String _qweatherHost = '';
+  String _qweatherKey = '';
+
+  static const _allSources = [
+    ('nmc', '中国气象局', '官方国内数据，支持县区级与昨日天气'),
+    ('openmeteo', 'Open-Meteo', '免费无密钥，15天预报与全球覆盖'),
+    ('caiyun', '彩云天气', '分钟级降水，需凭证'),
+    ('qweather', '和风天气', '需 API Host 与 Key'),
+  ];
 
   @override
   void initState() {
     super.initState();
     _source = widget.prefs.getString('source') ?? 'openmeteo';
+    final rawSources = widget.prefs.getString('weatherSources');
+    if (rawSources != null && rawSources.isNotEmpty) {
+      try {
+        final list = (jsonDecode(rawSources) as List)
+            .map((e) => e.toString())
+            .where((s) => _allSources.any((a) => a.$1 == s))
+            .toList();
+        _weatherSources = list;
+      } catch (_) {}
+    } else if (widget.prefs.getString('source') != null) {
+      _weatherSources = [_source];
+    }
     _fontSize = widget.prefs.getString('fontSize') ?? 'large';
     _refreshInterval = widget.prefs.getString('refreshInterval') ?? '30';
     _autoCheckUpdate = widget.prefs.getBool('autoCheckUpdate') ?? true;
     _useGps = widget.prefs.getBool('useGps') ?? true;
     _caiyunToken = widget.prefs.getString('caiyunToken') ?? '';
     _caiyunMode = widget.prefs.getString('caiyunMode') ?? 'none';
+    _qweatherHost = widget.prefs.getString('qweatherHost') ?? '';
+    _qweatherKey = widget.prefs.getString('qweatherKey') ?? '';
+  }
+
+  Future<void> _toggleSource(String id) async {
+    setState(() {
+      if (_weatherSources.contains(id)) {
+        _weatherSources = _weatherSources.where((s) => s != id).toList();
+      } else {
+        _weatherSources = [..._weatherSources, id];
+      }
+    });
+    await widget.prefs.setString(
+        'weatherSources', jsonEncode(_weatherSources));
+    // 兼容旧版本：把第一优先源同步进单选键
+    if (_weatherSources.isNotEmpty) {
+      await widget.prefs.setString('source', _weatherSources.first);
+      _source = _weatherSources.first;
+    }
   }
 
   Future<void> _save(String key, dynamic value) async {
@@ -39,6 +82,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           case 'refreshInterval': _refreshInterval = value; break;
           case 'caiyunToken': _caiyunToken = value; break;
           case 'caiyunMode': _caiyunMode = value; break;
+          case 'qweatherHost': _qweatherHost = value; break;
+          case 'qweatherKey': _qweatherKey = value; break;
         }
       });
     } else if (value is bool) {
@@ -64,16 +109,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        _sectionTitle('天气数据源'),
-        _radioTile('中国气象局', '官方国内数据，默认第一优先级，支持县区级与昨日天气',
-            _source == 'nmc', () => _save('source', 'nmc')),
-        _radioTile('Open-Meteo', '免费无密钥，15天预报与全球覆盖', _source == 'openmeteo',
-            () => _save('source', 'openmeteo')),
-        _radioTile('彩云天气', '分钟级降水，需凭证', _source == 'caiyun',
-            () => _save('source', 'caiyun')),
-        if (_source == 'caiyun') ...[
+        _sectionTitle('天气数据源（可多选，选多个即智能聚合）'),
+        ..._allSources.map((s) => _checkboxTile(
+            s.$2, s.$3, _weatherSources.contains(s.$1),
+            () => _toggleSource(s.$1))),
+        if (_weatherSources.contains('caiyun')) ...[
           const SizedBox(height: 8),
-          _sectionTitle('接入方式'),
+          _sectionTitle('彩云接入方式'),
           _radioTile('V1 Token', '免费版，3天预报，Token 在 URL 中', _caiyunMode == 'v1',
               () => _save('caiyunMode', 'v1')),
           if (_caiyunMode == 'v1') ...[
@@ -90,9 +132,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text('在 dashboard.caiyunapp.com 注册获取；免费版仅 3 天预报与 48 小时逐时。',
                 style: TextStyle(fontSize: 14, color: Colors.grey)),
           ],
-          Text('凭证未填写完整时，自动使用中国气象局数据',
-              style: TextStyle(fontSize: 14, color: Colors.grey)),
         ],
+        if (_weatherSources.contains('qweather')) ...[
+          const SizedBox(height: 8),
+          _sectionTitle('和风天气凭证'),
+          TextField(
+              enableSuggestions: false,
+              autocorrect: false,
+              decoration: const InputDecoration(
+                  hintText: 'API Host（如 devapi.qweather.com）',
+                  border: OutlineInputBorder()),
+              controller: TextEditingController(text: _qweatherHost),
+              onChanged: (v) => _save('qweatherHost', v.trim())),
+          const SizedBox(height: 8),
+          TextField(
+              obscureText: true,
+              enableSuggestions: false,
+              autocorrect: false,
+              decoration: const InputDecoration(
+                  hintText: 'API Key', border: OutlineInputBorder()),
+              controller: TextEditingController(text: _qweatherKey),
+              onChanged: (v) => _save('qweatherKey', v.trim())),
+        ],
+        Text('凭证未填写完整的源会自动跳过；多选时各字段按源权重智能聚合',
+            style: TextStyle(fontSize: 14, color: Colors.grey)),
         const SizedBox(height: 16),
         _sectionTitle('字体大小'),
         _radioTile('标准', '', _fontSize == 'standard',
@@ -139,12 +202,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Column(children: [
-              Text('晴暖天气 v1.2（实验版）',
+              Text('晴暖天气 v1.2.0（实验版）',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               SizedBox(height: 8),
               Text('晴暖天气：为长辈设计的简洁大字天气应用。',
                   style: TextStyle(fontSize: 16, color: Colors.grey)),
-              Text('数据来源：中央气象台 / 彩云天气 / Open-Meteo',
+              Text('数据来源：中央气象台 / 彩云天气 / 和风天气 / Open-Meteo',
                   style: TextStyle(fontSize: 14, color: Colors.grey)),
             ])),
       ]),
@@ -154,6 +217,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _sectionTitle(String t) => Text(t,
       style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold));
+
+  Widget _checkboxTile(
+      String label, String subtitle, bool checked, VoidCallback onTap) {
+    return CheckboxListTile(
+      title: Text(label, style: const TextStyle(fontSize: 18)),
+      subtitle: subtitle.isNotEmpty
+          ? Text(subtitle,
+              style: const TextStyle(fontSize: 14, color: Colors.grey))
+          : null,
+      value: checked,
+      onChanged: (_) => onTap(),
+      activeColor: const Color(0xFF0B6BCB),
+      controlAffinity: ListTileControlAffinity.leading,
+    );
+  }
 
   Widget _radioTile(
       String label, String subtitle, bool selected, VoidCallback onTap,

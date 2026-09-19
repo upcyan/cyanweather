@@ -33,12 +33,12 @@ body {
 
 #app { display: flex; flex-direction: column; min-height: 100vh; }
 
-/* ---- 顶栏：设置 | 城市+更新时间 | 刷新 ---- */
+/* ---- 顶栏：设置 | 城市+更新时间（block+text-align 居中，不依赖 flex/transform） ---- */
 .topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
+  position: relative;
+  display: block;
+  text-align: center;
+  padding: 0.3em 10px;
   background: transparent;
 }
 .icon-img {
@@ -55,15 +55,21 @@ body {
   align-items: center;
   justify-content: center;
 }
+/* 顶栏左右按钮绝对定位（不影响设置弹窗里同名 class 的按钮） */
+.topbar .icon-btn {
+  position: absolute;
+  top: 0.3em;
+}
+#settingsBtn { left: 10px; }
+#refreshBtn { right: 10px; }
 .city-center {
-  flex: 1;
+  display: block;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
+  max-width: 70%;
+  margin: 0 auto;
 }
 .city {
+  display: block;
   font-size: 1.35rem;
   font-weight: 700;
   overflow: hidden;
@@ -71,7 +77,7 @@ body {
   white-space: nowrap;
   max-width: 100%;
 }
-.updated-at { font-size: 0.7rem; color: var(--muted); white-space: nowrap; }
+.updated-at { display: block; font-size: 0.7rem; color: var(--muted); white-space: nowrap; }
 .icon-img.spinning { animation: cw-spin 1s linear infinite; }
 @keyframes cw-spin { to { transform: rotate(360deg); } }
 
@@ -239,6 +245,29 @@ body {
 .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .scroll-x::-webkit-scrollbar { height: 0; }
 
+/* 逐时预报左右滚动箭头（对齐 native：仅圆形按钮，无渐变遮罩） */
+.hour-wrap { position: relative; }
+.hour-arrow {
+  position: absolute;
+  top: 50%;
+  margin-top: -19px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.hour-arrow.left { left: 6px; }
+.hour-arrow.right { right: 6px; }
+.hour-arrow .tri { width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
+.hour-arrow.left .tri { border-right: 12px solid #0b6bcb; }
+.hour-arrow.right .tri { border-left: 12px solid #0b6bcb; }
+
 /* ---- 逐小时 ---- */
 .hourly {
   display: flex;
@@ -313,6 +342,20 @@ body {
   background: linear-gradient(to top, var(--bar), #9fd0fa);
   border-radius: 4px 4px 2px 2px;
 }
+
+/* 降雨概率行式布局（对齐 native RainForecastScreen：时间两行+天气+百分比+比例条） */
+.rain-hint { font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; }
+.rain-rows { display: flex; flex-direction: column; background: var(--card); border-radius: 14px; box-shadow: var(--shadow); padding: 4px 14px; }
+.rain-hour { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.rain-hour:last-child { border-bottom: none; }
+.rain-row { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; }
+.rr-time { flex-shrink: 0; width: 4.6em; display: flex; flex-direction: column; font-size: 0.7rem; color: var(--muted); line-height: 1.35; }
+.rr-cond { flex: 1; color: #666666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr-pct { flex-shrink: 0; font-weight: 700; color: #666666; }
+.rain-hour.strong .rr-cond, .rain-hour.strong .rr-pct { color: var(--accent); }
+.rr-bar { margin-top: 5px; height: 12px; background: #e3edf9; border-radius: 4px; overflow: hidden; }
+.rr-fill { height: 12px; background: #90caf9; border-radius: 4px; }
+.rain-hour.strong .rr-fill { background: var(--accent); }
 
 .source-footer {
   text-align: center;
@@ -472,6 +515,8 @@ body {
   flex-shrink: 0;
 }
 .yh-time { font-size: 0.7rem; color: var(--muted); }
+.yh-icon .meteocon { width: 26px; height: 26px; }
+.yh-cond { font-size: 0.65rem; color: var(--muted); white-space: nowrap; }
 .yh-temp { font-size: 0.85rem; font-weight: 600; }
 
 .text-input {

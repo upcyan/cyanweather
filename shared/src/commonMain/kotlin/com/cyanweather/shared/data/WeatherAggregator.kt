@@ -4,6 +4,9 @@ import com.cyanweather.shared.model.DailyItem
 import com.cyanweather.shared.model.HourlyItem
 import com.cyanweather.shared.model.WeatherData
 import com.cyanweather.shared.model.YesterdayData
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.math.abs
 import kotlin.math.sqrt
 
@@ -160,6 +163,16 @@ object WeatherAggregator {
                 rainProb = if (rainProbs.isNotEmpty()) aggregateDouble(rainProbs.map { it.first }, rainProbs.map { it.second }) else null
             )
         }.sortedBy { it.time }
+            // 气象局实况时段无天气文字，排在最前会导致逐时列表开头一排空卡；剔除已过去的非预报时段
+            .filter { it.isForecast || it.time > currentHourKey() }
+    }
+
+    /** 当前本地小时起点（ISO yyyy-MM-ddTHH:00） */
+    private fun currentHourKey(): String {
+        val t = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val d = t.date
+        fun p2(v: Int) = v.toString().padStart(2, '0')
+        return "${d.year}-${p2(d.monthNumber)}-${p2(d.dayOfMonth)}T${p2(t.hour)}:00"
     }
 
     private fun aggregateDaily(sources: List<Pair<String, WeatherData>>): List<DailyItem> {
