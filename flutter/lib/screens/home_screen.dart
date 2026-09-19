@@ -657,7 +657,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         final json = jsonDecode(resp.body);
         final latest =
             (json['tag_name'] as String?)?.replaceFirst('v', '') ?? '';
-        if (latest.isNotEmpty && _isNewerVersion(latest, '1.2.0') && mounted) {
+        if (latest.isNotEmpty && _isNewerVersion(latest, '1.2.1') && mounted) {
           _showUpdateDialog(json['tag_name'] ?? latest, json['body'] ?? '',
               json['html_url'] ?? '');
         }
