@@ -742,16 +742,9 @@ private fun HourCard(item: HourlyItem) {
             Text(hourPart, style = fst(18), color = Color(0xFF666666))
             Spacer(Modifier.height(6.dp))
             WeatherGlyph(kind, Modifier.size(36.dp))
-            // 天气文字与降水概率恒定占位，保证所有卡片等高（单行以压缩高度）
+            // 天气文字与降水概率恒定占位，保证所有卡片等高
             Spacer(Modifier.height(4.dp))
-            Text(
-                item.condition.ifEmpty { " " },
-                style = fst(18),
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                minLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Text(item.condition.ifEmpty { " " }, style = fst(18), textAlign = TextAlign.Center, maxLines = 2, minLines = 2)
             Spacer(Modifier.height(4.dp))
             Text("${temp(item.temperature)}°", style = fst(22, FontWeight.Bold))
             val rp = item.rainProb

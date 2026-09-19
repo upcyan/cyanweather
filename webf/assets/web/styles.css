@@ -35,15 +35,16 @@ body {
 
 #app { display: flex; flex-direction: column; min-height: 100vh; }
 
-/* ---- 顶栏：sticky 常驻顶部（滚动时城市/设置/刷新不动）；top 由 Dart 按状态栏高度注入 ---- */
+/* ---- 顶栏：sticky 常驻顶部且底色不透明——滚动内容被顶栏遮住，不会透进状态栏；
+   padding-top 静态兜底约状态栏高度，Dart 注入精确值（WebF 0.24 不支持 calc/var） ---- */
 .topbar {
   position: sticky;
-  top: 30px;
+  top: 0;
   z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px 6px;
+  padding: 30px 10px 8px;
   background: var(--bg1, #f5f9ff);
   flex-shrink: 0;
 }

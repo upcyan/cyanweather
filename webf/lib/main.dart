@@ -166,7 +166,7 @@ class _CyanWeatherWebfAppState extends State<CyanWeatherWebfApp>
       final bottom = m.padding.bottom.toStringAsFixed(1);
 _controller.view.evaluateJavaScripts(
           "(function(){var tb=document.querySelector('.topbar');"
-          "if(tb){tb.style.top='${m.padding.top}px';}"
+          "if(tb){tb.style.paddingTop='${(m.padding.top + 6)}px';}"
           "var ct=document.getElementById('content');"
           "if(ct){ct.style.paddingBottom='${(44 + m.padding.bottom)}px';}})();");
     } catch (_) {
