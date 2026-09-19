@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -77,11 +78,15 @@ fun HomeScreen(
     onDismissUpdate: () -> Unit
 ) {
     val weather = state.weather
-    Box(Modifier.fillMaxSize()) {
+    // 宽屏（平板/横屏/桌面窗口）内容限宽居中，避免拉伸变形；窄屏不受影响
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isWide = configuration.screenWidthDp > 600
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(
             modifier = Modifier
+                .then(if (isWide) Modifier.widthIn(max = 560.dp) else Modifier)
+                .align(Alignment.TopCenter)
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -122,14 +127,14 @@ fun HomeScreen(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(Color(0x99FFFFFF))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
                     .clickable(enabled = false, onClick = {}),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(Modifier.size(56.dp))
                     Spacer(Modifier.height(16.dp))
-                    Text("正在刷新天气...", style = fst(22), color = Color(0xFF333333))
+                    Text("正在刷新天气...", style = fst(22), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -550,25 +555,7 @@ fun coldIndex(tempHigh: Double?, tempLow: Double?): String {
     }
 }
 
-@Composable
-private fun LifestyleRow(icon: String, text: String) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Text(icon, style = fst(20), modifier = Modifier.width(36.dp))
-        val parts = text.split("\n")
-        Column {
-            Text(parts.getOrElse(0) { "-" }, style = fst(22), fontWeight = FontWeight.Medium)
-            if (parts.size > 1) {
-                Text(parts[1], style = fst(16), color = Color(0xFF666666))
-            }
-        }
-    }
-}
-
-@Composable
-private fun LifestyleTile(icon: String, title: String, text: String, modifier: Modifier = Modifier) {
+fun clothingIndex(temp: Double?, condition: String): String {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(12.dp),
@@ -675,27 +662,6 @@ private fun HourlyRow(items: List<HourlyItem>) {
 }
 
 @Composable
-private fun HourArrowOverlay(symbol: String, modifier: Modifier, onClick: () -> Unit) {
-    val scale = LocalFontScale.current
-    Box(
-        modifier = modifier
-            .padding(horizontal = 2.dp)
-            .size(34.dp * scale)
-            .clip(RoundedCornerShape(50))
-            .background(Color(0xB3FFFFFF))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            symbol,
-            style = fst(18),
-            color = Color(0xFF0B6BCB),
-            textAlign = TextAlign.Center
-        )
-    }
-}
-
-@Composable
 private fun HourCard(item: HourlyItem) {
     val kind = when {
         item.isForecast && item.condition.isNotEmpty() -> caiyunSkyconKind(item.condition.toSkycon())
@@ -747,22 +713,6 @@ private fun hourDateHour(time: String): Pair<String, String> {
             date to hour
         }
         else -> "" to time
-    }
-}
-
-private fun hourLabel(time: String): String {
-    return when {
-        time.contains("T") && time.length >= 13 -> {
-            val datePart = time.substring(5, 10).replace("-", "/")
-            val hour = time.substring(11, 13).toIntOrNull() ?: "?"
-            "${datePart} ${hour}时"
-        }
-        time.contains(" ") && time.length >= 16 -> {
-            val datePart = time.substring(5, 10).replace("-", "/")
-            val hour = time.substring(11, 13).toIntOrNull() ?: "?"
-            "${datePart} ${hour}时"
-        }
-        else -> time
     }
 }
 

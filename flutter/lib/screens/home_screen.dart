@@ -666,9 +666,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final city =
         _weather?.cityName ?? (_cityName.isNotEmpty ? _cityName : '晴暖天气');
+    // 宽屏（平板/桌面窗口）内容限宽居中，对齐 native 的 560dp 规则
+    final screenW = MediaQuery.of(context).size.width;
+    final isWide = screenW > 600;
+    final contentW = isWide ? 560.0 : double.infinity;
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F9FF),
       body: Stack(children: [
-        SafeArea(
+        Container(
+            alignment: Alignment.topCenter,
+            color: const Color(0xFFF5F9FF),
+            child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: contentW),
+                child: SafeArea(
           child: Column(children: [
             // 顶栏：设置 | 城市名 + 更新时间（点击换城市） | 刷新
             Padding(
@@ -746,6 +756,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     ? const SizedBox.shrink()
                                     : _buildWeather(_weather!)))),
           ]),
+        ),
+        ),
         ),
         // 全屏刷新遮罩
         if (_refreshing && !_loading)

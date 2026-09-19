@@ -1,5 +1,5 @@
 /* CyanWeather WebF — 数据源：Open-Meteo / 中央气象台（对齐 native app/ 版） */
-var APP_VERSION = '1.5.6';
+var APP_VERSION = '1.6.0';
 window.addEventListener('error', function (ev) { console.log('[CWJS] ERR ' + ev.message + ' @line ' + ev.lineno); });
 window.addEventListener('unhandledrejection', function (ev) { console.log('[CWJS] REJ ' + (ev.reason && ev.reason.message ? ev.reason.message : ev.reason)); });
 

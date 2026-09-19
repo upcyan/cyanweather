@@ -76,7 +76,7 @@ body {
 @keyframes cw-spin { to { transform: rotate(360deg); } }
 
 /* ---- 内容区 ---- */
-#content { flex: 1; padding: 4px 16px 30px; max-width: 720px; width: 100%; margin: 0 auto; }
+#content { flex: 1; padding: 4px 16px 30px; max-width: 35em; width: 100%; margin: 0 auto; }
 #content.error-mode .card,
 #content.error-mode .block,
 #content.error-mode .info-list,
@@ -501,3 +501,15 @@ body {
 .casc-list li:active { background: var(--accent-soft); }
 
 .hidden { display: none !important; visibility: hidden !important; pointer-events: none !important; }
+
+/* ---- 响应式（对齐 native/Flutter 560dp 限宽居中规则）---- */
+.topbar {
+  width: 100%;
+  max-width: 35em; /* 35em ≈ 560dp @16px 基准字号，随字号档位自适应 */
+  margin: 0 auto;
+}
+
+/* 支持媒体查询的环境：>600px 才限宽；WebF 0.24 不支持时上面的 max-width 等效生效 */
+@media (max-width: 600px) {
+  #content, .topbar { max-width: none; }
+}
