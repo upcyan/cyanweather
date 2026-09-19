@@ -497,6 +497,15 @@ body {
 .result-sub { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
 .empty-tip { padding: 20px; text-align: center; color: var(--muted); font-size: 0.85rem; }
 
+/* ---- 降雨提醒固定区（顶栏与滚动内容之间，始终可见） ---- */
+#rainTipMount {
+  width: 100%;
+  max-width: 35em;
+  margin: 0 auto;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
 /* ---- 气象预警横幅 ---- */
 .warn-card {
   background: #ffe9e0;
