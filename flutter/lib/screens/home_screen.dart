@@ -539,8 +539,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     double? todayHigh, todayLow;
     String condition = '';
+    final today = DateTime.now().toIso8601String().substring(0, 10);
     if (predict.isNotEmpty) {
-      final first = predict[0];
+      // 夜间时段 NMC 首个条目是昨晚发布的（白天最高温缺失），跳过日期已过期的条目
+      final valid = predict.where((e) =>
+          (e['date']?.toString().replaceAll('/', '-') ?? '').compareTo(today) >= 0).toList();
+      final first = valid.isNotEmpty ? valid.first : predict.first;
       todayHigh = _cleanNmcTemp(first['day']?['weather']?['temperature']?.toString());
       todayLow = _cleanNmcTemp(first['night']?['weather']?['temperature']?.toString());
       condition = _cleanNmcText(first['day']?['weather']?['info']?.toString());
@@ -568,9 +572,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     hourly.sort((a, b) => a.time.compareTo(b.time));
 
-    // 多日预报
+    // 多日预报（跳过日期已过期的条目）
     final daily = <DailyItem>[];
     for (final d in predict) {
+      final rowDate = d['date']?.toString().replaceAll('/', '-') ?? '';
+      if (rowDate.isNotEmpty && rowDate.compareTo(today) < 0) continue;
       final dayText = _cleanNmcText(d['day']?['weather']?['info']?.toString());
       final nightText = _cleanNmcText(d['night']?['weather']?['info']?.toString());
       final high = _cleanNmcTemp(d['day']?['weather']?['temperature']?.toString());

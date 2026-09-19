@@ -316,11 +316,14 @@ fun parseNmc(data: NmcData?, cityName: String): WeatherData {
     var daily: List<DailyItem> = emptyList()
     val predict = data.predict?.detail ?: emptyList()
     if (predict.isNotEmpty()) {
-        val first = predict[0]
+        // 夜间时段 NMC 首个条目是昨晚发布的（白天最高温 9999 缺失），跳过日期已过期的条目
+        val today = todayStr()
+        val valid = predict.filter { it.date >= today }.ifEmpty { predict }
+        val first = valid.first()
         val currentTemp = weather?.temperature?.clean()
         todayHigh = first.day?.weather?.temperature?.toDoubleOrNull()?.clean() ?: currentTemp
         todayLow = first.night?.weather?.temperature?.toDoubleOrNull()?.clean() ?: currentTemp
-        daily = predict.map { d ->
+        daily = valid.map { d ->
             DailyItem(
                 date = d.date,
                 dayText = cleanNmcText(d.day?.weather?.info),

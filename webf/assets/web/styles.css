@@ -33,7 +33,7 @@ body {
   font-size: 1rem;
 }
 
-#app { display: flex; flex-direction: column; height: 100%; box-sizing: border-box; }
+#app { display: flex; flex-direction: column; min-height: 100vh; }
 
 /* ---- 顶栏：sticky 常驻顶部（滚动时城市/设置/刷新不动）；top 由 Dart 按状态栏高度注入 ---- */
 .topbar {
@@ -82,14 +82,11 @@ body {
 
 /* ---- 内容区 ---- */
 #content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 4px 16px 44px;
+  padding: 0 16px 44px;
   max-width: 35em;
   width: 100%;
   margin: 0 auto;
 }
-#content::-webkit-scrollbar { width: 0; }
 #content.error-mode .card,
 #content.error-mode .block,
 #content.error-mode .info-list,

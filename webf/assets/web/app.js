@@ -519,14 +519,18 @@ function parseNmc(data, cityName) { /* native parseNmc 完整移植 */
   var predict = (data.predict && data.predict.detail) || [];
   var i, d;
   if (predict.length) {
-    var first = predict[0];
+    // 夜间时段 NMC 首个条目是昨晚发布的（白天最高温缺失），跳过日期已过期的条目
+    var today = ymd(new Date());
+    var valid = predict.filter(function (p) { return (p.date || '') >= today; });
+    if (!valid.length) valid = predict;
+    var first = valid[0];
     var curT = cleanNum(weather.temperature);
     todayHigh = (first.day && first.day.weather && first.day.weather.temperature != null)
       ? cleanNum(parseFloat(first.day.weather.temperature)) : curT;
     todayLow = (first.night && first.night.weather && first.night.weather.temperature != null)
       ? cleanNum(parseFloat(first.night.weather.temperature)) : curT;
-    for (i = 0; i < predict.length; i++) {
-      d = predict[i];
+    for (i = 0; i < valid.length; i++) {
+      d = valid[i];
       var dw = (d.day && d.day.weather) || {}, nw = (d.night && d.night.weather) || {};
       daily.push({
         date: d.date,
