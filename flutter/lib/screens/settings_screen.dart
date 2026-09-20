@@ -202,7 +202,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Column(children: [
-              Text('晴暖天气 v1.2.1（实验版）',
+              Text('晴暖天气 v1.2.2（实验版）',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               SizedBox(height: 8),
               Text('晴暖天气：为长辈设计的简洁大字天气应用。',
