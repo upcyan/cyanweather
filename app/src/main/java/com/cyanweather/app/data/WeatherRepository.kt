@@ -48,15 +48,24 @@ class WeatherRepository(
             .ifEmpty { listOf("nmc", "openmeteo") }
         val results = mutableListOf<Pair<String, WeatherData>>()
         val failures = mutableListOf<String>()
-        for (source in selected) {
-            try {
-                results += source to loadSource(source, settings)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                // 刷新被新请求取代/作用域取消：原样上抛，不能当成单个数据源的失败
-                throw e
-            } catch (e: Exception) {
-                failures += "${sourceName(source)}：${e.message ?: "不可用"}"
-            }
+        // 并发请求所有数据源：总耗时 = 最慢单源（15s 超时），而非各源串行累加（N 源最坏 N×15s）。
+        // 注意 runCatching 会把 CancellationException 一起捕获成结果，所以在这里分型处理，
+        // 刷新被新请求取代/作用域取消时必须原样上抛，不能当成单个数据源的失败。
+        val outcome = coroutineScope {
+            selected.map { source ->
+                async { source to runCatching { loadSource(source, settings) } }
+            }.awaitAll()
+        }
+        for ((source, result) in outcome) {
+            result.fold(
+                onSuccess = { results += source to it },
+                onFailure = { e ->
+                    when (e) {
+                        is kotlinx.coroutines.CancellationException -> throw e
+                        else -> failures += "${sourceName(source)}：${e.message ?: "不可用"}"
+                    }
+                }
+            )
         }
         if (results.isEmpty()) {
             throw RuntimeException(failures.joinToString("；").ifBlank { "没有启用可用的天气源" })

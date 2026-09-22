@@ -84,7 +84,8 @@ fun HomeScreen(
     onOpenCityPicker: () -> Unit,
     onOpenRainForecast: () -> Unit,
     onConfirmUpdate: () -> Unit,
-    onDismissUpdate: () -> Unit
+    onDismissUpdate: () -> Unit,
+    onDismissInstallNotice: () -> Unit
 ) {
     val weather = state.weather
     // 宽屏（平板/横屏/桌面窗口）内容限宽居中，避免拉伸变形；窄屏不受影响
@@ -178,6 +179,21 @@ fun HomeScreen(
                 }
             },
             confirmButton = {}
+        )
+    }
+    // 下载结束后仍在流转的提示（引导安装授权/安装失败原因）：无转圈，只展示文案，
+    // 用户点一下即可关闭；不能藏在日志里——长辈用户需要看到「下一步会发生什么」
+    val installNotice = state.updateProgressText
+    if (!state.updateDownloading && installNotice != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onDismissInstallNotice,
+            title = { Text("安装更新", style = fst(24, FontWeight.Bold)) },
+            text = { Text(installNotice, style = fst(18)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = onDismissInstallNotice) {
+                    Text("知道了", style = fst(18))
+                }
+            }
         )
     }
 }

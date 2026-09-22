@@ -66,6 +66,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var lastPauseTime = 0L
     private var settingsLoaded = false
     private var refreshJob: kotlinx.coroutines.Job? = null
+    /** 等待「安装未知应用」授权的 APK 文件名；授权返回后自动续装。 */
+    private var pendingInstallFile: String? = null
 
     init {
         viewModelScope.launch {
@@ -114,6 +116,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         ui = ui.copy(updateResult = null)
     }
 
+    /** 关闭「安装提示」弹窗（引导授权/安装失败等非下载期文案）。 */
+    fun dismissInstallNotice() {
+        ui = ui.copy(updateProgressText = null)
+        pendingInstallFile = null
+    }
+
     fun confirmUpdate() {
         val update = ui.updateResult as? UpdateResult.UpdateAvailable ?: return
         ui = ui.copy(updateResult = null)
@@ -135,8 +143,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val result = try {
                 pollDownload(id, waitMs)
-            } catch (_: Exception) {
-                null
+            } catch (e: Exception) {
+                // 下载失败（含 STATUS_FAILED）：明确告知原因并结束流程，
+                // 不能落到安装分支去拉起损坏/不存在的 APK
+                updateFileName = null
+                ui = ui.copy(updateDownloading = false, updateDownloadId = null)
+                ui = ui.copy(updateProgressText = "下载失败：${e.message ?: "未知错误"}，可在 设置→检查更新 重试")
+                return@launch
             }
             ui = ui.copy(updateProgressText = null)
             if (result == false) {
@@ -148,11 +161,39 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             updateFileName = null
             ui = ui.copy(updateDownloading = false, updateDownloadId = null)
             if (result == true && fileName != null) {
-                try {
-                    val fileUri = com.cyanweather.app.update.UpdateChecker.getApkFileUri(context, fileName)
-                    com.cyanweather.app.update.UpdateChecker.installApk(context, fileUri)
-                } catch (_: Exception) { }
+                installDownloadedApk(fileName)
             }
+        }
+    }
+
+    /**
+     * 拉起已下载 APK 的安装器。
+     * Android 8+ 需要「允许安装未知应用」授权，未授权时引导去系统设置页，
+     * 授权返回（onResume）后自动重试安装；不能静默吞异常，否则长辈用户会卡在
+     * 「下载 100% 后毫无反应」。
+     */
+    private fun installDownloadedApk(fileName: String, isRetry: Boolean = false) {
+        val checker = com.cyanweather.app.update.UpdateChecker
+        if (!checker.canInstallPackages(context)) {
+            if (!isRetry) {
+                pendingInstallFile = fileName
+                ui = ui.copy(
+                    locationNotice = null,
+                    updateProgressText = "请在即将打开的设置页允许「安装未知应用」，返回后自动继续安装"
+                )
+                checker.requestInstallPermission(context)
+            } else {
+                ui = ui.copy(updateProgressText = "仍未授予安装权限，可在 设置→检查更新 重新下载安装")
+            }
+            return
+        }
+        try {
+            val fileUri = checker.getApkFileUri(context, fileName)
+            checker.installApk(context, fileUri)
+            ui = ui.copy(updateProgressText = null)
+        } catch (e: Exception) {
+            // 常见：ROM 拦截/文件被清理；给出可见提示而不是无反应
+            ui = ui.copy(updateProgressText = "无法启动安装：${e.message ?: "未知错误"}")
         }
     }
 
@@ -199,6 +240,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
             override fun onResume(owner: LifecycleOwner) {
                 if (ui.updateDownloadId != null) checkDownloadComplete()
+                // 从「安装未知应用」设置页授权返回：自动续装之前等待授权的 APK
+                pendingInstallFile?.let { file ->
+                    if (com.cyanweather.app.update.UpdateChecker.canInstallPackages(context)) {
+                        pendingInstallFile = null
+                        installDownloadedApk(file, isRetry = true)
+                    }
+                }
                 if (ui.settings.refreshInterval == "on_resume") {
                     val elapsed = System.currentTimeMillis() - lastPauseTime
                     if (lastPauseTime == 0L || elapsed > 30_000) {

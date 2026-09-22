@@ -72,3 +72,11 @@ flutter347/
 .dsh-vision-router/
 .opencode/
 .tools/
+
+# 误入库清理：本地工作日志、目录快照、诊断输出、本机脚本与工具内部数据
+.rel_*.log
+.rel_*.log.*
+_dirlist.txt
+build_log.txt
+git-ssh.bat
+.token-optimizer/

@@ -8,6 +8,7 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 object WeatherAggregator {
@@ -95,11 +96,12 @@ object WeatherAggregator {
     private fun aggregateInt(values: List<Int?>, weights: List<Float>): Int? {
         val valid = values.zip(weights).filter { (v, _) -> v != null }.map { (v, w) -> v!!.toDouble() to w }
         if (valid.isEmpty()) return null
-        if (valid.size == 1) return valid.first().first.toInt()
+        if (valid.size == 1) return valid.first().first.roundToInt()
         val filtered = robustFilter(valid)
         val totalWeight = filtered.sumOf { it.second.toDouble() }
         val weightedSum = filtered.sumOf { it.first * it.second }
-        return (weightedSum / totalWeight).toInt()
+        // 四舍五入而非向零截断：避免湿度/AQI 聚合结果系统性偏小（与 Flutter 版 round() 对齐）
+        return (weightedSum / totalWeight).roundToInt()
     }
 
     /**

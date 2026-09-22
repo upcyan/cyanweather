@@ -8,12 +8,19 @@ import com.cyanweather.shared.model.NmcResponse
 object NmcApi {
     private const val BASE = "https://www.nmc.cn"
 
+    /**
+     * 错误语义分层：网络异常原样上抛（带 HTTP 状态），解析失败包装为可读错误，
+     * 仅「接口正常但无数据」返回 null（调用方报「气象局暂无数据」）。
+     * 之前三者都吞成 null，排障时无法区分「网络不通」和「接口改版」。
+     */
     suspend fun weatherByStationId(stationId: String): NmcData? {
         val body = Net.get("$BASE/rest/weather?stationid=$stationId")
         return try {
             Net.json.decodeFromString<NmcResponse>(body).data
-        } catch (_: Exception) {
-            null
+        } catch (e: kotlinx.serialization.SerializationException) {
+            throw RuntimeException("气象局接口返回格式异常（可能已改版）", e)
+        } catch (e: IllegalArgumentException) {
+            throw RuntimeException("气象局接口返回格式异常（可能已改版）", e)
         }
     }
 

@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
                         onEnsureAllCities = vm::ensureAllCities,
                         onConfirmUpdate = vm::confirmUpdate,
                         onDismissUpdate = vm::dismissUpdate,
+                        onDismissInstallNotice = vm::dismissInstallNotice,
                         onManualCheckUpdate = vm::manualCheckUpdate
                     )
                 }
@@ -152,6 +153,7 @@ private fun AppScreen(
     onEnsureAllCities: () -> Unit,
     onConfirmUpdate: () -> Unit,
     onDismissUpdate: () -> Unit,
+    onDismissInstallNotice: () -> Unit,
     onManualCheckUpdate: () -> Unit
 ) {
     when (state.screen) {
@@ -162,7 +164,8 @@ private fun AppScreen(
             onOpenCityPicker,
             onOpenRainForecast,
             onConfirmUpdate,
-            onDismissUpdate
+            onDismissUpdate,
+            onDismissInstallNotice
         )
         is Screen.Settings -> SettingsScreen(
             settings = state.settings,

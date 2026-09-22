@@ -92,6 +92,35 @@ object UpdateChecker {
         return dm.enqueue(request)
     }
 
+    /** Android 8+ 安装未知来源应用需要用户在系统设置中逐应用授权，仅声明清单权限不够。 */
+    fun canInstallPackages(context: Context): Boolean {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            context.packageManager.canRequestPackageInstalls()
+        } else {
+            // Android 8 以下无「未知来源应用」逐应用授权机制，声明清单权限即可安装
+            true
+        }
+    }
+
+    /** 跳转到本应用的「允许安装未知应用」系统设置页；用户授权返回后重试安装。 */
+    fun requestInstallPermission(context: Context) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return
+        try {
+            val intent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                .setData(Uri.parse("package:${context.packageName}"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            // 个别 ROM 不支持带包名的 deep link，退回通用设置页
+            try {
+                context.startActivity(
+                    Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            } catch (_: Exception) { }
+        }
+    }
+
     fun installApk(context: Context, uri: Uri) {
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")

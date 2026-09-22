@@ -5,7 +5,7 @@ window.addEventListener('unhandledrejection', function (ev) { console.log('[CWJS
 
 /* JS 运行时错误可见化（WebF 无控制台，落到提示卡） */
 window.onerror = function (msg) {
-  try { showNotice('脚本异常：' + msg); } catch (e) { }
+  try { showNotice('脚本异常：' + String(msg)); } catch (e) { }
   try { console.log('[CWJS] onerror: ' + msg); } catch (e) { }
 };
 /* WebF 0.24 的可靠动态渲染通道：只向常驻挂载点写 innerHTML。 */
@@ -216,6 +216,8 @@ function cleanInt(v) { return (v === null || v === undefined || isNaN(v)) ? null
 function cleanNmcText(s) { if (!s) return ''; var v = String(s).trim(); return (v === '' || v === '9999' || v === '0') ? '' : v; }
 function tempStr(v) { var n = cleanNum(v); return n === null ? '-' : Math.round(n); }
 function combineDayNight(day, night) { return (!night || night === day) ? day : day + '转' + night; }
+/* combineDayNight 的转义版：dayText/nightText 来自外部 API 文本，入 HTML 前必须转义 */
+function combineDayNightEsc(day, night) { return escapeHTML(combineDayNight(day, night)); }
 
 /* 规范化逐时时间戳为 ISO yyyy-MM-ddTHH:mm（对齐 native normalizeHourTime）*/
 function normalizeHourTime(t) {
@@ -297,7 +299,7 @@ function hourCardHTML(timeStr, temperature, cond, icon, rainProb) {
     '<div class="hour-date">' + timeStr.substring(5, 10).replace('-', '/') + '</div>' +
     '<div class="hour-time">' + parseInt(timeStr.substring(11, 13), 10) + '时</div>';
   if (icon) h += '<div class="hour-icon"><img class="meteocon" src="assets:///assets/web/icons/' + iconSlug(icon) + '.png" alt=""></div>';
-  if (cond) h += '<div class="hour-cond">' + cond + '</div>';
+  if (cond) h += '<div class="hour-cond">' + escapeHTML(cond) + '</div>';
   h += '<div class="hour-temp">' + tempStr(temperature) + '°</div>';
   if (rainProb !== undefined && rainProb !== null && rainProb > 0) {
     h += '<div class="hour-pop" style="font-size:0.7rem;color:#0b6bcb;min-height:auto">' + Math.round(rainProb) + '%</div>';
@@ -615,7 +617,7 @@ function resolveNmcStation() {
       saveState();
       return rc;
     }).catch(function (e) {
-      showNotice('站点匹配失败：' + e.message + '；使用默认城市北京');
+      showNotice('站点匹配失败：' + escapeHTML(e && e.message ? e.message : String(e)) + '；使用默认城市北京');
       return { code: state.cityCode, name: state.city };
     });
   } else {
@@ -852,7 +854,7 @@ function renderWeather(w) {
         '<span class="day-name">' + dayLabelCN(dd.date) + '</span>' +
         '<div class="day-main">' +
         (dd.icon ? '<span class="day-icon"><img class="meteocon" src="assets:///assets/web/icons/' + iconSlug(dd.icon) + '.png" width="34" height="34" alt=""></span>' : '') +
-        '<span class="day-cond">' + combineDayNight(dd.dayText, dd.nightText) + '</span>' +
+        '<span class="day-cond">' + combineDayNightEsc(dd.dayText, dd.nightText) + '</span>' +
         '<span class="day-temp"><span class="day-high">' + tempStr(dd.high) + '°</span>' +
         '<span class="day-slash">/</span>' +
         '<span class="day-low">' + tempStr(dd.low) + '°</span></span>' +
@@ -992,13 +994,13 @@ function bindHourArrows() {
 /* ================= 提示 / 错误 / 遮罩 ================= */
 function showNotice(msg) {
   var box = $('noticeBox');
-  box.innerHTML = msg ? '<div class="notice-card">⚠ ' + msg + '</div>' : '';
+  box.innerHTML = msg ? '<div class="notice-card">⚠ ' + escapeHTML(msg) + '</div>' : '';
 }
-/* 带操作链接的提示卡（如「去授权定位」） */
+/* 带操作链接的提示卡（如「去授权定位」）；msg 为纯文本，actionText 为固定 UI 文案 */
 function showNoticeAction(msg, actionText, cb) {
   var box = $('noticeBox');
-  box.innerHTML = '<div class="notice-card">⚠ ' + msg +
-    '　<span id="noticeAction" style="color:#0B6BCB;font-weight:bold;cursor:pointer">' + actionText + '</span></div>';
+  box.innerHTML = '<div class="notice-card">⚠ ' + escapeHTML(msg) +
+    '　<span id="noticeAction" style="color:#0B6BCB;font-weight:bold;cursor:pointer">' + escapeHTML(actionText) + '</span></div>';
   var a = $('noticeAction');
   if (a && a.addEventListener) a.addEventListener('click', function () { try { cb(); } catch (e) { } });
 }
@@ -1185,7 +1187,7 @@ function ensureGpsFix() {
     if (m.indexOf('权限') >= 0 || m.indexOf('暂不可用') >= 0) {
       showNoticeAction('定位不可用，当前使用上次位置', '去授权定位 ›', nativeOpenAppSettings);
     } else {
-      showNotice('定位失败：' + m + '，当前使用上次位置');
+      showNotice('定位失败：' + escapeHTML(m) + '，当前使用上次位置');
     }
     return null;
   });
@@ -1540,9 +1542,9 @@ function openCascade() {
   $('cascList').innerHTML = '<li class="empty-tip">加载中…</li>';
   nmcLoadProvinces().then(function (ps) {
     var html = '';
-    for (var i = 0; i < ps.length; i++) html += '<li data-code="' + ps[i].code + '" data-name="' + ps[i].name + '">' + ps[i].name + '</li>';
+    for (var i = 0; i < ps.length; i++) html += '<li data-code="' + escapeHTML(ps[i].code) + '" data-name="' + escapeHTML(ps[i].name) + '">' + escapeHTML(ps[i].name) + '</li>';
     $('cascList').innerHTML = html;
-  }).catch(function (e) { $('cascList').innerHTML = '<li class="empty-tip">加载失败：' + e.message + '</li>'; });
+  }).catch(function (e) { $('cascList').innerHTML = '<li class="empty-tip">加载失败：' + escapeHTML(e && e.message ? e.message : String(e)) + '</li>'; });
 }
 function cascPickProvince(code, name) {
   cascProv = { code: code, name: name };
@@ -1553,9 +1555,9 @@ function cascPickProvince(code, name) {
   $('cascBack').addEventListener('click', openCascade);
   nmcLoadCities(code).then(function (cs) {
     var html = '';
-    for (var i = 0; i < cs.length; i++) html += '<li data-code="' + cs[i].code + '" data-name="' + cs[i].city + '">' + cs[i].city + '</li>';
+    for (var i = 0; i < cs.length; i++) html += '<li data-code="' + escapeHTML(cs[i].code) + '" data-name="' + escapeHTML(cs[i].city) + '">' + escapeHTML(cs[i].city) + '</li>';
     $('cascList').innerHTML = html || '<li class="empty-tip">该省份暂无站点</li>';
-  }).catch(function (e) { $('cascList').innerHTML = '<li class="empty-tip">加载失败：' + e.message + '</li>'; });
+  }).catch(function (e) { $('cascList').innerHTML = '<li class="empty-tip">加载失败：' + escapeHTML(e && e.message ? e.message : String(e)) + '</li>'; });
 }
 function cascPickCity(code, name) {
   state.city = stripAdmin(name);
@@ -1599,12 +1601,12 @@ function doSearch(q) {
     for (var i = 0; i < results.length; i++) {
       var r = results[i];
       var sub = [r.admin1, r.country].filter(Boolean).join('，');
-      html += '<li data-lat="' + r.latitude + '" data-lon="' + r.longitude + '" data-name="' + r.name + '">' +
-        r.name + '<div class="result-sub">' + sub + '</div></li>';
+      html += '<li data-lat="' + r.latitude + '" data-lon="' + r.longitude + '" data-name="' + escapeHTML(r.name) + '">' +
+        escapeHTML(r.name) + '<div class="result-sub">' + escapeHTML(sub) + '</div></li>';
     }
     $('searchResults').innerHTML = html;
   }).catch(function (e) {
-    $('searchResults').innerHTML = '<li class="empty-tip">搜索失败：' + e.message + '</li>';
+    $('searchResults').innerHTML = '<li class="empty-tip">搜索失败：' + escapeHTML(e && e.message ? e.message : String(e)) + '</li>';
   });
 }
 /* ================= 设置：每次打开都向常驻挂载点重建整棵子树 ================= */
