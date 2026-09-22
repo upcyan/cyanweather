@@ -24,6 +24,9 @@ harmony/temp_*.ets
 harmony/merge.ps1
 harmony/truncate.ps1
 harmony/append_build.ps1
+harmony/listfiles.ps1
+harmony/sharedfiles.txt
+harmony/topdirs.txt
 harmony/build_part.txt
 harmony/temp_build_part1.ets
 harmony/tmp_android/
@@ -80,3 +83,7 @@ _dirlist.txt
 build_log.txt
 git-ssh.bat
 .token-optimizer/
+
+# 历史手工发布残留（CI 已用 generate_release_notes 自动生成）
+/release_notes.txt
+/release.json
