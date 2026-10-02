@@ -34,6 +34,9 @@ kotlin {
         androidMain.dependencies {
             // Android-specific dependencies if needed
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
     }
 }
 
