@@ -1,6 +1,7 @@
 package com.cyanweather.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -69,7 +70,8 @@ fun SettingsScreen(
     onAutoCheckUpdate: (Boolean) -> Unit,
     onUseGps: (Boolean) -> Unit,
     onOpenCityPicker: () -> Unit,
-    onManualCheckUpdate: () -> Unit
+    onManualCheckUpdate: () -> Unit,
+    updateCheckStatus: String? = null
 ) {
     Column(
         modifier = Modifier
@@ -283,6 +285,10 @@ fun SettingsScreen(
                     Text("检查 >", style = fst(24), color = Color(0xFF0B6BCB))
                 }
             }
+            if (updateCheckStatus != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(updateCheckStatus, style = fst(17), color = Color(0xFF555555))
+            }
         }
 
         // 关于
@@ -339,18 +345,23 @@ private fun SourcePriorityRow(
             Text(hint, style = fst(15), color = Color(0xFF666666))
         }
         if (checked) {
-            Text("优先级 ${index + 1}", style = fst(14), color = Color(0xFF0B6BCB))
-            IconButton(
-                onClick = { onMove(-1) }, enabled = index > 0,
-                modifier = Modifier.size(38.dp)
-            ) {
-                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "上移", tint = if (index > 0) Color(0xFF0B6BCB) else Color(0xFFBDBDBD))
-            }
-            IconButton(
-                onClick = { onMove(1) }, enabled = index < selectedCount - 1,
-                modifier = Modifier.size(38.dp)
-            ) {
-                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "下移", tint = if (index < selectedCount - 1) Color(0xFF0B6BCB) else Color(0xFFBDBDBD))
+            // 竖向排布：优先级文字在箭头上方，避免横向挤压数据源名称导致长单词被硬折行
+            Column(horizontalAlignment = Alignment.End) {
+                Text("优先级 ${index + 1}", style = fst(14), color = Color(0xFF0B6BCB))
+                Row {
+                    IconButton(
+                        onClick = { onMove(-1) }, enabled = index > 0,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "上移", tint = if (index > 0) Color(0xFF0B6BCB) else Color(0xFFBDBDBD))
+                    }
+                    IconButton(
+                        onClick = { onMove(1) }, enabled = index < selectedCount - 1,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "下移", tint = if (index < selectedCount - 1) Color(0xFF0B6BCB) else Color(0xFFBDBDBD))
+                    }
+                }
             }
         }
     }

@@ -88,7 +88,8 @@ class MainActivity : ComponentActivity() {
                         onConfirmUpdate = vm::confirmUpdate,
                         onDismissUpdate = vm::dismissUpdate,
                         onDismissInstallNotice = vm::dismissInstallNotice,
-                        onManualCheckUpdate = vm::manualCheckUpdate
+                        onManualCheckUpdate = vm::manualCheckUpdate,
+                        updateCheckStatus = state.updateCheckStatus
                     )
                 }
             }
@@ -154,7 +155,8 @@ private fun AppScreen(
     onConfirmUpdate: () -> Unit,
     onDismissUpdate: () -> Unit,
     onDismissInstallNotice: () -> Unit,
-    onManualCheckUpdate: () -> Unit
+    onManualCheckUpdate: () -> Unit,
+    updateCheckStatus: String? = null
 ) {
     when (state.screen) {
         is Screen.Home -> HomeScreen(
@@ -186,7 +188,8 @@ private fun AppScreen(
             onAutoCheckUpdate = onAutoCheckUpdate,
             onUseGps = onUseGps,
             onOpenCityPicker = onOpenCityPicker,
-            onManualCheckUpdate = onManualCheckUpdate
+            onManualCheckUpdate = onManualCheckUpdate,
+            updateCheckStatus = updateCheckStatus
         )
         is Screen.CityPicker -> CityPickerScreen(
             provinces = state.provinces,

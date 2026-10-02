@@ -49,7 +49,8 @@ data class UiState(
     val updateResult: UpdateResult? = null,
     val updateDownloading: Boolean = false,
     val updateDownloadId: Long? = null,
-    val updateProgressText: String? = null
+    val updateProgressText: String? = null,
+    val updateCheckStatus: String? = null
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -103,11 +104,31 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private var checkUpdateInFlight = false
+
     fun manualCheckUpdate() {
+        if (checkUpdateInFlight) return
+        checkUpdateInFlight = true
         viewModelScope.launch {
-            val result = UpdateChecker.checkForUpdate(context)
-            if (result is UpdateResult.UpdateAvailable) {
-                ui = ui.copy(updateResult = result)
+            try {
+                // 手动检查必须给出可见结果：检查中/已是最新/失败都要反馈，
+                // 否则长辈用户点击后毫无反应，无法区分「没点上」和「坏了」
+                ui = ui.copy(updateCheckStatus = "正在检查更新…")
+                val result = UpdateChecker.checkForUpdate(context)
+                ui = when (result) {
+                    is UpdateResult.UpdateAvailable ->
+                        ui.copy(updateResult = result, updateCheckStatus = null)
+                    is UpdateResult.Error ->
+                        ui.copy(updateCheckStatus = "检查失败：${result.message}")
+                    is UpdateResult.UpToDate -> {
+                        val v = runCatching {
+                            context.packageManager.getPackageInfo(context.packageName, 0).versionName
+                        }.getOrNull()
+                        ui.copy(updateCheckStatus = if (v.isNullOrBlank()) "当前已是最新版本" else "当前已是最新版本（v$v）")
+                    }
+                }
+            } finally {
+                checkUpdateInFlight = false
             }
         }
     }
@@ -310,7 +331,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setCaiyunV3Key(key: String) = launchEdit { settingsStore.setCaiyunV3Key(context, key) }
 
-    fun setCaiyunV3Secret(secret: String) = launchEdit { settingsStore.setCaiyunV3Secret(context, secret) }
+    fun setCaiyunV3Secret(appSecret: String) = launchEdit { settingsStore.setCaiyunV3Secret(context, appSecret) }
 
     fun setToken(token: String) = launchEdit { settingsStore.setToken(context, token) }
 
