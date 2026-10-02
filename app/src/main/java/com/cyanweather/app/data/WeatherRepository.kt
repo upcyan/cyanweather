@@ -328,14 +328,19 @@ class WeatherRepository(
         val (lat, lng) = currentLatLng(settings)
         val w = OpenMeteoApi.weather(lat, lng)
         val air = OpenMeteoApi.airQuality(lat, lng)
-        var cityName = if (settings.useGps && !settings.manualCity) "未识别位置" else settings.cityName.ifBlank { "未识别位置" }
-        if (settings.useGps) {
+        // 已持久化的城市名是权威值：手动选择或上一轮 GPS 解析过的名字都不应被本源
+        // 的反查结果覆盖。否则启动瞬间 lastKnown 还是旧坐标（如昨天测试过的城市）
+        // 时，标题会先闪现旧城市名，等新定位返回才自愈。
+        // 反查只用于「还没有任何真实城市名」的兜底（首次安装/名字被清空）。
+        val persistedName = settings.cityName.trim()
+        val hasRealName = persistedName.isNotBlank() && persistedName != "北京"
+        var cityName = if (hasRealName) persistedName else "未识别位置"
+        if (!hasRealName) {
             try {
                 val geoName = OpenMeteoApi.reverseGeocode(lat, lng)
                 val name = simp(geoName).stripAdmin()
                 if (name.isNotBlank()) cityName = name
-            } catch (e: Exception) {
-                // ignore
+            } catch (_: Exception) {
             }
         }
         return parseOpenMeteo(w, air, cityName)
