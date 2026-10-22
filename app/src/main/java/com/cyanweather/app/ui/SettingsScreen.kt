@@ -62,6 +62,7 @@ fun SettingsScreen(
     onCaiyunV3Secret: (String) -> Unit,
     onQWeatherHost: (String) -> Unit,
     onQWeatherKey: (String) -> Unit,
+    onAmapKey: (String) -> Unit,
     onFont: (String) -> Unit,
     onRefreshInterval: (String) -> Unit,
     onExtendedForecast: (Boolean) -> Unit,
@@ -99,6 +100,8 @@ fun SettingsScreen(
                 "openmeteo" to ("Open-Meteo" to "免费无密钥，15天预报与全球覆盖"),
                 "caiyun" to ("彩云天气" to "分钟级降水，需凭证"),
                 "qweather" to ("和风天气" to "预警与丰富预报，需凭证"),
+                "amap" to ("高德天气" to "中国气象局数据，实况+4天预报，需 Key"),
+                "metno" to ("MET Norway" to "挪威气象局，免密钥全球预报（需署名）"),
                 "xiaomi" to ("小米天气" to "设备本地优先，网络接口为实验性")
             )
             val selected = settings.weatherSources.distinct()
@@ -133,6 +136,20 @@ fun SettingsScreen(
                         placeholder = { Text("API Key", style = fst(17)) }, visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         textStyle = MaterialTheme.typography.bodyLarge, modifier = Modifier.fillMaxWidth())
+                }
+                if (id == "amap" && index >= 0) {
+                    Spacer(Modifier.height(4.dp))
+                    var aKey by remember(settings.amapKey) { mutableStateOf(settings.amapKey) }
+                    Text("高德天气 Key（紧随选项配置）", style = fst(17), fontWeight = FontWeight.Bold, color = Color(0xFF555555))
+                    OutlinedTextField(value = aKey, onValueChange = { aKey = it.replace(Regex("\\s"), ""); onAmapKey(aKey) },
+                        placeholder = { Text("Web服务 Key", style = fst(17)) }, visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        textStyle = MaterialTheme.typography.bodyLarge, modifier = Modifier.fillMaxWidth())
+                    Text("在 console.amap.com 注册并完成个人认证后创建（Web服务类型）。", style = fst(16), color = Color(0xFF666666))
+                }
+                if (id == "metno" && index >= 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Text("免密钥，开箱即用。数据遵循 CC BY 4.0，关于页已含署名。", style = fst(16), color = Color(0xFF666666))
                 }
                 if (id == "xiaomi" && index >= 0) {
                     Text("提示：优先读取小米系统天气；其他设备使用实验性网络接口，失败后自动进入下一优先级。", style = fst(15), color = Color(0xFF8A5A00))
@@ -427,3 +444,4 @@ private fun SwitchRow(
         Switch(checked = checked, onCheckedChange = onChecked)
     }
 }
+

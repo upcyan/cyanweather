@@ -14,7 +14,11 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.cyanweather.cyanweather_flutter"
     compileSdk = 36
-    ndkVersion = flutter.ndkVersion
+    // sdkmanager 在本机装 build-tools 35 会装成半残（缺 aapt2），显式用已装好的 36
+    buildToolsVersion = "36.0.0"
+    // 插件均为纯 Dart/Kotlin，无需编译 native；固定到本机已安装的 NDK，
+    // 避免 Flutter 工具每次构建都尝试下载默认 r27（sdkmanager 在 Windows 上装不稳）。
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -48,6 +52,11 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
+            // shared_preferences 2.5.x 的 JNIgen 依赖 Kotlin 协程/Result 等
+            // 只在 JNI 侧按名字查找的类，R8 会持续裁掉（NoSuchMethod /
+            // ClassNotFound）。关掉 minify 换取稳定启动，体积只增加几 MB。
+            minifyEnabled false
+            shrinkResources false
         }
     }
 }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 启动窗口底色：与 App 背景一致，暗色模式下也不使用黑色，
+         避免 Flutter 首帧到来前出现"全黑"观感 -->
+    <color name="launch_background">#FFF5F9FF</color>
+</resources>

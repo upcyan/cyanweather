@@ -63,7 +63,6 @@ flutter/android/local.properties
 keystore_base64.txt
 
 # 本地工具链副本与构建杂项
-.tools/
 .appdata/
 .build_*.log
 .fv*.txt
@@ -74,7 +73,6 @@ dsh-usage/
 flutter347/
 .dsh-vision-router/
 .opencode/
-.tools/
 
 # 误入库清理：本地工作日志、目录快照、诊断输出、本机脚本与工具内部数据
 .rel_*.log
@@ -87,3 +85,6 @@ git-ssh.bat
 # 历史手工发布残留（CI 已用 generate_release_notes 自动生成）
 /release_notes.txt
 /release.json
+
+# Flutter 本机工具状态
+flutter/.flutter_tool_state

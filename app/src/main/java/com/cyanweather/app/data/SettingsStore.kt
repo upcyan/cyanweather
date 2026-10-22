@@ -24,6 +24,7 @@ data class AppSettings(
     val caiyunV3Secret: String = "",
     val qweatherHost: String = "",
     val qweatherKey: String = "",
+    val amapKey: String = "",
     val cityName: String = "北京",
     val cityCode: String = "",
     val manualCity: Boolean = false,
@@ -50,6 +51,7 @@ object SettingsStore {
     private val KEY_CAIYUN_V3_SECRET = stringPreferencesKey("caiyun_v3_secret")
     private val KEY_QWEATHER_HOST = stringPreferencesKey("qweather_host")
     private val KEY_QWEATHER_KEY = stringPreferencesKey("qweather_key")
+    private val KEY_AMAP_KEY = stringPreferencesKey("amap_key")
     private val KEY_CITY_NAME = stringPreferencesKey("city_name")
     private val KEY_CITY_CODE = stringPreferencesKey("city_code")
     private val KEY_MANUAL_CITY = booleanPreferencesKey("manual_city")
@@ -82,7 +84,8 @@ object SettingsStore {
             caiyunV3Secret = p[KEY_CAIYUN_V3_SECRET] ?: "",
             qweatherHost = p[KEY_QWEATHER_HOST] ?: "",
             qweatherKey = p[KEY_QWEATHER_KEY] ?: "",
-            cityName = p[KEY_CITY_NAME] ?: "北京",
+            amapKey = p[KEY_AMAP_KEY] ?: "",
+            cityName = CityNameSimplify.simp(p[KEY_CITY_NAME] ?: "北京"),
             cityCode = p[KEY_CITY_CODE] ?: "",
             manualCity = p[KEY_MANUAL_CITY] ?: false,
             fontSize = p[KEY_FONT] ?: "large",
@@ -122,8 +125,14 @@ object SettingsStore {
     suspend fun setQWeatherKey(context: Context, v: String) =
         context.dataStore.edit { it[KEY_QWEATHER_KEY] = v }
 
+    suspend fun setAmapKey(context: Context, v: String) =
+        context.dataStore.edit { it[KEY_AMAP_KEY] = v }
+
     suspend fun setCity(context: Context, name: String, code: String, manual: Boolean) =
-        context.dataStore.edit { it[KEY_CITY_NAME] = name; it[KEY_CITY_CODE] = code; it[KEY_MANUAL_CITY] = manual }
+        context.dataStore.edit {
+            it[KEY_CITY_NAME] = CityNameSimplify.simp(name)
+            it[KEY_CITY_CODE] = code; it[KEY_MANUAL_CITY] = manual
+        }
 
     suspend fun setManualCity(context: Context, v: Boolean) =
         context.dataStore.edit { it[KEY_MANUAL_CITY] = v }

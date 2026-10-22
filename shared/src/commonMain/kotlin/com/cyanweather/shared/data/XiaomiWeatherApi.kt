@@ -4,6 +4,9 @@ import com.cyanweather.shared.model.DailyItem
 import com.cyanweather.shared.model.HourlyItem
 import com.cyanweather.shared.model.WeatherData
 import com.cyanweather.shared.model.YesterdayData
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.plus
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -31,11 +34,20 @@ object XiaomiWeatherApi {
         val hourlyTemps = fh.values("temperature")
         val hourlyWeather = fh.values("weather")
         val pubTime = fh.obj("temperature").text("pubTime")
-        val baseHour = pubTime.takeIf { it.length >= 13 }?.substring(0, 13)
+        // time 须为完整 "yyyy-MM-ddTHH:mm"：裸 "HH:00" 会让逐时卡片没有日期，
+        // 且跨天按 24 取模的小时重复、多源聚合按时间排序/合并时错乱
+        val pubDate = pubTime.takeIf { it.length >= 10 }?.let {
+            runCatching { LocalDate.parse(it.substring(0, 10)) }.getOrNull()
+        }
+        val pubHour = pubTime.takeIf { it.length >= 13 }?.substring(11, 13)?.toIntOrNull()
         val hourly = (0 until minOf(hourlyTemps.size, hourlyWeather.size)).map { i ->
-            val hour = baseHour?.let { runCatching { it.takeLast(2).toInt() + i }.getOrNull() }
+            val t = if (pubDate != null && pubHour != null) {
+                pubDate.plus((pubHour + i) / 24, DateTimeUnit.DAY) to (pubHour + i) % 24
+            } else null
             HourlyItem(
-                time = hour?.let { "%02d:00".format(it % 24) }.orEmpty(),
+                time = t?.let { (d, h) ->
+                    "%04d-%02d-%02dT%02d:00".format(d.year, d.monthNumber, d.dayOfMonth, h)
+                }.orEmpty(),
                 temperature = hourlyTemps[i].jsonPrimitive.doubleOrNull,
                 condition = xiaomiWeatherText(hourlyWeather[i].jsonPrimitive.intOrNull),
                 isForecast = true

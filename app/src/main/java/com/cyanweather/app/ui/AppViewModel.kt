@@ -339,6 +339,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setQWeatherKey(key: String) = launchEdit { settingsStore.setQWeatherKey(context, key) }
 
+    fun setAmapKey(key: String) = launchEdit { settingsStore.setAmapKey(context, key) }
+
+
     fun setFont(size: String) = launchEdit { settingsStore.setFont(context, size) }
 
     fun setRefreshInterval(v: String) = launchEdit { settingsStore.setRefreshInterval(context, v) }

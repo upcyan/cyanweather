@@ -37,7 +37,8 @@ class RainForecastScreen extends StatelessWidget {
                       if (w == null) ...[
                         Text('暂无天气数据',
                             style: TextStyle(fontSize: 18 * fsOf(context)))
-                      ] else ..._body(context, w!),
+                      ] else
+                        ..._body(context, w!),
                     ]))));
   }
 
@@ -74,7 +75,7 @@ class RainForecastScreen extends StatelessWidget {
       ...w.daily.take(7).map((d) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Row(children: [
-            WeatherIcon(condition: d.dayText + d.nightText, size: 28),
+            WeatherIcon(condition: d.dayText + d.nightText, size: 28, hour: 12),
             SizedBox(width: 10 * fsOf(context)),
             Expanded(
                 child: Text(d.dayText + d.nightText,
@@ -85,8 +86,7 @@ class RainForecastScreen extends StatelessWidget {
   }
 
   Widget _rainHourRow(BuildContext context, HourlyItem item) {
-    final isRain =
-        item.condition.contains('雨') || item.condition.contains('雷');
+    final isRain = item.condition.contains('雨') || item.condition.contains('雷');
     final prob = (item.rainProb ?? 0.0).clamp(0.0, 100.0);
     final accent = (isRain || prob >= 50)
         ? const Color(0xFF0B6BCB)
@@ -112,8 +112,8 @@ class RainForecastScreen extends StatelessWidget {
                     ])),
             Expanded(
                 child: Text(item.condition.isEmpty ? '-' : item.condition,
-                    style:
-                        TextStyle(fontSize: 16 * fsOf(context), color: accent))),
+                    style: TextStyle(
+                        fontSize: 16 * fsOf(context), color: accent))),
             Text('${prob.toInt()}%',
                 style: TextStyle(
                     fontSize: 16 * fsOf(context),

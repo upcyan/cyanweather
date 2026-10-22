@@ -5,6 +5,8 @@ import com.cyanweather.app.location.LocationHelper
 import com.cyanweather.shared.data.CaiyunApi
 import com.cyanweather.shared.data.NmcApi
 import com.cyanweather.shared.data.OpenMeteoApi
+import com.cyanweather.shared.data.AmapApi
+import com.cyanweather.shared.data.MetNoApi
 import com.cyanweather.shared.data.QWeatherApi
 import com.cyanweather.shared.data.XiaomiWeatherApi
 import com.cyanweather.shared.data.caiyunSkyconText
@@ -81,6 +83,8 @@ class WeatherRepository(
 
     private suspend fun loadSource(source: String, settings: AppSettings): WeatherData = when (source) {
         "qweather" -> loadQWeather(settings)
+        "metno" -> loadMetNo(settings)
+        "amap" -> loadAmap(settings)
         "xiaomi" -> loadXiaomi(settings)
         "openmeteo" -> loadOpenMeteo(settings)
         "caiyun" -> when {
@@ -95,6 +99,18 @@ class WeatherRepository(
         val (lat, lng) = currentLatLng(settings)
         val name = resolveCaiyunCityName(settings, lat, lng)
         return QWeatherApi.weather(settings.qweatherHost, settings.qweatherKey, lat, lng, name)
+    }
+
+    private suspend fun loadMetNo(settings: AppSettings): WeatherData {
+        val (lat, lng) = currentLatLng(settings)
+        val name = resolveCaiyunCityName(settings, lat, lng)
+        return MetNoApi.weather(lat, lng, name)
+    }
+
+    private suspend fun loadAmap(settings: AppSettings): WeatherData {
+        val (lat, lng) = currentLatLng(settings)
+        val name = resolveCaiyunCityName(settings, lat, lng)
+        return AmapApi.weather(settings.amapKey, lat, lng, name)
     }
 
     private suspend fun loadXiaomi(settings: AppSettings): WeatherData {
@@ -149,7 +165,7 @@ class WeatherRepository(
     }
 
     companion object {
-        private val SUPPORTED_SOURCES = setOf("nmc", "openmeteo", "caiyun", "qweather", "xiaomi")
+        private val SUPPORTED_SOURCES = setOf("nmc", "openmeteo", "caiyun", "qweather", "xiaomi", "metno", "amap")
     }
 
     // ---------- NMC ----------
@@ -361,32 +377,7 @@ class WeatherRepository(
 
     // ---------- Name normalization ----------
 
-    private val TRAD_TO_SIMP = mapOf(
-        "東" to "东", "濟" to "济", "廣" to "广", "陽" to "阳", "陰" to "阴",
-        "臺" to "台", "灣" to "湾", "龍" to "龙", "雲" to "云", "島" to "岛",
-        "縣" to "县", "區" to "区", "寧" to "宁", "蘇" to "苏", "澤" to "泽",
-        "漢" to "汉", "濱" to "滨", "豐" to "丰", "麗" to "丽", "門" to "门",
-        "華" to "华", "廈" to "厦", "閩" to "闽", "贛" to "赣", "晉" to "晋",
-        "陝" to "陕", "貴" to "贵", "瓊" to "琼", "遼" to "辽", "鄒" to "邹",
-        "臨" to "临", "萊" to "莱", "蕪" to "芜", "長" to "长", "慶" to "庆",
-        "榮" to "荣", "單" to "单", "費" to "费", "濰" to "潍", "諸" to "诸",
-        "兗" to "兖", "嶧" to "峄", "鄆" to "郓", "棲" to "栖", "遠" to "远",
-        "樂" to "乐", "無" to "无", "蓮" to "莲", "齊" to "齐", "蘭" to "兰",
-        "鄉" to "乡", "膠" to "胶", "黃" to "黄", "饒" to "饶", "興" to "兴",
-        "棗" to "枣", "莊" to "庄", "幹" to "干", "烏" to "乌", "雙" to "双",
-        "臺" to "台", "廈" to "厦", "澳" to "澳", "濰" to "潍", "蒼" to "苍",
-        "濱" to "滨", "潁" to "颍", "滁" to "滁", "亳" to "亳", "懷" to "怀",
-        "濰" to "潍", "滬" to "沪", "渝" to "渝", "贛" to "赣", "豫" to "豫",
-        "冀" to "冀", "晉" to "晋", "蒙" to "蒙", "遼" to "辽", "吉" to "吉",
-        "黑" to "黑", "蘇" to "苏", "浙" to "浙", "皖" to "皖", "閩" to "闽",
-        "贛" to "赣", "魯" to "鲁", "鄂" to "鄂", "湘" to "湘", "粵" to "粤",
-        "桂" to "桂", "瓊" to "琼", "川" to "川", "黔" to "黔", "滇" to "滇",
-        "藏" to "藏", "陝" to "陕", "甘" to "甘", "青" to "青", "新" to "新",
-        "寧" to "宁", "桂" to "桂"
-    )
-
-    private fun simp(s: String): String =
-        s.map { TRAD_TO_SIMP[it.toString()] ?: it.toString() }.joinToString("")
+    private fun simp(s: String): String = CityNameSimplify.simp(s)
 
     private fun String.stripAdmin(): String =
         trim().replace(Regex("(自治区|自治州|特别行政区|省|市|区|县|盟|州)$"), "")

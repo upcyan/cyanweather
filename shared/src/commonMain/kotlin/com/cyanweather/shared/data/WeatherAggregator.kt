@@ -18,6 +18,8 @@ object WeatherAggregator {
         "openmeteo" to 0.8f,
         "caiyun" to 0.85f,
         "qweather" to 0.85f,
+        "amap" to 0.88f,
+        "metno" to 0.75f,
         "xiaomi" to 0.7f
     )
 
@@ -26,6 +28,8 @@ object WeatherAggregator {
         "openmeteo" to "Open-Meteo",
         "caiyun" to "彩云天气",
         "qweather" to "和风天气",
+        "amap" to "高德天气",
+        "metno" to "MET Norway",
         "xiaomi" to "小米天气"
     )
 

@@ -166,9 +166,9 @@ fun wmoToSkycon(code: Int?): SkyKind = when (code) {
 fun uvLevelText(uv: Double?): String = when {
     uv == null -> ""
     uv < 3 -> "弱"
-    uv < 6 -> "中等"
-    uv < 8 -> "强"
-    uv < 11 -> "很强"
+    uv < 7 -> "中等"
+    uv < 10 -> "强"
+    uv < 13 -> "很强"
     else -> "极强"
 }
 

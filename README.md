@@ -1,13 +1,13 @@
 # 晴暖天气（CyanWeather）
 
-一款面向长辈的天气应用：大字体、简洁界面、操作直观。一个仓库包含四个版本：
+一款面向长辈的天气应用：大字体、简洁界面、操作直观。一个仓库包含四个版本（WebF 版已弃用，目录保留）：
 
 | 目录 | 技术 | 状态 |
 |------|------|------|
 | `app` | Kotlin + Jetpack Compose（原生） | ✅ 主推版本 |
 | `shared` + `harmony` | KMP 共享模块 + ArkTS（鸿蒙 NEXT） | 🚧 移植中 |
 | `flutter` | Flutter | ⚗️ 实验版 |
-| `webf` | WebF（Flutter WebView，HTML/CSS/JS 渲染） | ⚗️ 实验版 |
+| `webf` | WebF（Flutter WebView，HTML/CSS/JS 渲染） | 🗄️ 已弃用（不再发布 APK） |
 
 ## 下载安装
 
@@ -17,9 +17,8 @@
 |------|------|
 | `cyanweather-vX.Y-release.apk` | 原生版（推荐） |
 | `cyanweather-flutter-experimental-vX.Y-release.apk` | Flutter 实验版 |
-| `cyanweather-webf-experimental-vX.Y-release.apk` | WebF 实验版 |
 
-三个版本使用同一 release 签名，可并存安装（包名不同）。
+两个 APK 使用同一 release 签名，可并存安装（包名不同）。WebF 版已弃用，不再提供下载。
 
 ## 功能
 
@@ -88,22 +87,15 @@ flutter build apk --release
 
 输出：`flutter/build/app/outputs/flutter-apk/app-release.apk`
 
-### WebF 版（webf/）
+### WebF 版（webf/，已弃用）
 
-WebF 版用 HTML/CSS/JS 编写界面，由 [WebF](https://openwebf.com) 引擎在 Flutter 壳内渲染：
+WebF 版自 2026-10-21 起弃用：**不再构建、不再发布 APK**。选择依据是包体积与兼容性——WebF 全量包 84.7 MB，远大于 Flutter 的 52.4 MB（arm64 分包仅 18.7 MB）和原生的 7.3 MB，且 WebF 0.24 对 `display:none`、ripple、媒体查询等存在引擎级限制。
 
-```bash
-cd webf
-flutter build apk --release
-```
-
-输出：`webf/build/app/outputs/flutter-apk/app-release.apk`
-
-> 注意：WebF 0.24 对 `display:none` 切换与运行时节点选择器存在已知限制，界面代码采用「摘除=隐藏、重挂=显示」模型规避，详见 `webf/assets/web/app.js` 内注释。
+目录与代码保留作历史参考，不参与 CI 发布。
 
 ## Release 签名
 
-三个版本共用同一签名证书：
+各版本共用同一签名证书：
 
 ```
 keystore/
@@ -163,12 +155,12 @@ App 内置检查更新功能（原生版）：
 ├── harmony/                      # 鸿蒙 NEXT 移植版
 ├── flutter/                      # Flutter 版（experimental）
 │   └── lib/                      # screens / services / widgets
-├── webf/                         # WebF 版（experimental）
+├── webf/                         # WebF 版（已弃用，不再发布）
 │   ├── assets/web/               # HTML/CSS/JS 界面与逻辑（app.js/index.html/styles.css）
 │   └── android/                  # Flutter 壳工程（含 GPS 缓存桥接）
 ├── _screenshots/                 # 本地测试截图（gitignore）
 ├── keystore/                     # 签名文件（gitignore）
-└── .github/workflows/release.yml # CI 三端打包发布
+└── .github/workflows/release.yml # CI 双端打包发布（native + Flutter）
 ```
 
 ## 技术栈
@@ -176,6 +168,6 @@ App 内置检查更新功能（原生版）：
 - Kotlin + Jetpack Compose + Material 3（原生版）
 - Kotlin Multiplatform 共享数据层（原生 / 鸿蒙）
 - Kotlin Serialization、OkHttp3、DataStore Preferences
-- Flutter / WebF（实验版）
+- Flutter（实验版）；WebF 版已弃用
 - Canvas 自绘天气图标
 - GitHub Actions CI/CD

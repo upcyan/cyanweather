@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:developer' as dev;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
@@ -16,25 +16,96 @@ class ApiService {
 
   // 传统字转简体（用于匹配 NMC 行政区名）
   static Map<String, String> get _tradToSimp => {
-    '東': '东', '濟': '济', '廣': '广', '陽': '阳', '陰': '阴',
-    '臺': '台', '灣': '湾', '龍': '龙', '雲': '云', '島': '岛',
-    '縣': '县', '區': '区', '寧': '宁', '蘇': '苏', '澤': '泽',
-    '漢': '汉', '濱': '滨', '豐': '丰', '麗': '丽', '門': '门',
-    '華': '华', '廈': '厦', '閩': '闽', '贛': '赣', '晉': '晋',
-    '陝': '陕', '貴': '贵', '瓊': '琼', '遼': '辽', '鄒': '邹',
-    '臨': '临', '萊': '莱', '蕪': '芜', '長': '长', '慶': '庆',
-    '榮': '荣', '單': '单', '費': '费', '濰': '潍', '諸': '诸',
-    '兗': '兖', '嶧': '峄', '鄆': '郓', '棲': '栖', '遠': '远',
-    '樂': '乐', '無': '无', '蓮': '莲', '齊': '齐', '蘭': '兰',
-    '鄉': '乡', '膠': '胶', '黃': '黄', '饒': '饶', '興': '兴',
-    '棗': '枣', '莊': '庄', '幹': '干', '烏': '乌', '雙': '双',
-    '澳': '澳', '蒼': '苍', '潁': '颍', '滁': '滁', '亳': '亳',
-    '懷': '怀', '滬': '沪', '渝': '渝', '豫': '豫', '冀': '冀',
-    '蒙': '蒙', '吉': '吉', '黑': '黑', '浙': '浙', '皖': '皖',
-    '魯': '鲁', '鄂': '鄂', '湘': '湘', '粵': '粤', '桂': '桂',
-    '瓊': '琼', '川': '川', '黔': '黔', '滇': '滇', '藏': '藏',
-    '甘': '甘', '青': '青', '新': '新', '寧': '宁',
-  };
+        '東': '东',
+        '濟': '济',
+        '廣': '广',
+        '陽': '阳',
+        '陰': '阴',
+        '臺': '台',
+        '灣': '湾',
+        '龍': '龙',
+        '雲': '云',
+        '島': '岛',
+        '縣': '县',
+        '區': '区',
+        '寧': '宁',
+        '蘇': '苏',
+        '澤': '泽',
+        '漢': '汉',
+        '濱': '滨',
+        '豐': '丰',
+        '麗': '丽',
+        '門': '门',
+        '華': '华',
+        '廈': '厦',
+        '閩': '闽',
+        '贛': '赣',
+        '晉': '晋',
+        '陝': '陕',
+        '貴': '贵',
+        '瓊': '琼',
+        '遼': '辽',
+        '鄒': '邹',
+        '臨': '临',
+        '萊': '莱',
+        '蕪': '芜',
+        '長': '长',
+        '慶': '庆',
+        '榮': '荣',
+        '單': '单',
+        '費': '费',
+        '濰': '潍',
+        '諸': '诸',
+        '兗': '兖',
+        '嶧': '峄',
+        '鄆': '郓',
+        '棲': '栖',
+        '遠': '远',
+        '樂': '乐',
+        '無': '无',
+        '蓮': '莲',
+        '齊': '齐',
+        '蘭': '兰',
+        '鄉': '乡',
+        '膠': '胶',
+        '黃': '黄',
+        '饒': '饶',
+        '興': '兴',
+        '棗': '枣',
+        '莊': '庄',
+        '幹': '干',
+        '烏': '乌',
+        '雙': '双',
+        '澳': '澳',
+        '蒼': '苍',
+        '潁': '颍',
+        '滁': '滁',
+        '亳': '亳',
+        '懷': '怀',
+        '滬': '沪',
+        '渝': '渝',
+        '豫': '豫',
+        '冀': '冀',
+        '蒙': '蒙',
+        '吉': '吉',
+        '黑': '黑',
+        '浙': '浙',
+        '皖': '皖',
+        '魯': '鲁',
+        '鄂': '鄂',
+        '湘': '湘',
+        '粵': '粤',
+        '桂': '桂',
+        '瓊': '琼',
+        '川': '川',
+        '黔': '黔',
+        '滇': '滇',
+        '藏': '藏',
+        '甘': '甘',
+        '青': '青',
+        '新': '新',
+        '寧': '宁',
+      };
 
   static String _simp(String s) =>
       s.split('').map((c) => _tradToSimp[c] ?? c).join('');
@@ -55,11 +126,13 @@ class ApiService {
   }
 
   // 完整反向地理编码：返回省/市/县
-  static Future<Map<String, String>> reverseGeocodeFull(double lat, double lng) async {
+  static Future<Map<String, String>> reverseGeocodeFull(
+      double lat, double lng) async {
     for (int attempt = 0; attempt < 2; attempt++) {
       try {
-        final g = await http.get(Uri.parse(
-            '$_reverseGeoBase?latitude=$lat&longitude=$lng&localityLanguage=zh'))
+        final g = await http
+            .get(Uri.parse(
+                '$_reverseGeoBase?latitude=$lat&longitude=$lng&localityLanguage=zh'))
             .timeout(const Duration(seconds: 8));
         if (g.statusCode == 200) {
           final gj = jsonDecode(g.body);
@@ -74,10 +147,12 @@ class ApiService {
     }
     // 备用源：OSM Nominatim（不同域名，可绕过个别域名的 DNS 过滤）
     try {
-      final n = await http.get(Uri.parse(
-          'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lng&format=jsonv2&accept-language=zh'),
-          headers: {'User-Agent': 'cyanweather-app'})
-          .timeout(const Duration(seconds: 8));
+      final n = await http.get(
+          Uri.parse(
+              'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lng&format=jsonv2&accept-language=zh'),
+          headers: {
+            'User-Agent': 'cyanweather-app'
+          }).timeout(const Duration(seconds: 8));
       if (n.statusCode == 200) {
         final nj = jsonDecode(n.body);
         final addr = nj['address'] as Map<String, dynamic>? ?? {};
@@ -88,6 +163,7 @@ class ApiService {
           }
           return '';
         }
+
         final prov = pick(['state', 'province']);
         final city = pick(['city']);
         final local = pick(['county', 'suburb', 'town', 'village', 'district']);
@@ -112,20 +188,209 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
+  // 小米天气（对齐 native 数据源；城市库用小米自己的 locationKey）
+  static Future<WeatherData> fetchXiaomi(
+      double lat, double lng, String cityName) async {
+    final name = cityName.trim();
+    if (name.isEmpty) throw Exception('小米天气需要城市名');
+    final key = await _xiaomiCityKey(name);
+    final url = 'https://weatherapi.market.xiaomi.com/wtr-v3/weather/all'
+        '?latitude=$lat&longitude=$lng&isLocated=true'
+        '&locationKey=${Uri.encodeComponent(key)}&days=15'
+        '&appKey=weather20151024&sign=zUFJoAR2ZVrDy1vF3D07'
+        '&isGlobal=false&locale=zh_cn';
+    final resp =
+        await http.get(Uri.parse(url)).timeout(const Duration(seconds: 15));
+    if (resp.statusCode != 200) {
+      throw Exception('小米天气请求失败: ${resp.statusCode}');
+    }
+    final root = jsonDecode(resp.body);
+    if (root is! Map || root['current'] is! Map) {
+      throw Exception('小米天气返回为空');
+    }
+    final cur = root['current'] as Map;
+    final fd = (root['forecastDaily'] as Map?) ?? const {};
+    final fh = (root['forecastHourly'] as Map?) ?? const {};
+    final aqiBox = (root['aqi'] as Map?) ?? const {};
+    final aqiNum = int.tryParse('${aqiBox['aqi'] ?? ''}');
+    final pm25 = double.tryParse('${aqiBox['pm25'] ?? ''}');
+    final pm10 = double.tryParse('${aqiBox['pm10'] ?? ''}');
+
+    final dailyTemps = (fd['temperature']?['value'] as List?) ?? const [];
+    final dailyWeather = (fd['weather']?['value'] as List?) ?? const [];
+    final daily = <DailyItem>[];
+    for (var i = 0; i < dailyTemps.length; i++) {
+      final t = dailyTemps[i] as Map? ?? const {};
+      final w = i < dailyWeather.length
+          ? (dailyWeather[i] as Map? ?? const {})
+          : const {};
+      daily.add(DailyItem(
+        date: '第${i + 1}天',
+        dayText: _xmText(_intOf(w['from'])),
+        nightText: _xmText(_intOf(w['to'])),
+        high: _numOf(t['from']),
+        low: _numOf(t['to']),
+      ));
+    }
+
+    final hourlyTemps = (fh['temperature']?['value'] as List?) ?? const [];
+    final hourlyWeather = (fh['weather']?['value'] as List?) ?? const [];
+    final pub = '${fh['temperature']?['pubTime'] ?? ''}';
+    // 对齐 native：time 必须是完整 "yyyy-MM-ddTHH:mm"，否则逐时卡片没有日期，
+    // 且跨天按 24 取模的小时会重复、聚合排序也会错乱
+    final pubDt = pub.length >= 16
+        ? DateTime.tryParse(pub.substring(0, 16).replaceFirst(' ', 'T'))
+        : null;
+    String two(int v) => v.toString().padLeft(2, '0');
+    final hourly = <HourlyItem>[];
+    for (var i = 0; i < hourlyTemps.length; i++) {
+      final c = i < hourlyWeather.length ? _intOf(hourlyWeather[i]) : null;
+      final t = pubDt?.add(Duration(hours: i));
+      hourly.add(HourlyItem(
+        time: t == null
+            ? ''
+            : '${t.year.toString().padLeft(4, '0')}-${two(t.month)}-${two(t.day)}T${two(t.hour)}:00',
+        temperature: _numOf(hourlyTemps[i]),
+        condition: _xmText(c),
+        isForecast: true,
+      ));
+    }
+
+    final sun = (fd['sunRiseSet']?['value'] as List?) ?? const [];
+    String sunTime(String key) {
+      if (sun.isEmpty) return '';
+      final s = '${(sun.first as Map?)?[key] ?? ''}';
+      return s.length >= 16 ? s.substring(11, 16) : '';
+    }
+
+    final windKmh = _numOf(cur['wind']?['speed']?['value']) ?? 0;
+    final windMs = windKmh / 3.6;
+    final alerts = (root['alerts'] as List?) ?? const [];
+    final alert = alerts.isNotEmpty ? (alerts.first as Map?) : null;
+    final y = (root['yesterday'] as Map?) ?? const {};
+    final pubTime = '${cur['pubTime'] ?? ''}';
+
+    return WeatherData(
+      cityName: name,
+      updatedAt: pubTime.length >= 16 ? pubTime.substring(11, 16) : pubTime,
+      condition: _xmText(_intOf(cur['weather'])),
+      temperature: _numOf(cur['temperature']?['value']) ?? 0,
+      feelsLike: _numOf(cur['feelsLike']?['value']),
+      todayHigh: daily.isNotEmpty ? daily.first.high : null,
+      todayLow: daily.isNotEmpty ? daily.first.low : null,
+      humidity: _intOf(cur['humidity']?['value']),
+      windDirect: _windDir(_numOf(cur['wind']?['direction']?['value']) ?? 0),
+      windPower: _beaufort(windMs),
+      windSpeed: windMs,
+      aqi: aqiNum,
+      aqiText: _aqiText(aqiNum),
+      pm25: pm25,
+      pm10: pm10,
+      sunrise: sunTime('from'),
+      sunset: sunTime('to'),
+      uvIndex: '${cur['uvIndex'] ?? ''}',
+      warning: alert == null
+          ? ''
+          : '${alert['title'] ?? alert['detail'] ?? ''}'.trim(),
+      sourceTag: '数据来源：小米天气（实验性）',
+      hourlyLabel: '未来48小时逐时预报',
+      yesterday: y.isEmpty
+          ? null
+          : YesterdayData(
+              high: _numOf(y['tempMax']), low: _numOf(y['tempMin'])),
+      hourly: hourly,
+      daily: daily,
+    );
+  }
+
+  static Future<String> _xiaomiCityKey(String name) async {
+    final candidates = <String>[
+      name,
+      name.replaceAll(RegExp(r'[县市区旗]$'), ''),
+    ];
+    for (final q in candidates) {
+      if (q.trim().isEmpty) continue;
+      try {
+        final resp = await http
+            .get(Uri.parse(
+                'https://weatherapi.market.xiaomi.com/wtr-v3/location/city/search'
+                '?name=${Uri.encodeComponent(q.trim())}&locale=zh_cn'))
+            .timeout(const Duration(seconds: 10));
+        if (resp.statusCode != 200) continue;
+        final list = jsonDecode(resp.body);
+        if (list is List && list.isNotEmpty) {
+          final key = '${(list.first as Map)['key'] ?? ''}';
+          if (key.isNotEmpty) return key;
+        }
+      } catch (_) {}
+    }
+    throw Exception('小米城市库未找到「$name」');
+  }
+
+  static double? _numOf(dynamic v) {
+    if (v is num) return v.toDouble();
+    if (v is Map) return _numOf(v['value']);
+    return double.tryParse('$v');
+  }
+
+  static int? _intOf(dynamic v) {
+    final d = _numOf(v);
+    return d?.round();
+  }
+
+  static String _xmText(int? code) => switch (code) {
+        0 => '晴',
+        1 => '多云',
+        2 => '阴',
+        3 || 4 || 5 => '阵雨',
+        6 => '雨夹雪',
+        7 => '小雨',
+        8 => '中雨',
+        9 => '大雨',
+        10 || 11 || 12 => '暴雨',
+        13 => '阵雪',
+        14 => '小雪',
+        15 => '中雪',
+        16 => '大雪',
+        17 => '暴雪',
+        18 => '雾',
+        19 => '冻雨',
+        20 || 21 => '沙尘',
+        22 => '小到中雨',
+        23 => '中到大雨',
+        24 => '大到暴雨',
+        25 => '暴雨到大暴雨',
+        26 => '小到中雪',
+        27 => '中到大雪',
+        28 => '大到暴雪',
+        29 => '浮尘',
+        30 => '扬沙',
+        31 => '强沙尘暴',
+        53 => '霾',
+        _ => '未知',
+      };
+
   // 和风天气 v7（对齐 native QWeatherApi：数值字段兼容字符串与数字）
-  static Future<WeatherData> fetchQWeather(
-      String host, String apiKey, double lat, double lng, String cityName) async {
-    final base = host.trim().replaceAll(RegExp(r'^https?://'), '').replaceAll(RegExp(r'/+$'), '');
+  static Future<WeatherData> fetchQWeather(String host, String apiKey,
+      double lat, double lng, String cityName) async {
+    final base = host
+        .trim()
+        .replaceAll(RegExp(r'^https?://'), '')
+        .replaceAll(RegExp(r'/+$'), '');
     if (base.isEmpty) throw Exception('请填写和风天气 API Host');
     if (apiKey.trim().isEmpty) throw Exception('请填写和风天气 API Key');
     final headers = {'X-QW-Api-Key': apiKey.trim()};
     final location = '$lat,$lng';
-    final now = await _qwGet('https://$base/v7/weather/now?location=$location&lang=zh', headers);
-    final hourly = await _qwGet('https://$base/v7/weather/24h?location=$location&lang=zh', headers);
-    final daily = await _qwGet('https://$base/v7/weather/7d?location=$location&lang=zh', headers);
+    final now = await _qwGet(
+        'https://$base/v7/weather/now?location=$location&lang=zh', headers);
+    final hourly = await _qwGet(
+        'https://$base/v7/weather/24h?location=$location&lang=zh', headers);
+    final daily = await _qwGet(
+        'https://$base/v7/weather/7d?location=$location&lang=zh', headers);
     Map<String, dynamic>? warning;
     try {
-      warning = await _qwGet('https://$base/v7/warning/now?location=$location&lang=zh', headers);
+      warning = await _qwGet(
+          'https://$base/v7/warning/now?location=$location&lang=zh', headers);
     } catch (_) {}
 
     _qwCheckCode(now);
@@ -133,7 +398,8 @@ class ApiService {
     _qwCheckCode(daily);
     final n = (now['now'] as Map<String, dynamic>?) ?? const {};
     final days = (daily['daily'] as List?) ?? const [];
-    final firstDay = days.isNotEmpty ? days.first as Map<String, dynamic> : null;
+    final firstDay =
+        days.isNotEmpty ? days.first as Map<String, dynamic> : null;
     final updRaw = _qwText(now['updateTime']);
     String updatedAt = '';
     if (updRaw.contains('T')) {
@@ -149,7 +415,8 @@ class ApiService {
       feelsLike: _qwDouble(n['feelsLike']),
       humidity: _qwInt(n['humidity']),
       windDirect: _qwText(n['windDir']),
-      windPower: _qwText(n['windScale']).isEmpty ? '' : '${_qwText(n['windScale'])}级',
+      windPower:
+          _qwText(n['windScale']).isEmpty ? '' : '${_qwText(n['windScale'])}级',
       todayHigh: firstDay == null ? null : _qwDouble(firstDay['tempMax']),
       todayLow: firstDay == null ? null : _qwDouble(firstDay['tempMin']),
       warning: _qwWarningTitle(warning),
@@ -190,7 +457,8 @@ class ApiService {
     final response = await http
         .get(Uri.parse(url), headers: headers)
         .timeout(const Duration(seconds: 15));
-    if (response.statusCode != 200) throw Exception('和风天气请求失败: ${response.statusCode}');
+    if (response.statusCode != 200)
+      throw Exception('和风天气请求失败: ${response.statusCode}');
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
@@ -214,8 +482,209 @@ class ApiService {
   }
 
   // Open-Meteo
+  // MET Norway（挪威气象局）：免密钥，CC BY 4.0 需署名
+  static Future<WeatherData> fetchMetNo(
+      double lat, double lng, String cityName) async {
+    final url = 'https://api.met.no/weatherapi/locationforecast/2.0/compact'
+        '?lat=${lat.toStringAsFixed(4)}&lon=${lng.toStringAsFixed(4)}';
+    final response = await http
+        .get(Uri.parse(url), headers: {
+          'User-Agent': 'CyanWeather/1.0 (github.com/upcyan/cyanweather)'
+        })
+        .timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200)
+      throw Exception('MET Norway请求失败: ${response.statusCode}');
+    final root = jsonDecode(response.body) as Map<String, dynamic>;
+    final props = (root['properties'] as Map<String, dynamic>?) ?? const {};
+    final series = (props['timeseries'] as List?) ?? const [];
+    if (series.isEmpty) throw Exception('MET Norway 未返回数据');
+    final meta = (props['meta'] as Map<String, dynamic>?) ?? const {};
+    final updRaw = meta['updated_at']?.toString() ?? '';
+    String updatedAt = '';
+    if (updRaw.contains('T')) {
+      final t = updRaw.split('T')[1];
+      updatedAt = t.length >= 5 ? t.substring(0, 5) : t;
+    }
+
+    Map<String, dynamic> detailsOf(dynamic e) {
+      final data = (e as Map<String, dynamic>)['data'] as Map<String, dynamic>?;
+      final instant = data?['instant'] as Map<String, dynamic>?;
+      return (instant?['details'] as Map<String, dynamic>?) ?? const {};
+    }
+
+    String? symbolOf(dynamic e, String block) {
+      final data = (e as Map<String, dynamic>)['data'] as Map<String, dynamic>?;
+      final b = data?[block] as Map<String, dynamic>?;
+      final sum = b?['summary'] as Map<String, dynamic>?;
+      return sum?['symbol_code']?.toString();
+    }
+
+    String symbolText(String code) {
+      final base = code.split('_day').first.split('_night').first;
+      if (base == 'clearsky' || base == 'fair') return '晴';
+      if (base == 'partlycloudy') return '多云';
+      if (base == 'cloudy') return '阴';
+      if (base == 'fog') return '雾';
+      if (base.startsWith('thunder') || base.contains('andthunder'))
+        return '雷阵雨';
+      if (base.contains('sleet')) return '雨夹雪';
+      if (base.startsWith('heavysnow') || base == 'snowshowers') return '大雪';
+      if (base.startsWith('light') && base.contains('snow')) return '小雪';
+      if (base.contains('snow')) return '中雪';
+      if (base.startsWith('heavyrain')) return '大雨';
+      if (base.startsWith('lightrain')) return '小雨';
+      if (base.contains('rain')) return '中雨';
+      return '多云';
+    }
+
+    final first = series.first as Map<String, dynamic>;
+    final now = detailsOf(first);
+    final firstSymbol = symbolOf(first, 'next_1_hours') ??
+        symbolOf(first, 'next_6_hours') ??
+        'partlycloudy';
+
+    final hourly = <HourlyItem>[];
+    final byDate = <String, Map<String, dynamic>>{};
+    for (final e0 in series) {
+      final e = e0 as Map<String, dynamic>;
+      final t = e['time'].toString();
+      final local = DateTime.parse(t).toLocal();
+      final sym = symbolOf(e, 'next_1_hours');
+      if (sym != null) {
+        final det = detailsOf(e);
+        hourly.add(HourlyItem(
+          time: local.toIso8601String().substring(0, 16),
+          temperature: (det['air_temperature'] as num?)?.toDouble(),
+          condition: symbolText(sym),
+          isForecast: true,
+        ));
+      }
+      final date = local.toIso8601String().substring(0, 10);
+      final acc = byDate.putIfAbsent(date, () => {});
+      final temp = (detailsOf(e)['air_temperature'] as num?)?.toDouble();
+      if (temp != null) {
+        final mn = acc['min'] as double?;
+        final mx = acc['max'] as double?;
+        acc['min'] = mn == null ? temp : (temp < mn ? temp : mn);
+        acc['max'] = mx == null ? temp : (temp > mx ? temp : mx);
+      }
+      final sym6 = symbolOf(e, 'next_6_hours') ?? sym;
+      if (sym6 != null) {
+        if (local.hour >= 13 && local.hour <= 15 && acc['day'] == null)
+          acc['day'] = symbolText(sym6);
+        if (local.hour >= 1 && local.hour <= 4 && acc['night'] == null)
+          acc['night'] = symbolText(sym6);
+      }
+    }
+    final daily = byDate.entries
+        .map((e) => DailyItem(
+              date: e.key,
+              dayText: (e.value['day'] as String?) ??
+                  (e.value['night'] as String?) ??
+                  '多云',
+              nightText: (e.value['night'] as String?) ??
+                  (e.value['day'] as String?) ??
+                  '多云',
+              high: e.value['max'] as double?,
+              low: e.value['min'] as double?,
+            ))
+        .toList();
+
+    final windDeg = (now['wind_from_direction'] as num?)?.toDouble();
+    return WeatherData(
+      cityName: cityName,
+      updatedAt: updatedAt,
+      temperature: (now['air_temperature'] as num?)?.toDouble() ?? 0,
+      condition: symbolText(firstSymbol),
+      humidity: (now['relative_humidity'] as num?)?.round(),
+      windDirect: windDeg == null ? '' : _windDir(windDeg),
+      windPower: _beaufort((now['wind_speed'] as num?)?.toDouble() ?? 0),
+      todayHigh: daily.isEmpty ? null : daily.first.high,
+      todayLow: daily.isEmpty ? null : daily.first.low,
+      sourceTag: '数据来源：MET Norway',
+      hourly: hourly,
+      hourlyLabel: 'MET 48小时预报',
+      daily: daily,
+    );
+  }
+
+  // 高德天气（数据源：中国气象局）。需 Key；坐标先逆地理编码取 adcode。
+  static Future<WeatherData> fetchAmap(
+      String key, double lat, double lng, String cityName) async {
+    if (key.trim().isEmpty) throw Exception('请填写高德天气 Key');
+    final location = '${lng.toStringAsFixed(6)},${lat.toStringAsFixed(6)}';
+    final regeo = await _amapGet(
+        'https://restapi.amap.com/v3/geocode/regeo?output=json&location=$location&key=$key');
+    final regeocodes = (regeo['regeocodes'] as List?) ?? const [];
+    final adcode = regeocodes.isNotEmpty
+        ? ((regeocodes.first as Map)['adcode']?.toString() ?? '')
+        : '';
+    if (adcode.isEmpty) throw Exception('高德未识别当前位置的行政区代码');
+    final base = await _amapGet(
+        'https://restapi.amap.com/v3/weather/weatherInfo?output=json&city=$adcode&key=$key&extensions=base');
+    final lives = (base['lives'] as List?) ?? const [];
+    final live = lives.isNotEmpty
+        ? lives.first as Map<String, dynamic>
+        : const <String, dynamic>{};
+    List<Map<String, dynamic>> casts = const [];
+    try {
+      final all = await _amapGet(
+          'https://restapi.amap.com/v3/weather/weatherInfo?output=json&city=$adcode&key=$key&extensions=all');
+      final forecasts = (all['forecasts'] as List?) ?? const [];
+      if (forecasts.isNotEmpty) {
+        casts = ((forecasts.first as Map)['casts'] as List?)
+                ?.cast<Map<String, dynamic>>() ??
+            const [];
+      }
+    } catch (_) {}
+    String txt(dynamic v) => v?.toString() ?? '';
+    double? numOf(dynamic v) => double.tryParse(txt(v).trim());
+    final daily = casts
+        .map((o) => DailyItem(
+              date: txt(o['date']),
+              dayText:
+                  txt(o['dayweather']).isEmpty ? '多云' : txt(o['dayweather']),
+              nightText: txt(o['nightweather']).isEmpty
+                  ? '多云'
+                  : txt(o['nightweather']),
+              high: numOf(o['daytemp']),
+              low: numOf(o['nighttemp']),
+            ))
+        .toList();
+    final reportTime = txt(live['reporttime']);
+    final windPowerRaw = txt(live['windpower']).replaceAll('级', '');
+    return WeatherData(
+      cityName: cityName,
+      updatedAt: reportTime.length >= 16 ? reportTime.substring(11, 16) : '',
+      temperature: numOf(live['temperature']) ?? 0,
+      condition: txt(live['weather']).isEmpty ? '多云' : txt(live['weather']),
+      humidity: int.tryParse(txt(live['humidity'])),
+      windDirect: txt(live['winddirection']),
+      windPower: windPowerRaw.isEmpty ? '' : '${windPowerRaw}级',
+      todayHigh: daily.isEmpty ? null : daily.first.high,
+      todayLow: daily.isEmpty ? null : daily.first.low,
+      sourceTag: '数据来源：高德天气（中国气象局）',
+      hourly: const [],
+      hourlyLabel: '高德暂无逐时预报',
+      daily: daily,
+    );
+  }
+
+  static Future<Map<String, dynamic>> _amapGet(String url) async {
+    final response = await http
+        .get(Uri.parse(url))
+        .timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200)
+      throw Exception('高德天气请求失败: ${response.statusCode}');
+    final root = jsonDecode(response.body) as Map<String, dynamic>;
+    if (root['status']?.toString() != '1')
+      throw Exception('高德天气：${root['info'] ?? '未知错误'}');
+    return root;
+  }
+
   static Future<WeatherData> fetchWeather(double lat, double lng,
-      {String? nmcStationId, Future<String?> Function()? resolveStation}) async {
+      {String? nmcStationId,
+      Future<String?> Function()? resolveStation}) async {
     _log('fetchWeather ENTER lat=$lat lng=$lng nmcStationId=$nmcStationId');
     final url = '$_openMeteoBase/forecast?latitude=$lat&longitude=$lng'
         '&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m'
@@ -247,7 +716,8 @@ class ApiService {
           aqi = airJson['current']?['us_aqi']?.round();
           pm25 = (airJson['current']?['pm2_5'] as num?)?.toDouble();
           pm10 = (airJson['current']?['pm10'] as num?)?.toDouble();
-          _log('try$attempt us_aqi raw=${airJson['current']?['us_aqi']} -> aqi=$aqi');
+          _log(
+              'try$attempt us_aqi raw=${airJson['current']?['us_aqi']} -> aqi=$aqi');
           aqiText = _aqiText(aqi);
         }
       } catch (e) {
@@ -264,7 +734,9 @@ class ApiService {
     if (aqi == null) {
       var sid = nmcStationId ?? '';
       if (sid.isEmpty && resolveStation != null) {
-        try { sid = await resolveStation() ?? ''; } catch (_) {}
+        try {
+          sid = await resolveStation() ?? '';
+        } catch (_) {}
       }
       debugPrint('[CW] aqi fallback sid=[$sid]');
       _log('fallback sid=[$sid]');
@@ -291,7 +763,8 @@ class ApiService {
         }
       } catch (_) {}
     }
-    return _parseOpenMeteo(json, aqi: aqi, aqiText: aqiText, pm25: pm25, pm10: pm10);
+    return _parseOpenMeteo(json,
+        aqi: aqi, aqiText: aqiText, pm25: pm25, pm10: pm10);
   }
 
   // NMC
@@ -364,7 +837,8 @@ class ApiService {
     final dTimes = d['time'] as List;
     var todayIdx = -1;
     for (var i = 0; i < dTimes.length; i++) {
-      if (todayIdx < 0 && dTimes[i].toString().compareTo(todayStr) >= 0) todayIdx = i;
+      if (todayIdx < 0 && dTimes[i].toString().compareTo(todayStr) >= 0)
+        todayIdx = i;
     }
     for (var i = todayIdx < 0 ? 0 : todayIdx; i < dTimes.length; i++) {
       daily.add(DailyItem(
@@ -379,9 +853,7 @@ class ApiService {
       final yh = allHours
           .where((x) => x.time.substring(0, 10).compareTo(todayStr) < 0)
           .toList();
-      final yHours = yh.length > 24
-          ? yh.sublist(yh.length - 24)
-          : yh;
+      final yHours = yh.length > 24 ? yh.sublist(yh.length - 24) : yh;
       yesterday = YesterdayData(
           high: (d['temperature_2m_max'][todayIdx - 1] as num?)?.toDouble(),
           low: (d['temperature_2m_min'][todayIdx - 1] as num?)?.toDouble(),
@@ -393,11 +865,11 @@ class ApiService {
       if (l == null || todayIdx < 0 || todayIdx >= l.length) return '';
       return l[todayIdx].toString();
     }
+
     final sunrise = atIdx(sunrises), sunset = atIdx(sunsets);
     final uvStr = atIdx(d['uv_index_max'] as List?);
-    final uvText = uvStr.isNotEmpty
-        ? _uvLevel(double.tryParse(uvStr) ?? 0)
-        : '';
+    final uvNum = double.tryParse(uvStr);
+    final uvText = uvNum != null ? '${_uvLevel(uvNum)}（${uvNum.round()}）' : '';
     return WeatherData(
         cityName: '未识别位置',
         condition: _wmoToText(c['weather_code'] as int? ?? 0),
@@ -415,10 +887,8 @@ class ApiService {
         aqiText: aqiText,
         pm25: pm25,
         pm10: pm10,
-        sunrise:
-            sunrise.length >= 16 ? sunrise.substring(11, 16) : '',
-        sunset:
-            sunset.length >= 16 ? sunset.substring(11, 16) : '',
+        sunrise: sunrise.length >= 16 ? sunrise.substring(11, 16) : '',
+        sunset: sunset.length >= 16 ? sunset.substring(11, 16) : '',
         uvIndex: uvText,
         sourceTag: '数据来源：Open-Meteo',
         updatedAt: _nowStamp(),
@@ -497,7 +967,9 @@ class ApiService {
                                             ? 9
                                             : s < 28.5
                                                 ? 10
-                                                : s < 32.7 ? 11 : 12;
+                                                : s < 32.7
+                                                    ? 11
+                                                    : 12;
     return '$b级';
   }
 
@@ -512,10 +984,10 @@ class ApiService {
   }
 
   static String _uvLevel(double uv) {
-    if (uv <= 2) return '低';
-    if (uv <= 5) return '中等';
-    if (uv <= 7) return '高';
-    if (uv <= 10) return '很高';
-    return '极高';
+    if (uv <= 2) return '弱';
+    if (uv <= 6) return '中等';
+    if (uv <= 9) return '强';
+    if (uv <= 12) return '很强';
+    return '极强';
   }
 }

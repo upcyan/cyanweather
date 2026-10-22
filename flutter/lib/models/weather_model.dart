@@ -57,6 +57,7 @@ class WeatherData {
 
   WeatherData copyWith({
     String? cityName,
+    String? updatedAt,
     String? condition,
     double? temperature,
     double? feelsLike,
@@ -82,6 +83,7 @@ class WeatherData {
   }) {
     return WeatherData(
       cityName: cityName ?? this.cityName,
+      updatedAt: updatedAt ?? this.updatedAt,
       condition: condition ?? this.condition,
       temperature: temperature ?? this.temperature,
       feelsLike: feelsLike ?? this.feelsLike,

@@ -26,6 +26,9 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          # 锁定 3.47.1：flutter/android/settings.gradle 引入的 .tools 修补版
+          # flutter_tools gradle 按该版本打补丁，换版本可能不兼容
+          flutter-version: '3.47.1'
           channel: 'stable'
 
       - name: Decode keystore
@@ -49,16 +52,13 @@ jobs:
         working-directory: flutter
         run: flutter build apk --release
 
-      - name: Build WebF APK
-        working-directory: webf
-        run: flutter build apk --release
+      # WebF 版自 2026-10-21 起弃用：目录保留，但不再构建、不再发布 APK
 
       - name: Collect APKs
         run: |
           mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk "dist/cyanweather-${{ github.ref_name }}-release.apk"
           cp flutter/build/app/outputs/flutter-apk/app-release.apk "dist/cyanweather-flutter-experimental-${{ github.ref_name }}-release.apk"
-          cp webf/build/app/outputs/flutter-apk/app-release.apk "dist/cyanweather-webf-experimental-${{ github.ref_name }}-release.apk"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

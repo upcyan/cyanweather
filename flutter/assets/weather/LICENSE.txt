@@ -1,0 +1,5 @@
+本目录天气图标来自开源项目 QWeather Icons（和风天气图标，qweather-icons v1.8.0，
+https://icons.qweather.com），MIT 许可证，版权所有 QWeather Developers。
+取用代码：100 晴 / 101 多云 / 104 阴 / 305 小雨 / 400 小雪 / 302 雷阵雨 / 404 雨夹雪 / 501 雾，
+按项目需要统一填充色 #8A939E；slug 对应关系见 tools/build_weather_icons.py。
+MIT 许可证全文见仓库 tools/qweather_src/LICENSE。

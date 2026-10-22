@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.navigationBars
@@ -64,6 +65,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cyanweather.shared.data.SkyKind
 import com.cyanweather.shared.data.aqiText
+import com.cyanweather.shared.data.beaufort
 import com.cyanweather.shared.data.caiyunSkyconKind
 import com.cyanweather.shared.data.nmcSkyconKind
 import com.cyanweather.shared.model.DailyItem
@@ -340,7 +342,9 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 WeatherGlyph(
                     kind = mainKind(weather),
-                    modifier = Modifier.size(88.dp)
+                    modifier = Modifier.size(88.dp),
+                    condition = weather.condition,
+                    night = isNightNow()
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -378,40 +382,38 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
         }
     }
 
-    // 湿度 / 风力 / 空气质量 / 紫外线强度（整行卡片，标题与数值分行，避免换行重叠）
+    // 湿度 / 风力 / 空气质量 / 紫外线强度（参数值在左、程度在右）
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        InfoCard("湿度", "${weather.humidity ?: "-"}%")
+        val (humDeg, humColor) = humidityLevel(weather.humidity)
+        MetricCard("湿度", "${weather.humidity ?: "-"}%", humDeg, humColor)
+
         val windText = buildString {
             append(weather.windDirect)
-            if (weather.windPower.isNotBlank()) append("\n${weather.windPower}")
-            weather.windSpeed?.let { append("（${String.format(Locale.US, "%.1f", it)}m/s）") }
+            if (weather.windPower.isNotBlank()) append(" ${weather.windPower}")
+            weather.windSpeed?.let { append("\n${String.format(Locale.US, "%.1f", it)}m/s") }
         }.trim()
-        InfoCard("风力", windText.ifBlank { "-" })
-        val aqiColor = weather.aqi?.let { aqiLevelColor(it) }
-        InfoCard("空气质量") {
-            if (weather.aqi != null || !weather.aqiText.isNullOrBlank()) {
-                val label = (weather.aqiText?.ifBlank { aqiText(weather.aqi) } ?: aqiText(weather.aqi)).ifBlank { "-" }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (aqiColor != null) {
-                        Pill("$label ${weather.aqi}", aqiColor)
-                    } else {
-                        Text(label, style = fst(28, FontWeight.Medium), maxLines = 3)
-                    }
-                }
-                weather.pm25?.let {
-                    Text("PM2.5: ${String.format(Locale.US, "%.0f", it)}μg/m³", style = fst(16), color = Color(0xFF666666))
-                }
-                weather.pm10?.let {
-                    Text("PM10: ${String.format(Locale.US, "%.0f", it)}μg/m³", style = fst(16), color = Color(0xFF666666))
-                }
-            } else {
-                Text("-", style = fst(28, FontWeight.Medium))
+        val (windDeg, windColor) = windLevel(weather.windPower, weather.windSpeed)
+        MetricCard("风力", windText.ifBlank { "-" }, windDeg, windColor, valueSize = 16)
+
+        val aqiLabel = (weather.aqiText?.ifBlank { aqiText(weather.aqi) } ?: aqiText(weather.aqi)).ifBlank { "-" }
+        val aqiDegree = if (weather.aqi != null) "$aqiLabel ${weather.aqi}" else aqiLabel
+        val pmContent: @Composable () -> Unit = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                PmLine("PM2.5", weather.pm25)
+                PmLine("PM10", weather.pm10)
             }
         }
+        MetricCard(
+            "空气质量",
+            "",
+            aqiDegree,
+            weather.aqi?.let { aqiLevelColor(it) } ?: Color(0xFF666666),
+            valueContent = pmContent
+        )
+
         if (weather.uvIndex.isNotBlank()) {
-            InfoCard("紫外线强度") {
-                Pill(weather.uvIndex, uvLevelColor(weather.uvIndex))
-            }
+            val (uvValue, uvDegree) = uvParts(weather.uvIndex)
+            MetricCard("紫外线强度", uvValue, uvDegree, uvLevelColor(weather.uvIndex))
         }
     }
 
@@ -517,6 +519,16 @@ private fun WeatherBody(weather: WeatherData, error: String?, locationNotice: St
     }
 }
 
+private fun isNightNow(): Boolean {
+    val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    return h >= 19 || h < 6
+}
+
+private fun isNightHour(time: String): Boolean {
+    val h = if (time.length >= 13) time.substring(11, 13).toIntOrNull() ?: 12 else 12
+    return h >= 19 || h < 6
+}
+
 private fun mainKind(w: WeatherData): SkyKind {
     if (w.sourceTag.contains("彩云")) {
         return caiyunSkyconKind(w.condition.toSkycon())
@@ -559,32 +571,113 @@ private fun SunCol(label: String, time: String?, modifier: Modifier = Modifier) 
 
 
 @Composable
-private fun InfoCard(title: String, value: String) {
-    InfoCard(title) {
-        Text(value, style = fst(28, FontWeight.Medium), maxLines = 3)
-    }
-}
-
-@Composable
-private fun InfoCard(title: String, valueContent: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+private fun MetricCard(
+    title: String,
+    value: String,
+    degree: String,
+    degreeColor: Color,
+    valueSize: Int = 24,
+    valueContent: (@Composable () -> Unit)? = null
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
-            Text(title, style = fst(20), color = Color(0xFF666666))
-            Spacer(Modifier.height(4.dp))
-            valueContent()
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 120.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = fst(18), color = Color(0xFF666666))
+                Spacer(Modifier.height(4.dp))
+                Box(Modifier.heightIn(min = 62.dp), contentAlignment = Alignment.CenterStart) {
+                    if (valueContent != null) {
+                        valueContent()
+                    } else {
+                        Text(
+                            value,
+                            style = fst(valueSize, FontWeight.Medium),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            Pill(degree, degreeColor)
         }
     }
 }
 
-/** 彩色胶囊徽章（AQI/紫外线等级用） */
+/** PM 明细：标签定宽，数值左边界对齐 */
+@Composable
+private fun PmLine(label: String, value: Double?) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = fst(15), color = Color(0xFF666666), modifier = Modifier.width(76.dp))
+        Text(
+            value?.let { String.format(Locale.US, "%.0f", it) } ?: "-",
+            style = fst(15, FontWeight.Medium)
+        )
+    }
+}
+
+/** 湿度程度：干燥 / 舒适 / 潮湿 / 闷湿 */
+private fun humidityLevel(humidity: Int?): Pair<String, Color> = when {
+    humidity == null -> "-" to Color(0xFF666666)
+    humidity < 40 -> "干燥" to Color(0xFFE65100)
+    humidity < 65 -> "舒适" to Color(0xFF2E7D32)
+    humidity < 80 -> "潮湿" to Color(0xFF1565C0)
+    else -> "闷湿" to Color(0xFF0D47A1)
+}
+
+/** 风力程度：微风 / 适中 / 较强 / 强（优先按风力等级，缺失时按 m/s） */
+private fun windLevel(power: String, speed: Double?): Pair<String, Color> {
+    // 小米天气的风速是 km/h，不能把数字直接当风力等级；先换成 m/s 再折算
+    val kmh = Regex("([\\d.]+)\\s*km/h").find(power)?.groupValues?.get(1)?.toDoubleOrNull()
+    val level = when {
+        kmh != null -> beaufort(kmh / 3.6).removeSuffix("级").toIntOrNull()
+        else -> Regex("\\d+").find(power)?.value?.toIntOrNull()
+            ?: when {
+                speed == null -> null
+                speed < 6 -> 2
+                speed < 11 -> 4
+                speed < 17 -> 6
+                else -> 8
+            }
+    }
+    return when {
+        level == null -> "-" to Color(0xFF666666)
+        level <= 2 -> "微风" to Color(0xFF2E7D32)
+        level <= 4 -> "适中" to Color(0xFF00897B)
+        level <= 6 -> "较强" to Color(0xFFEF6C00)
+        else -> "强" to Color(0xFFC62828)
+    }
+}
+
+/** 把 "中等（5）" 拆成 数值 "5" + 程度 "中等" */
+private fun uvParts(text: String): Pair<String, String> {
+    val num = Regex("\\d+").find(text)?.value
+    val degree = text.substringBefore("（").substringBefore("(").trim().ifBlank {
+        num?.toIntOrNull()?.let { uvLevelText(it) } ?: "-"
+    }
+    return (num ?: "-") to degree
+}
+
+private fun uvLevelText(v: Int): String = when {
+    v <= 2 -> "弱"
+    v <= 6 -> "中等"
+    v <= 9 -> "强"
+    v <= 12 -> "很强"
+    else -> "极强"
+}
+
+/** 彩色胶囊徽章（AQI/紫外线/程度用） */
 @Composable
 private fun Pill(text: String, color: Color, modifier: Modifier = Modifier) {
     Text(
         text,
-        style = fst(24, FontWeight.Medium),
+        style = fst(26, FontWeight.Medium),
         color = color,
         modifier = modifier
             .clip(RoundedCornerShape(50))
@@ -607,9 +700,9 @@ private fun uvLevelColor(uvText: String): Color {
         ?: return if (uvText.contains("弱")) Color(0xFF4CAF50) else Color(0xFFFF9800)
     return when {
         v <= 2 -> Color(0xFF4CAF50)
-        v <= 5 -> Color(0xFFC0CA33)
-        v <= 7 -> Color(0xFFFF9800)
-        v <= 10 -> Color(0xFFF4511E)
+        v <= 6 -> Color(0xFFC0CA33)
+        v <= 9 -> Color(0xFFFF9800)
+        v <= 12 -> Color(0xFFF4511E)
         else -> Color(0xFFB71C1C)
     }
 }
@@ -757,7 +850,7 @@ private fun HourCard(item: HourlyItem) {
             Text(datePart, style = fst(16), color = Color(0xFF666666))
             Text(hourPart, style = fst(18), color = Color(0xFF666666))
             Spacer(Modifier.height(6.dp))
-            WeatherGlyph(kind, Modifier.size(36.dp))
+            WeatherGlyph(kind, Modifier.size(36.dp), condition = item.condition, night = isNightHour(item.time))
             // 天气文字与降水概率恒定占位，保证所有卡片等高
             Spacer(Modifier.height(4.dp))
             Text(item.condition.ifEmpty { " " }, style = fst(18), textAlign = TextAlign.Center, maxLines = 2, minLines = 2)
@@ -811,7 +904,7 @@ private fun DailyRow(d: DailyItem) {
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                WeatherGlyph(kind, Modifier.size(40.dp))
+                WeatherGlyph(kind, Modifier.size(40.dp), condition = d.dayText)
                 Spacer(Modifier.width(10.dp))
                 Text(
                     combineDayNight(d.dayText, d.nightText),

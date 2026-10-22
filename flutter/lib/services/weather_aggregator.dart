@@ -11,6 +11,8 @@ class WeatherAggregator {
     'openmeteo': 0.8,
     'caiyun': 0.85,
     'qweather': 0.85,
+    'amap': 0.88,
+    'metno': 0.75,
     'xiaomi': 0.7,
   };
 
@@ -19,6 +21,8 @@ class WeatherAggregator {
     'openmeteo': 'Open-Meteo',
     'caiyun': '彩云天气',
     'qweather': '和风天气',
+    'amap': '高德天气',
+    'metno': 'MET Norway',
     'xiaomi': '小米天气',
   };
 
